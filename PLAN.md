@@ -34,3 +34,13 @@
 | 24/7 recording      | TODO (battery + stream store) |
 | Phone app parity    | PARTIAL (web dashboard) |
 | Conversation search | TODO (index store) |
+
+## Branch strategy
+- `master` carries >100MB legacy Praxis binaries GitHub's pre-receive rejects;
+  do NOT push there. `cyclops` is the clean working branch (all HUD/UX/agent work).
+- To unify later: `git filter-repo` the large files out of `master` history, or
+  merge `cyclops` into a rewritten `master`.
+
+## CI
+- GitHub Actions (build-apk.yml): APK build (debug+release) on android/** changes;
+  firmware job compiles `native_test` + `xiao_st7735` on every push to cyclops.

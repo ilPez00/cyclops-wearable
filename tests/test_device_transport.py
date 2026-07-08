@@ -68,3 +68,29 @@ def test_device_tool_capture_sends_camera_cmd():
     tool = make_device_tool(cfg, transport=f)
     tool.run({"action": "capture", "media": "photo"})
     assert f.cmds[-1] == (7, "photo")
+
+def test_serial_reader_closes_loop_into_bridge():
+    import tempfile
+    from device.transport import SerialFrameReader
+    from brain.hud_bridge import HudBridge
+    from brain.store import NoteStore
+    from brain.transcriber import StubTranscriber
+
+    class Cap:
+        def __init__(self): self.frames = []
+        def write(self, b): self.frames.append(b)
+
+    cap = Cap()
+    sp = tempfile.mktemp(suffix=".jsonl")
+    store = NoteStore(sp)
+    br = HudBridge(cap, store=store, transcriber=StubTranscriber())
+    reader = SerialFrameReader(br)
+
+    # fragment the stream across chunks to prove buffering works
+    reader.feed('{"a":1}\n{"a":2,"arg":"c')
+    assert len(store.all()) == 0  # only the first complete line consumed
+    reader.feed('iao note"}\n')      # completes the 2nd frame
+    assert len(store.all()) >= 1  # transcribe action stored a note from the streamed frame
+    assert cap.frames  # display frame emitted back
+    os.remove(sp)
+

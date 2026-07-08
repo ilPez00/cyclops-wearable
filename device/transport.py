@@ -183,6 +183,39 @@ class CableTransport(Transport):
             self._fh.close(); self._fh = None
 
 
+class SerialFrameReader:
+    """Reads newline-delimited JSON frames from any text stream (serial/BT/cable
+    simulator) and dispatches them through a HudBridge. This closes the loop on
+    the PC side: the wearable (or `simulator.py`) emits `{"a":<act>,"arg":"..."}`
+    lines; this pumps them into the brain's bridge, which fulfills them locally
+    (transcribe/translate/health/...) and returns display frames.
+
+    Offline-testable: feed it a StringIO of captured frames.
+    """
+    def __init__(self, bridge):
+        self.bridge = bridge
+        self._buf = ""
+
+    def feed(self, chunk: str):
+        self._buf += chunk
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                import json as _j
+                d = _j.loads(line)
+            except Exception:
+                continue
+            act = int(d.get("a", d.get("act", 0)) or 0)
+            arg = str(d.get("arg", d.get("text", "")) or "")
+            self.bridge.handle_cmd(json.dumps({"a": act, "arg": arg}).encode())
+
+    def feed_bytes(self, data: bytes):
+        self.feed(data.decode("utf-8", "replace"))
+
+
 def build_transport(kind: str, config=None, session=None, **kw) -> Transport:
     """Factory: pick a transport by name. `config` is an AgentConfig for wifi."""
     if kind == "wifi":

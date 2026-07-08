@@ -132,7 +132,10 @@ class H(BaseHTTPRequestHandler):
                 # build a fresh agent when per-call config differs (persona/provider),
                 # otherwise reuse the shared instance (which already pushes HUD).
                 use_shared = not (persona or q.get("provider", [""])[0] or q.get("endpoint", [""])[0] or q.get("api_key", [""])[0])
-                res = (agent if use_shared else Agent(cfg, registry=reg)).run(text)
+                if use_shared and agent is not None:
+                    res = agent.run(text)
+                else:
+                    res = Agent(cfg, registry=reg).run(text)
                 # push the glanceable answer to the wearable HUD (Omi/G2 style)
                 if bridge is not None:
                     try: bridge.push_hud(res.text or "")

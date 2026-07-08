@@ -73,3 +73,29 @@ jobs:
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+
+  firmware:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Native HUD/logic test (no hardware)
+        run: |
+          cd firmware
+          pio run -e native_test
+
+      - name: Compile XIAO target (ST7735)
+        run: |
+          cd firmware
+          pio run -e xiao_st7735
