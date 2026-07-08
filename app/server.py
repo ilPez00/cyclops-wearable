@@ -22,6 +22,7 @@ STORE_PATH = os.path.expanduser("~/.cyclops/notes.jsonl")
 PORT = 8080
 pipeline = None
 agent = None
+bridge = None
 
 HTML = """<!doctype html><html><head><meta charset=utf-8>
 <title>Cyclops</title><style>
@@ -109,7 +110,11 @@ class H(BaseHTTPRequestHandler):
                 if q.get("transport", [""])[0] in ("wifi", "bt", "cable"):
                     cfg.device_transport = q["transport"][0]
                 reg = build_registry(cfg)
-                res = Agent(cfg, registry=reg).run(text)
+                res = (agent or Agent(cfg, registry=reg)).run(text)
+                # push the glanceable answer to the wearable HUD (Omi/G2 style)
+                if bridge is not None:
+                    try: bridge.push_hud(res.text or "")
+                    except Exception: pass
                 return self._send(200, json.dumps({
                     "text": res.text,
                     "tool_calls": res.tool_calls,
@@ -151,6 +156,17 @@ def main():
     # Agent core: Hermes-style loop with tools (terminal/whatsapp/media/device/brain).
     # Local-first; uses CYCLOPS_LOCAL / provider env to pick cloud vs local model.
     agent = Agent(AgentConfig.load(env=dict(os.environ)), registry=build_registry(AgentConfig.load()))
+    # HUD bridge: fulfills wearable MSG_CMD locally and pushes glanceable banners
+    # back to the glasses. Wired with the agent so the device's AGENT command uses
+    # the real core. Sink is a no-op here; the phone/BLE side swaps in a real writer.
+    from brain.hud_bridge import HudBridge
+    class _NullSink:
+        def write(self, b): pass
+        def render_text(self, t): pass
+    global bridge
+    bridge = HudBridge(_NullSink(), store=store,
+                       transcriber=getattr(pipeline, "trans", None) if pipeline else None,
+                       health=None, agent=agent)
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
     print(f"Cyclops dashboard on http://localhost:{PORT}")
     try: srv.serve_forever()

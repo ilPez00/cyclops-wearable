@@ -66,6 +66,17 @@ class HudBridge:
         if hasattr(self.sink, "write"):
             self.sink.write(build_hud(kind, lines, more))
 
+    def push_hud(self, text):
+        """Push a glanceable banner line to the wearable HUD (Omi/G2 style).
+
+        Called by the server's /api/agent endpoint so the agent answer shows up
+        on the glasses without the device initiating it.
+        """
+        banner = (text or "").split("\n", 1)[0][:40]
+        self._emit_text("AGENT: " + banner)
+        self._emit_hud(HUD_KINDS.index("agent"),
+                       [l[:18] for l in (text or "").split("\n") if l][:4], more=len(text or "") > 72)
+
     def handle_cmd(self, payload):
         try:
             d = json.loads(payload.decode())
@@ -151,6 +162,27 @@ class HudBridge:
             if self.store:
                 self._emit_text("NOTES: %d stored" % len(self.store.all()))
             return ("notes", None)
+        if act == ACT_AGENT:
+            prompt = arg or ""
+            if not prompt:
+                self._emit_text("AGENT: no prompt")
+                return ("agent", None)
+            if self.agent is None:
+                ans = "(stub) agent would answer: " + prompt
+            else:
+                res = self.agent.run(prompt)
+                ans = res.text or "(no response)"
+                # surface tool steps as a secondary frame if any
+                if res.steps:
+                    self._emit_text("  · " + "; ".join(s["tool"] for s in res.steps))
+            # glanceable banner = first line of the answer (Omi/G2 HUD style)
+            banner = ans.split("\n", 1)[0][:40]
+            self._emit_text("AGENT: " + banner)
+            self._emit_hud(HUD_KINDS.index("agent"), [l[:18] for l in ans.split("\n") if l][:4], more=len(ans) > 72)
+            return ("agent", ans)
+        if act == ACT_AGENT_ABORT:
+            self._emit_text("AGENT: aborted")
+            return ("agent_abort", None)
         return (None, None)
 
 

@@ -102,8 +102,22 @@ object CyclopsApi {
                 val s = arr.getJSONObject(i)
                 steps.add("${s.optString("tool")}: ${s.optString("result")}")
             }
+            // mirror the answer onto the wearable HUD (Omi/G2 glanceable banner)
+            try { hud(reply, {}, {}) } catch (_: Exception) {}
             if (reply.isNotEmpty()) onResult(reply, calls, steps)
             else onError(obj.optString("error", "no reply"))
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
+    // Push a glanceable banner to the wearable HUD via /api/hud_cmd (ACT_AGENT=14).
+    // The server fulfills it locally and streams the frame to the glasses.
+    fun hud(text: String, onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/hud_cmd", "a" to "14", "arg" to text)))
+            val action = obj.optString("action", "")
+            onResult(action)
         } catch (e: Exception) {
             onError(e.message ?: e.toString())
         }
