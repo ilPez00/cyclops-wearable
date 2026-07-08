@@ -35,7 +35,8 @@ class StubTranscriber(Transcriber):
 
 class WhisperTranscriber(Transcriber):
     name = "whisper"
-    def __init__(self, model_size: str = "base"):
+    def __init__(self, model_size: str = "base", language: str = "en"):
+        self.language = language
         try:
             from faster_whisper import WhisperModel
             self.model = WhisperModel(model_size, device="cpu", compute_type="int8")
@@ -44,21 +45,8 @@ class WhisperTranscriber(Transcriber):
     def transcribe(self, pcm16: bytes, rate: int = 16000) -> str:
         import numpy as np, io
         arr = np.frombuffer(pcm16, dtype="<i2").astype("float32") / 32768.0
-        segs, _ = self.model.transcribe(arr, language="en")
+        segs, _ = self.model.transcribe(arr, language=self.language)
         return " ".join(s.text for s in segs).strip()
-
-class APITranscriber(Transcriber):
-    """Cloud fallback (OpenAI/Deepgram/DeepSeek). Add key via /home/gio/.env."""
-    name = "api"
-    def __init__(self, provider: str = "openai", api_key: str | None = None):
-        self.provider = provider
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
-        if not self.api_key:
-            raise RuntimeError("no API key for cloud transcriber")
-    def transcribe(self, pcm16: bytes, rate: int = 16000) -> str:
-        # placeholder: wire real HTTP call here
-        raise NotImplementedError("cloud adapter not wired yet")
-
 
 class CloudTranscriber(Transcriber):
     """Real cloud transcription, wired to the local AI-stack key store.
@@ -72,10 +60,11 @@ class CloudTranscriber(Transcriber):
     name = "cloud"
 
     def __init__(self, keys=None, audio_provider: str = "deepgram",
-                 session=None):
+                 session=None, language: str = "en"):
         from .aikeys import AiKeys
         self.keys = keys or AiKeys()
         self.audio_provider = audio_provider
+        self.language = language
         self.session = session or _urllib_session()
 
     # -- public -------------------------------------------------------------
@@ -90,7 +79,7 @@ class CloudTranscriber(Transcriber):
         key = self.keys.get_key("deepgram")
         url = (self.keys.get_endpoint("deepgram")
                or "https://api.deepgram.com/v1")
-        url = url.rstrip("/") + "/listen?smart_format=true&punctuate=true&language=en"
+        url = url.rstrip("/") + f"/listen?smart_format=true&punctuate=true&language={self.language}"
         headers = {"Authorization": f"Token {key}",
                    "Content-Type": "audio/raw",
                    "Accept": "application/json"}
@@ -173,24 +162,23 @@ def from_aikeys(keys=None, audio_provider: str = "deepgram") -> CloudTranscriber
     return CloudTranscriber(keys=keys, audio_provider=audio_provider)
 
 
-def get_transcriber(prefer: str = "auto") -> Transcriber:
+def get_transcriber(prefer: str = "auto", language: str = "en", keys=None) -> Transcriber:
     if prefer == "stub":
         return StubTranscriber()
     if prefer == "whisper":
-        return WhisperTranscriber()
-    if prefer == "api":
-        return APITranscriber()
+        return WhisperTranscriber(language=language)
     if prefer == "cloud":
-        return CloudTranscriber()
-    # auto: whisper if present, else cloud if keys available, else stub
+        return CloudTranscriber(keys=keys, language=language)
+    # auto: edge whisper if present -> cloud if keys -> stub
     try:
-        return WhisperTranscriber()
+        return WhisperTranscriber(language=language)
     except Exception:
         pass
     try:
         from .aikeys import AiKeys
-        if AiKeys().has("deepgram") or AiKeys().has("groq"):
-            return CloudTranscriber()
+        k = keys or AiKeys()
+        if k.has("deepgram") or k.has("groq"):
+            return CloudTranscriber(keys=k, language=language)
     except Exception:
         pass
     return StubTranscriber()
