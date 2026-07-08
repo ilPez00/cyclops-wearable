@@ -57,6 +57,10 @@ jobs:
         working-directory: android
         run: chmod +x gradlew || true
 
+      - name: Run :core unit tests (Kotlin protocol/bridge)
+        working-directory: android
+        run: ./gradlew :core:test --no-daemon
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew :app:assembleDebug --no-daemon
