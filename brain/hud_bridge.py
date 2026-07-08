@@ -66,6 +66,18 @@ class HudBridge:
         if hasattr(self.sink, "write"):
             self.sink.write(build_hud(kind, lines, more))
 
+    def _emit_display_cmd(self, kind, **fields):
+        """Emit a DISPLAY_CMD JSON the wearable parses into Hud state
+        (progress / step ticks). Kind is a string like 'progress' or 'step'."""
+        obj = {"kind": kind}
+        obj.update(fields)
+        payload = json.dumps(obj).encode()
+        if hasattr(self.sink, "write"):
+            from .protocol import MSG
+            self.sink.write(encode(MSG["DISPLAY_CMD"], payload))
+        elif hasattr(self.sink, "render_text"):
+            self.sink.render_text(json.dumps(obj))
+
     def push_hud(self, text):
         """Push a glanceable banner line to the wearable HUD (Omi/G2 style).
 
@@ -175,8 +187,8 @@ class HudBridge:
                 def _on_step(tool, pct):
                     if tool:
                         self._emit_text("  · " + tool)
-                    self._emit_hud(HUD_KINDS.index("agent"),
-                                   ["…" + str(pct) + "%"], more=True)
+                        self._emit_display_cmd("step", tool=tool)
+                    self._emit_display_cmd("progress", p=pct)
                 self.agent.progress_cb = _on_step
                 res = self.agent.run(prompt)
                 self.agent.progress_cb = None

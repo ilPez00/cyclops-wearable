@@ -134,3 +134,35 @@ def test_ble_link_pc_to_peripheral_write():
     assert backend.written
     typ, payload = decode_frame(backend.written[-1])
     assert typ == 9 and b"ping" in payload
+
+
+def test_device_tool_routes_ble_transport():
+    import tempfile, json
+    from device.ble import FakeBleBackend
+    from device.transport import build_transport
+    from brain.hud_bridge import HudBridge
+    from brain.store import NoteStore
+    from brain.transcriber import StubTranscriber
+    from brain.protocol import encode
+    import io, os
+
+    class Cap:
+        def __init__(self): self.frames = []
+        def write(self, b): self.frames.append(b)
+
+    sp = tempfile.mktemp(suffix=".jsonl")
+    store = NoteStore(sp)
+    br = HudBridge(Cap(), store=store, transcriber=StubTranscriber())
+    backend = FakeBleBackend()
+    # build the ble transport wired to our bridge via the backend
+    t = build_transport("ble", bridge=br, backend=backend)
+    t.connect()
+    # PC -> wearable: glanceable HUD text becomes a MSG_CMD(14) frame
+    out = t.push_hud("meeting in 5")
+    assert "wrote cmd 14" in out and backend.written
+    # wearable -> PC: a NOTIFY CMD frame is decoded and stored as a note
+    frame = encode(9, json.dumps({"a": 2, "arg": "idea: ship the demo"}).encode())
+    backend.push(frame)  # peripheral NOTIFY -> decoded -> bridge -> note stored
+    assert len(store.all()) >= 1
+    t.close()
+    os.remove(sp)

@@ -9,6 +9,7 @@
 //   Every view shows a 1-line mode breadcrumb in the status bar and transient toasts.
 #include "cyclops_shared.h"
 #include <stdint.h>
+#include <cstdlib>
 
 namespace cyclops {
 
@@ -117,6 +118,32 @@ struct Hud {
         steps[step_n][n] = 0; step_n++;
     }
     void set_progress(int p) { progress = clamp(p, 0, 100); }
+    // Parse a DISPLAY_CMD JSON from the brain and update Hud state.
+    // Handles {"kind":"progress","p":NN}, {"kind":"step","tool":"x"},
+    // and default {"kind":"text"/"data"/"text":...} -> add_note.
+    void apply_display_cmd(const char* json) {
+        const char* k = strstr(json, "\"kind\"");
+        if (k) {
+            if (strstr(k, "\"progress\"")) {
+                const char* p = strstr(k, "\"p\":");
+                if (p) set_progress(atoi(p + 4));
+                return;
+            }
+            if (strstr(k, "\"step\"")) {
+                const char* t = strstr(k, "\"tool\"");
+                if (t) { const char* s = strchr(t, ':'); if (s) { ++s; while (*s==' '||*s=='"') ++s;
+                    char buf[12]; int i=0; while (*s && *s!='"' && *s!=',' && i<11) buf[i++]=*s++; buf[i]=0; if (buf[0]) add_step(buf); } }
+                return;
+            }
+        }
+        // default: treat as a text line -> note
+        const char* key = strstr(json, "\"data\"") ? "\"data\"" : "\"text\"";
+        const char* t = strstr(json, key);
+        if (!t) return;
+        const char* s = strchr(t, ':'); if (!s) return; ++s;
+        while (*s==' ') ++s;
+        if (*s=='"') { ++s; char out[64]; int i=0; while (*s && *s!='"' && i<63) out[i++]=*s++; out[i]=0; add_note(out); }
+    }
     // Advance 1s of wall clock (REC timer + toast + idle sleep).
     void tick_sec() {
         if (recording) ++rec_secs;

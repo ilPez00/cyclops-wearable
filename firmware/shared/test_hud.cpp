@@ -203,6 +203,21 @@ int main() {
      (void)before;
  }
 
+ // ---- DISPLAY_CMD parse: progress/step/default route into Hud state ----
+ {
+     Hud hd; hd.send_cmd = on_cmd; hd.init();
+     hd.push(AGENT);
+     hd.apply_display_cmd("{\"kind\":\"progress\",\"p\":42}");
+     assert(hd.progress == 42);
+     hd.apply_display_cmd("{\"kind\":\"step\",\"tool\":\"device\"}");
+     assert(hd.step_n == 1 && strcmp(hd.steps[0], "device") == 0);
+     hd.apply_display_cmd("{\"kind\":\"step\",\"tool\":\"web\"}");
+     assert(hd.step_n == 2 && strcmp(hd.steps[1], "web") == 0);
+     // default text line -> note
+     hd.apply_display_cmd("{\"kind\":\"text\",\"text\":\"hello world\"}");
+     assert(hd.note_count == 1 && strcmp(hd.notes[0], "hello world") == 0);
+ }
+
  printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }

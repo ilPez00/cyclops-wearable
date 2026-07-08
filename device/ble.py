@@ -138,3 +138,47 @@ class _StubNoRadio(BleBackend):
             "inject a FakeBleBackend for tests")
     def write(self, data: bytes):
         raise RuntimeError("no BLE backend")
+
+
+# ---- Transport adapter (so the agent's `bt` path uses real GATT) ----------
+class BleTransport(BleBackend if False else object):
+    """Thin adapter exposing the wearable over GATT as a Transport.
+
+    send_cmd/push_hud serialize to a MSG_CMD frame written to the NOTE
+    characteristic; incoming NOTIFY frames are decoded and dispatched to the
+    bridge. Offline-testable by passing a FakeBleBackend.
+    """
+
+    name = "ble"
+
+    def __init__(self, bridge=None, backend=None, srvc: str = SRVC_UUID,
+                 note: str = NOTE_UUID, name: str = DEVICE_NAME):
+        from brain.hud_bridge import HudBridge
+        from brain.store import NoteStore
+        from io import StringIO
+        self._bridge = bridge or HudBridge(StringIO())
+        self._link = BleLink(self._bridge, backend=backend, srvc=srvc,
+                             note=note, name=name)
+        self._connected = False
+
+    def connect(self, timeout: int = 20):
+        self._link.connect(timeout=timeout)
+        self._connected = True
+        return self
+
+    def send_cmd(self, act: int, arg: str = "") -> str:
+        if not self._connected:
+            self.connect()
+        return self._link.send_cmd(act, arg)
+
+    def push_hud(self, text: str) -> str:
+        # ACT_AGENT(14) streams glanceable text to the wearable
+        return self.send_cmd(14, text)
+
+    def request(self, path: str) -> dict:
+        return {"ok": True, "transport": "ble",
+                "note": "streaming link; use wifi for REST"}
+
+    def close(self):
+        self._link.close()
+        self._connected = False

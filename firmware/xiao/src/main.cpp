@@ -79,12 +79,7 @@ static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
 }
 
 static void ui_apply_display(const char* json) {
-    const char* key = strstr(json, "\"data\"") ? "\"data\"" : "\"text\"";
-    const char* t = strstr(json, key);
-    if (!t) return;
-    const char* s = strchr(t, ':'); if (!s) return; ++s;
-    while (*s==' ') ++s;
-    if (*s=='"') { ++s; char out[64]; int i=0; while (*s && *s!='"' && i<63) out[i++]=*s++; out[i]=0; hud.add_note(out); }
+    hud.apply_display_cmd(json);
 }
 
 static void send_cmd(uint8_t act, const char* arg) {

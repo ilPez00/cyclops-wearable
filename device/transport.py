@@ -224,6 +224,11 @@ def build_transport(kind: str, config=None, session=None, **kw) -> Transport:
         return WifiTransport(config.device_host, config.device_port, session=session)
     if kind == "bt":
         return BluetoothTransport(mac=kw.get("mac", ""), serial_file=kw.get("serial_file", ""))
+    if kind == "ble":
+        from .ble import BleTransport
+        return BleTransport(bridge=kw.get("bridge"), backend=kw.get("backend"),
+                            srvc=kw.get("srvc", ""), note=kw.get("note", ""),
+                            name=kw.get("name", ""))
     if kind == "cable":
         return CableTransport(tty=kw.get("tty", ""), adb=kw.get("adb", False))
     if kind == "fake":
