@@ -35,7 +35,7 @@ class ProtoTest {
     @Test
     fun bridgeFulfillsTranslate() {
         val frames = mutableListOf<ByteArray>()
-        val br = HudBridge(object : HudBridge.Sink { override fun write(f: ByteArray) { frames.add(f) } })
+        val br = HudBridge(object : HudBridge.Sink { override fun write(frame: ByteArray) { frames.add(frame) } })
         val r = br.dispatch(HudBridge.ACT_TRANSLATE, "ciao mondo")
         assertEquals("hello mondo", r)
         assertTrue(frames.isNotEmpty())

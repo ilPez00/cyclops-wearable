@@ -94,10 +94,10 @@ object CyclopsApi {
                 "text" to text,
                 "local" to if (local) "1" else "0",
                 "transport" to transport,
-                "persona" to persona.takeIf { it.isNotEmpty() },
-                "provider" to provider.takeIf { it.isNotEmpty() },
-                "endpoint" to endpoint.takeIf { it.isNotEmpty() },
-                "api_key" to apiKey.takeIf { it.isNotEmpty() }
+                "persona" to if (persona.isNotEmpty()) persona else "",
+                "provider" to if (provider.isNotEmpty()) provider else "",
+                "endpoint" to if (endpoint.isNotEmpty()) endpoint else "",
+                "api_key" to if (apiKey.isNotEmpty()) apiKey else ""
             ).toTypedArray()
             val obj = JSONObject(get(url("/api/agent", *params)))
             val reply = obj.optString("reply", obj.optString("text", ""))
