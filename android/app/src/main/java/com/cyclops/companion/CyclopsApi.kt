@@ -86,12 +86,18 @@ object CyclopsApi {
     }
 
     fun agent(text: String, local: Boolean, transport: String,
+              persona: String = "", provider: String = "", endpoint: String = "",
+              apiKey: String = "",
               onResult: (String, Int, List<String>) -> Unit, onError: (String) -> Unit) = thread {
         try {
             val params = listOfNotNull(
                 "text" to text,
                 "local" to if (local) "1" else "0",
-                "transport" to transport
+                "transport" to transport,
+                "persona" to persona.takeIf { it.isNotEmpty() },
+                "provider" to provider.takeIf { it.isNotEmpty() },
+                "endpoint" to endpoint.takeIf { it.isNotEmpty() },
+                "api_key" to apiKey.takeIf { it.isNotEmpty() }
             ).toTypedArray()
             val obj = JSONObject(get(url("/api/agent", *params)))
             val reply = obj.optString("reply", obj.optString("text", ""))

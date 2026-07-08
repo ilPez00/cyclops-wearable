@@ -63,6 +63,12 @@ class H(BaseHTTPRequestHandler):
         if p.path == "/api/notes":
             notes = [n.to_dict() for n in pipeline.store.all()] if pipeline else []
             return self._send(200, json.dumps(notes))
+        if p.path == "/api/search":
+            q = parse_qs(p.query)
+            query = q.get("q", [""])[0]
+            k = int(q.get("k", ["5"])[0] or 5)
+            res = pipeline.store.search(query, k=k) if pipeline else []
+            return self._send(200, json.dumps([n.to_dict() for n in res]))
         if p.path == "/api/ingest":
             q = parse_qs(p.query)
             text = q.get("text", [""])[0]
@@ -103,14 +109,30 @@ class H(BaseHTTPRequestHandler):
             if not text:
                 return self._send(400, json.dumps({"error": "missing text"}))
             try:
-                # honor per-request local/transport toggles from the app
+                # honor per-request local/transport/persona/provider toggles from the app
                 cfg = AgentConfig.load(env=dict(os.environ))
                 if q.get("local", ["0"])[0] in ("1", "true", "yes"):
                     cfg.local_mode = True
                 if q.get("transport", [""])[0] in ("wifi", "bt", "cable"):
                     cfg.device_transport = q["transport"][0]
+                persona = q.get("persona", [""])[0].strip()
+                if persona:
+                    cfg.system_note = persona
+                # per-call provider/endpoint/key (the companion-app settings UI)
+                if q.get("provider", [""])[0]:
+                    cfg.provider = q["provider"][0]
+                if q.get("endpoint", [""])[0]:
+                    if cfg.local_mode:
+                        cfg.local_base_url = q["endpoint"][0]
+                    else:
+                        cfg.base_url = q["endpoint"][0]
+                if q.get("api_key", [""])[0]:
+                    cfg.api_key = q["api_key"][0]
                 reg = build_registry(cfg)
-                res = (agent or Agent(cfg, registry=reg)).run(text)
+                # build a fresh agent when per-call config differs (persona/provider),
+                # otherwise reuse the shared instance (which already pushes HUD).
+                use_shared = not (persona or q.get("provider", [""])[0] or q.get("endpoint", [""])[0] or q.get("api_key", [""])[0])
+                res = (agent if use_shared else Agent(cfg, registry=reg)).run(text)
                 # push the glanceable answer to the wearable HUD (Omi/G2 style)
                 if bridge is not None:
                     try: bridge.push_hud(res.text or "")

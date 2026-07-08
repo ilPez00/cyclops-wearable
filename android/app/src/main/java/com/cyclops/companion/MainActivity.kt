@@ -48,7 +48,12 @@ class MainActivity : AppCompatActivity() {
             if (t.isNotEmpty()) {
                 val local = binding.swLocal.isChecked
                 val transport = binding.spinTransport.selectedItem?.toString() ?: "wifi"
-                CyclopsApi.agent(t, local, transport,
+                val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
+                val persona = prefs.getString("persona", "") ?: ""
+                val provider = prefs.getString("provider", "") ?: ""
+                val endpoint = prefs.getString("local_endpoint", "") ?: ""
+                val apiKey = prefs.getString("api_key", "") ?: ""
+                CyclopsApi.agent(t, local, transport, persona, provider, endpoint, apiKey,
                     onResult = { reply, calls, steps ->
                         val stepTxt = if (steps.isEmpty()) "" else "\n• " + steps.joinToString("\n• ")
                         binding.txtChat.text = "Brain ($calls tools): $reply$stepTxt"
@@ -86,16 +91,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettings() {
-        val input = EditText(this).apply {
-            setText(CyclopsApi.baseUrl)
-            setSelection(text.length)
+        val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
+        val ctx = this
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+        }
+        fun field(hint: String, key: String, secret: Boolean = false): EditText =
+            EditText(this).apply {
+                setHint(hint)
+                setText(prefs.getString(key, ""))
+                inputType = if (secret) android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD else
+                    android.text.InputType.TYPE_CLASS_TEXT
+                layout.addView(this)
+            }
+        val urlEd = field("Brain server URL", "url").apply { setText(CyclopsApi.baseUrl) }
+        field("Local model endpoint (e.g. http://127.0.0.1:11434/v1)", "local_endpoint")
+        field("Cloud provider (openai/groq/openrouter/...)", "provider")
+        val keyEd = field("API key (stored on device only)", "api_key", secret = true)
+        field("Persona / system note (extra instructions)", "persona")
+        val transSpin = Spinner(this).apply {
+            adapter = ArrayAdapter.createFromResource(ctx, R.array.transports,
+                android.R.layout.simple_spinner_item).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            val cur = prefs.getString("transport", "wifi") ?: "wifi"
+            setSelection((0 until count).indexOfFirst { getItemAtPosition(it) == cur })
+            layout.addView(this)
         }
         AlertDialog.Builder(this)
             .setTitle(R.string.settings)
-            .setMessage("Brain server base URL (host:port running serve.sh)")
-            .setView(input)
+            .setView(layout)
             .setPositiveButton("Save") { _, _ ->
-                CyclopsApi.baseUrl = input.text.toString().trim().ifEmpty { CyclopsApi.baseUrl }
+                prefs.edit().apply {
+                    putString("url", urlEd.text.toString().trim())
+                    putString("local_endpoint", prefs.getString("local_endpoint", ""))
+                    putString("provider", prefs.getString("provider", ""))
+                    putString("api_key", keyEd.text.toString().trim())
+                    putString("persona", prefs.getString("persona", ""))
+                    putString("transport", transSpin.selectedItem?.toString() ?: "wifi")
+                }.apply()
+                CyclopsApi.baseUrl = urlEd.text.toString().trim()
                 refresh()
             }
             .setNegativeButton("Cancel", null)

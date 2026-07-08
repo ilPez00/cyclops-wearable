@@ -35,6 +35,33 @@ class NoteStore:
     def by_type(self, t: str) -> list[Note]:
         return [n for n in self.notes if n.type == t]
 
+    def search(self, query: str, k: int = 5, embedder=None) -> list[Note]:
+        """Offline-first search. If `embedder` (callable: str->list[float]) is
+        given, rank by cosine similarity (semantic); else rank by token overlap
+        (keyword). Both paths work with zero deps / zero network."""
+        q = (query or "").strip().lower()
+        if not q:
+            return self.notes[-k:]
+        toks = set(q.split())
+        scored = []
+        for n in self.notes:
+            text = n.text.lower()
+            if embedder is not None:
+                import math
+                a = embedder(q); b = embedder(text)
+                if not a or not b:
+                    score = float(len(toks & set(text.split())))
+                else:
+                    dot = sum(x*y for x, y in zip(a, b))
+                    na = math.sqrt(sum(x*x for x in a)); nb = math.sqrt(sum(y*y for y in b))
+                    score = dot/(na*nb + 1e-9)
+            else:
+                score = float(len(toks & set(text.split())))
+            if score > 0:
+                scored.append((score, n))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [n for _, n in scored[:k]]
+
     def dump_markdown(self, out_path: str | None = None) -> str:
         out = out_path or (os.path.splitext(self.path)[0] + ".md")
         sections = {t: [] for t in NOTE_TYPES}
