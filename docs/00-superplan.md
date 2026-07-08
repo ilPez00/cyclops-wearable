@@ -116,18 +116,23 @@ three shells — no logic fork.
 
 ## 6. Prioritized roadmap (next tracks)
 **T1 — Make it real on hardware (highest value)**
-1. Flash firmware to XIAO; wire I2S mic + OLED; field-test HOME/MENU/AGENT.
-2. Implement BLE transport (RFCOMM/GATT) in `device.py` + firmware main; close
-   the bt/cable stubs.
-3. Stream the glanceable banner over BLE to G2/Omi glasses end-to-end.
+1. Flash firmware to XIAO; wire I2S mic + OLED; field-test HOME/MENU/AGENT.  ~[HW ONLY]~
+2. **[DONE]** BLE transport: `BleLink` GATT central + `BleTransport` + streaming
+   `Decoder` in brain/protocol.py; RFCOMM `BluetoothTransport` + `CableTransport`
+   stubs; PC loop closed (`SerialFrameReader` -> `HudBridge`). Offline-tested.
+3. Stream the glanceable banner over BLE to G2/Omi glasses end-to-end.  ~[G2 pending]~
 
 **T2 — Make the AI actually good**
-4. Plug real faster-whisper (edge) + Deepgram (cloud) into the transcriber.
-5. LLM extraction behind the existing `Extractor` interface.
-6. Local vision live test against Ollama llava.
+4. **[DONE]** real transcriber: faster-whisper (edge) + Deepgram/OpenAI (cloud),
+   auto-selected via `get_transcriber`; stub fallback. (T2.1)
+5. **[DONE]** LLM extraction behind `Extractor` interface: `get_extractor`
+   (rule/llm/auto) wired into live HudBridge + /api/extract + Pipeline; rule
+   fallback on LLM error. (T2.5)
+6. Local vision live test against Ollama llava.  ~[tool exists; live test pending]~
 
 **T3 — Depth & stickiness**
-7. Agent conversation history + semantic note search.
+7. **[DONE]** Agent conversation history + memory write-back; semantic/keyword
+   note search (`store.search` + /api/search). (T3.1 / T3.7)
 8. Companion-app settings UI (per-tool model/provider/keys, persona editor).
 9. Navigation, live translation, teleprompter script source, music control.
 

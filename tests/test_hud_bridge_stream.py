@@ -19,10 +19,11 @@ from brain.protocol_v2 import parse_hud
 class FakeSink:
     def __init__(self):
         self.texts = []
-        self.frames = []
+        self.frames = []      # parsed v2 HUD frames (K...)
+        self.raw = []         # raw DISPLAY_CMD bytes written
     def render_text(self, t): self.texts.append(t)
     def write(self, b):
-        # v2 HUD frames start with "K<kind>"; try to parse, else ignore
+        self.raw.append(bytes(b))
         if b[:1] == b"K":
             self.frames.append(parse_hud(b))
 
@@ -58,9 +59,15 @@ def test_live_agent_streaming():
     assert any("device" in t for t in step_lines), f"no device tick: {sink.texts}"
     assert any("web" in t for t in step_lines), f"no web tick: {sink.texts}"
 
-    # intermediate progress frames emitted (…NN%)
-    prog = [f for f in sink.frames if any(l.startswith("…") for l in f["lines"])]
-    assert prog, f"no progress frames: {sink.frames}"
+    # intermediate progress + step DISPLAY_CMD frames emitted
+    import json as _json
+    prog = [f for f in sink.raw if b"progress" in f]
+    step = [f for f in sink.raw if b"step" in f]
+    assert prog, f"no progress DISPLAY_CMD: {[r[:40] for r in sink.raw]}"
+    assert step, f"no step DISPLAY_CMD: {[r[:40] for r in sink.raw]}"
+    # progress value is numeric and <=100
+    first = _json.loads(prog[0])
+    assert 0 <= int(first.get("p", -1)) <= 100, first
 
     # final banner present
     assert any(t.startswith("AGENT: ") for t in sink.texts), sink.texts
