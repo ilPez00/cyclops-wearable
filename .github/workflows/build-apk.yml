@@ -33,7 +33,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Install Android SDK
@@ -44,30 +44,23 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Install gradle 8.9 (for wrapper generation)
-        run: |
-          if [ ! -x android/gradlew ]; then
-            curl -sL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/g.zip
-            mkdir -p /opt/gradle && (cd /opt/gradle && unzip -q /tmp/g.zip)
-            /opt/gradle/gradle-8.9/bin/gradle wrapper --gradle-version 8.9
-          fi
-        working-directory: android
-
-      - name: Make gradle wrapper executable
-        working-directory: android
-        run: chmod +x gradlew || true
-
-      - name: Run :core unit tests (Kotlin protocol/bridge)
-        working-directory: android
-        run: ./gradlew :core:test --no-daemon
+      - name: Run :core unit tests (Kotlin protocol + bridge)
+        uses: gradle/gradle-build-action@v3
+        with:
+          build-root-directory: android
+          arguments: :core:test --stacktrace
 
       - name: Build debug APK
-        working-directory: android
-        run: ./gradlew :app:assembleDebug --no-daemon
+        uses: gradle/gradle-build-action@v3
+        with:
+          build-root-directory: android
+          arguments: :app:assembleDebug --stacktrace
 
       - name: Build release APK (unsigned)
-        working-directory: android
-        run: ./gradlew :app:assembleRelease --no-daemon
+        uses: gradle/gradle-build-action@v3
+        with:
+          build-root-directory: android
+          arguments: :app:assembleRelease --stacktrace
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
