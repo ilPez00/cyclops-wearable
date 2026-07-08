@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Cyclops</string>
+    <string name="settings">Settings</string>
+    <string name="base_url">http://192.168.1.50:8080</string>
+    <string name="notes">Notes</string>
+    <string name="ingest_hint">Paste a transcript to ingest…</string>
+    <string name="ingest">Ingest</string>
+    <string name="extract_hint">Text to extract notes from…</string>
+    <string name="extract">Extract</string>
+    <string name="ask_hint">Ask the brain…</string>
+    <string name="send">Send</string>
+    <string name="refresh">Refresh</string>
+    <string name="connecting">Connecting…</string>
+    <string name="empty">No notes yet.</string>
+    <string-array name="transports">
+        <item>wifi</item>
+        <item>bt</item>
+        <item>cable</item>
+    </string-array>
+</resources>

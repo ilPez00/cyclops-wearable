@@ -1,0 +1,5 @@
+{
+  "name": "cyclops_shared",
+  "version": "2.0.0",
+  "description": "Cyclops shared protocol + UI state machine"
+}

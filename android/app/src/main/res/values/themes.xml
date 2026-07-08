@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.Cyclops" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#00E5FF</item>
+        <item name="android:statusBarColor">#001015</item>
+    </style>
+</resources>

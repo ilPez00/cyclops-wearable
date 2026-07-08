@@ -1,0 +1,33 @@
+# Build artifacts
+.pio/
+**/.pio/
+*.bin
+*.elf
+*.hex
+*.map
+build/
+firmware/.pio/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets / local config
+.env
+*.env
+ai_api.txt
+secrets.json
+credentials.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Notes / scratch
+*.tmp
+scratch/

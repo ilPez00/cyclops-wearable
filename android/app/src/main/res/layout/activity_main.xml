@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#00E5FF" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings" />
+
+        <Button
+            android:id="@+id/btnRefresh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/refresh" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/listNotes"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:id="@+id/txtEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/empty"
+        android:visibility="gone"
+        android:gravity="center"
+        android:textColor="#888" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/editIngest"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/ingest_hint"
+        android:inputType="textMultiLine"
+        android:minLines="2" />
+
+    <Button
+        android:id="@+id/btnIngest"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ingest" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/editExtract"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/extract_hint" />
+
+    <Button
+        android:id="@+id/btnExtract"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/extract" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/editAsk"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/ask_hint" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Local model"
+            android:textColor="#ccc" />
+        <Switch
+            android:id="@+id/swLocal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Transport"
+            android:textColor="#ccc" />
+        <Spinner
+            android:id="@+id/spinTransport"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnAsk"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/send" />
+
+    <TextView
+        android:id="@+id/txtChat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#00E5FF"
+        android:textIsSelectable="true" />
+
+</LinearLayout>
