@@ -23,6 +23,7 @@ public:
     void draw_text(int col, int row, const char* s) override { tft_.setCursor(col*6, row*10); tft_.print(s); }
     void draw_rect(int x,int y,int w,int h,bool on) override { if(on) tft_.fillRect(x,y,w,h,0x07E0); else tft_.fillRect(x,y,w,h,ST77XX_BLACK); }
     void flush() override {}
+    void text_size(int s) override { tft_.setTextSize(s>0?s:1); }
 private:
     Adafruit_ST7735 tft_;
 };

@@ -81,6 +81,8 @@ class Agent:
         self.memory = memory or MemoryStore(config)
         self.max_iter = max_iter or config.max_tool_iter
         self.history: list[dict] = []   # prior turns (role/content), in-session memory
+        # optional live progress callback: cb(tool_name, progress_pct) per iteration
+        self.progress_cb: Optional[Callable[[Optional[str], int], None]] = None
 
     def reset(self):
         """Clear in-session conversation history."""
@@ -107,6 +109,8 @@ class Agent:
         messages.append({"role": "user", "content": content})
 
         result = TurnResult(text="")
+        if self.progress_cb:
+            self.progress_cb(None, 0)   # thinking…
         for _ in range(self.max_iter):
             try:
                 resp = self.router.chat(messages, tools=self.registry.schemas() or None)
@@ -114,6 +118,8 @@ class Agent:
                 result.text = f"[model error] {e}"
                 self._remember("user", content)
                 self._remember("assistant", result.text)
+                if self.progress_cb:
+                    self.progress_cb(None, 100)
                 return result
             if resp.tool_calls:
                 messages.append({"role": "assistant", "content": resp.text or "",
@@ -128,12 +134,17 @@ class Agent:
                     out = self.registry.run(name, args)
                     result.tool_calls += 1
                     result.steps.append({"tool": name, "args": args, "result": out[:500]})
+                    if self.progress_cb:
+                        pct = min(95, 20 + 75 * result.tool_calls // max(1, self.max_iter))
+                        self.progress_cb(name, pct)
                     messages.append({"role": "tool", "name": name,
                                      "content": out[:4000]})
                 continue
             result.text = resp.text
             self._remember("user", content)
             self._remember("assistant", resp.text)
+            if self.progress_cb:
+                self.progress_cb(None, 100)
             return result
         result.text = result.text or "[max iterations reached]"
         self._remember("user", content)

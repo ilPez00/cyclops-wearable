@@ -55,7 +55,14 @@ struct Hud {
     int hud_len = 0;
 
     char toast_msg[TOAST];       // transient status ("sent", "thinking…")
-    int toast_ttl = 0;           // seconds remaining
+    int toast_ttl = 0;       // seconds remaining
+
+    int progress = 0;            // agent/tool progress 0..100 (bar)
+    char steps[8][12];       // tool-step ticks (·device ·web …)
+    int step_n = 0;
+
+    int sleep_after = 8;     // idle seconds before auto-sleep (OLED burn-in)
+    int idle = 0;            // idle counter since last input
 
     int hr = 0, spo2 = 0, ring_batt = 0, bead_batt = 0;
     int nav_dist = 0, nav_head = 0; char nav_label[24] = "";
@@ -103,8 +110,19 @@ struct Hud {
         int n = 0; while (msg && msg[n] && n < TOAST-1) { toast_msg[n] = msg[n]; ++n; }
         toast_msg[n] = 0; toast_ttl = ttl;
     }
-    // Advance 1s of wall clock (REC timer + toast expiry).
-    void tick_sec() { if (recording) ++rec_secs; if (toast_ttl > 0) --toast_ttl; }
+    void wake() { idle = 0; screen_on = true; }
+    void add_step(const char* tool) {
+        if (step_n >= 8) return;
+        int n = 0; while (tool && tool[n] && n < 11) { steps[step_n][n] = tool[n]; ++n; }
+        steps[step_n][n] = 0; step_n++;
+    }
+    void set_progress(int p) { progress = clamp(p, 0, 100); }
+    // Advance 1s of wall clock (REC timer + toast + idle sleep).
+    void tick_sec() {
+        if (recording) ++rec_secs;
+        if (toast_ttl > 0) --toast_ttl;
+        if (screen_on) { if (++idle >= sleep_after) screen_on = false; }
+    }
 
     void request_confirm(const char* prompt, uint8_t action) {
         strncpy(confirm_prompt, prompt ? prompt : "", 31); confirm_prompt[31] = 0;
@@ -113,6 +131,7 @@ struct Hud {
 
     // ---- input handlers ----
     void on_wheel(int d) {
+        wake();
         Mode m = top();
         if (m == MENU) menu_sel = clamp(menu_sel + d, 0, menu_n-1);
         else if (m == NOTES) note_sel = clamp(note_sel + d, 0, note_count-1);
@@ -121,6 +140,7 @@ struct Hud {
         else if (m == TELEPROMPTER) tele_page = clamp(tele_page + d, 0, 999);
     }
     void on_select() {
+        wake();
         Mode m = top();
         if (m == MENU) {
             const char* act = menu_items[menu_sel];
@@ -150,13 +170,22 @@ struct Hud {
         }
     }
     void on_long_back() {
+        wake();
         // stop any capture/agent before leaving
         if (top() == TRANSCRIBE && recording) { recording = false; if (on_transcribe_toggle) on_transcribe_toggle(); cmd(ACT_TRANSCRIBE_START); }
         if (top() == AGENT) cmd(ACT_AGENT_ABORT);
         pop();
     }
+    // Short cancel (BTN_B / second button). Declines a confirm, else backs out one level.
+    void on_cancel() {
+        wake();
+        Mode m = top();
+        if (m == CONFIRM) { cmd(ACT_CONFIRM_NO); pop(); }
+        else if (m != HOME) { pop(); }
+        else { /* on HOME, cancel is a no-op */ }
+    }
     void on_back_gesture() { on_long_back(); }
-    void on_nod() { recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
+    void on_nod() { wake(); recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
 
     void set_health(int h, int s, int rb, int bb) { hr = h; spo2 = s; ring_batt = rb; bead_batt = bb; }
     void set_nav(int dist_m, int head, const char* label) { nav_dist = dist_m; nav_head = head; strncpy(nav_label, label?label:"",23); nav_label[23]=0; }
@@ -164,7 +193,8 @@ struct Hud {
 
     // Ask the agent (from app/voice). Host callback streams the answer back.
     void agent_ask(const char* prompt) {
-        set_detail(""); scroll_off = 0;
+        wake();
+        set_detail(""); scroll_off = 0; step_n = 0; progress = 0;
         if (top() != AGENT) push(AGENT);
         toast("thinking…", 2);
         if (on_agent_request) on_agent_request(prompt ? prompt : "");
@@ -188,8 +218,13 @@ struct Hud {
         Mode m = top();
         int body = 1;
         if (m == HOME) {
-            if (hud_len) { scr.draw_text(0, body, trunc(hud_line, cols)); body++; }
+            // glanceable banner (the AI's last line) in larger type on capable panels
+            if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
             else { scr.draw_text(0, body, "Cyclops ready"); body++; }
+            char ln[32];
+            snprintf(ln, sizeof(ln), "%dmV %d notes %s", (bead_batt>0?bead_batt:ring_batt),
+                     note_count, recording ? "REC" : "");
+            trim(ln, cols); scr.draw_text(0, body, ln); body++;
             scr.draw_text(0, body, "wheel:menu"); body++;
         } else if (m == MENU) {
             for (int i = 0; i < rows-1 && i < menu_n; ++i) {
@@ -203,8 +238,26 @@ struct Hud {
                 char ln[32]; snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, notes[i]);
                 trim(ln, cols); scr.draw_text(0, body+i, ln);
             }
-        } else if (m == NOTE_DETAIL || m == TRANSLATE || m == IMAGE_ANALYSIS || m == SSH || m == CAMERA || m == AGENT) {
+        } else if (m == NOTE_DETAIL || m == TRANSLATE || m == IMAGE_ANALYSIS || m == SSH || m == CAMERA) {
             draw_detail(scr, rows, cols, body);
+        } else if (m == AGENT) {
+            draw_detail(scr, rows, cols, body);
+            // progress bar (only if rows allow) + tool-step ticks
+            if (rows >= 6) {
+                int bar_row = rows - 2;
+                int filled = (progress * (cols-2)) / 100;
+                char bar[32]; int bi = 0; bar[bi++] = '[';
+                for (int i = 0; i < cols-2; ++i) bar[bi++] = (i < filled) ? '#' : '-';
+                bar[bi++] = ']'; bar[bi] = 0; trim(bar, cols);
+                scr.draw_text(0, bar_row, bar);
+                // steps: last up-to-4 ticks joined
+                char st[32]; int si = 0;
+                int start = step_n > 4 ? step_n - 4 : 0;
+                for (int i = start; i < step_n; ++i) {
+                    si += snprintf(st + si, sizeof(st) - si, "\xB7%s ", steps[i]);
+                }
+                trim(st, cols); scr.draw_text(0, rows-1, st);
+            }
         } else if (m == TRANSCRIBE) {
             char ln[32]; snprintf(ln, sizeof(ln), "REC %d:%02d", rec_secs/60, rec_secs%60);
             scr.draw_text(0, body, ln); body++;
@@ -214,7 +267,7 @@ struct Hud {
             snprintf(ln, sizeof(ln), "HR %d  SpO2 %d%%", hr, spo2); scr.draw_text(0,body,ln);
             snprintf(ln, sizeof(ln), "ring %dmV bead %dmV", ring_batt, bead_batt); scr.draw_text(0,body+1,ln);
         } else if (m == NAV) {
-            char ln[32]; snprintf(ln, sizeof(ln), "%dm %ddeg", nav_dist, nav_head); scr.draw_text(0,body,ln);
+            char ln[32]; snprintf(ln, sizeof(ln), "%s %dm", nav_arrow(nav_head), nav_dist); scr.draw_text(0,body,ln);
             scr.draw_text(0,body+1,nav_label);
         } else if (m == TELEPROMPTER) {
             char ln[32]; snprintf(ln, sizeof(ln), "TELE %d", tele_page); scr.draw_text(0,body,ln);
@@ -237,7 +290,13 @@ struct Hud {
 private:
     static int clamp(int v, int lo, int hi) { if (v<lo) v=lo; if (v>hi) v=hi; return v; }
     static void trim(char* s, int cols) { if ((int)strlen(s) > cols) s[cols]=0; }
-    static const char* trunc(const char* s, int cols) { static char b[128]; int n=0; while (s[n] && n<cols && n<127) b[n]=s[n++]; b[n]=0; return b; }
+    static const char* trunc(const char* s, int cols) { static char b[128]; int n=0; while (s[n] && n<cols && n<127) { b[n]=s[n]; ++n; } b[n]=0; return b; }
+    static const char* nav_arrow(int deg) {
+        // 8-point compass arrow from heading (0=N). Pure glyph, BOM-free.
+        static const char* arrows[8] = {"\x18","\x1E","\x1B","\x1F","\x19","\x11","\x1A","\x17"};
+        int i = ((deg % 360) + 360) % 360;
+        return arrows[(i + 22) / 45 % 8];
+    }
     static const char* mode_name(Mode m) {
         switch (m) {
             case HOME: return "HOME"; case MENU: return "MENU"; case NOTES: return "NOTES";
@@ -250,15 +309,32 @@ private:
     }
     template<typename S>
     void draw_detail(S& scr, int rows, int cols, int start_row) {
+        // word-aware wrap (no mid-word splits) for agent answers on tiny panels
+        int r = start_row;
         int p = scroll_off;
-        for (int r = start_row; r < rows; ++r) {
-            if (p >= detail_len) break;
+        while (p < detail_len && r < rows) {
+            // find line end: up to cols chars, break at last space before cols
+            int line_end = p;
+            int last_space = -1;
+            int n = 0;
+            while (p + n < detail_len && n < cols) {
+                char c = detail[p + n];
+                if (c == '\n') { line_end = p + n; break; }
+                if (c == ' ') last_space = p + n;
+                line_end = p + n + 1;
+                ++n;
+            }
+            if (line_end == p + n) { /* hit cols */
+                if (last_space > p && detail[p + n] != ' ') line_end = last_space + 1;
+            }
             char ln[64];
             int i = 0;
-            while (p < detail_len && i < cols && detail[p] != '\n') ln[i++] = detail[p++];
+            while (p < line_end && detail[p] != '\n' && i < 63) ln[i++] = detail[p++];
             if (p < detail_len && detail[p] == '\n') ++p;
+            else if (p < detail_len && detail[p] == ' ') ++p;  // swallow wrap-space
             ln[i] = 0;
             scr.draw_text(0, r, ln);
+            ++r;
         }
     }
     void cmd(uint8_t a, const char* arg = nullptr) { if (send_cmd) send_cmd(a, arg ? arg : ""); }

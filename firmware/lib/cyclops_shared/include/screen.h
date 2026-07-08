@@ -22,6 +22,7 @@ public:
     virtual void draw_text(int col, int row, const char* s) = 0;
     virtual void draw_rect(int x, int y, int w, int h, bool on) = 0;
     virtual void flush() = 0;
+    virtual void text_size(int s) { (void)s; }   // no-op default (mono stays 1)
 
     // default layout: status bar (row 0) + note list
     void render_ui(const UiState& ui) {

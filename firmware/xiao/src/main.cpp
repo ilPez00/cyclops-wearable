@@ -22,7 +22,7 @@ static cyclops::Ssd1306_128x32_Screen screen(5, 2, 1, 8, 10, 9, 1);
 #define PIN_WHEEL_A 0
 #define PIN_WHEEL_B 4
 #define PIN_BTN_A  3
-#define PIN_BTN_B  4
+#define PIN_BTN_B  5   // was 4 (aliased WHEEL_B); GPIO5 is free on XIAO S3
 
 // I2S mic pins (XIAO S3 onboard mic pads; free, no screen conflict)
 #ifndef MIC_BCLK
@@ -175,9 +175,14 @@ static uint32_t last_hb=0;
 void loop() {
     static int prev = 0;
     if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
+    static uint32_t a_down = 0;
     bool a = digitalRead(PIN_BTN_A), b = digitalRead(PIN_BTN_B);
-    if (!a && last_a) hud.on_select();
-    if (!b && last_b) hud.on_long_back();   // long-press back also stops capture
+    if (!a && last_a) { a_down = millis(); hud.on_select(); }          // A short = select
+    if (a && !last_a && a_down) {                                       // A released
+        if (millis() - a_down > 600) hud.on_long_back();               // A long = back/stop
+        a_down = 0;
+    }
+    if (!b && last_b) hud.on_cancel();                                  // B short = cancel/back
     last_a=a; last_b=b;
     if (millis()-last_hb > 5000) {
         last_hb = millis();

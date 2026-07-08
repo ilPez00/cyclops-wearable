@@ -39,3 +39,62 @@ def decode_frame(frame):
     if crc != crc_recv:
         return None
     return (typ, payload)
+
+
+class Decoder:
+    """Streaming frame decoder (mirrors the Kotlin/Firmware Decoder).
+
+    Feed arbitrary chunks of bytes; `on_frame(typ, payload)` is called once per
+    complete, CRC-valid frame. Robust to fragmentation and interleaving.
+    """
+    S_M1, S_M2, S_LEN_LO, S_LEN_HI, S_BODY, S_CRC_LO, S_CRC_HI = range(7)
+
+    def __init__(self, on_frame):
+        self.on_frame = on_frame
+        self.buf = bytearray()
+        self.got = 0
+        self.plen = 0
+        self.len_lo = 0
+        self.pending_crc_lo = 0
+        self.state = self.S_M1
+
+    def feed(self, data: bytes):
+        for b in data:
+            self._byte(b)
+
+    def _byte(self, b):
+        if self.state == self.S_M1:
+            if b == MAGIC1: self.state = self.S_M2
+        elif self.state == self.S_M2:
+            self.state = self.S_LEN_LO if b == MAGIC2 else self.S_M1
+        elif self.state == self.S_LEN_LO:
+            self.len_lo = b
+            self.state = self.S_LEN_HI
+        elif self.state == self.S_LEN_HI:
+            self.plen = self.len_lo | (b << 8)
+            self.got = 0
+            self.buf = bytearray()
+            self.state = self.S_BODY
+        elif self.state == self.S_BODY:
+            self.buf.append(b)
+            self.got += 1
+            if self.got >= self.plen + 1:  # +1 type byte
+                self.state = self.S_CRC_LO
+        elif self.state == self.S_CRC_LO:
+            self.pending_crc_lo = b
+            self.state = self.S_CRC_HI
+        elif self.state == self.S_CRC_HI:
+            typ = self.buf[0]
+            payload = bytes(self.buf[1:])
+            crc_recv = self.pending_crc_lo | (b << 8)
+            if crc16_ccitt_false(bytes([typ]) + payload) == crc_recv:
+                self.on_frame(typ, payload)
+            self._reset()
+
+    def _reset(self):
+        self.state = self.S_M1
+        self.buf = bytearray()
+        self.got = 0
+        self.plen = 0
+        self.len_lo = 0
+        self.pending_crc_lo = 0

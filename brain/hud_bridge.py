@@ -171,7 +171,15 @@ class HudBridge:
             if self.agent is None:
                 ans = "(stub) agent would answer: " + prompt
             else:
+                # stream live progress + tool-step ticks to the wearable HUD
+                def _on_step(tool, pct):
+                    if tool:
+                        self._emit_text("  · " + tool)
+                    self._emit_hud(HUD_KINDS.index("agent"),
+                                   ["…" + str(pct) + "%"], more=True)
+                self.agent.progress_cb = _on_step
                 res = self.agent.run(prompt)
+                self.agent.progress_cb = None
                 ans = res.text or "(no response)"
                 # surface tool steps as a secondary frame if any
                 if res.steps:

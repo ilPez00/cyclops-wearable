@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cassert>
+#include <cctype>
 
 using namespace cyclops;
 
@@ -19,6 +20,22 @@ struct FakeScreen : Screen {
     void clear() override {}
     void set_ink(bool) override {}
     void draw_text(int, int row, const char* s) override { draws++; strncpy(last, s, 63); last[63]=0; if (row==0) { strncpy(row0, s, 63); row0[63]=0; } }
+    void draw_rect(int,int,int,int,bool) override {}
+    void flush() override {}
+};
+
+// Line-capturing screen: records every drawn line (for wrap/step assertions).
+struct LineScreen : Screen {
+    int rows_=21, cols_=21;
+    char line[24][40]; int n=0;
+    int w() const override { return 128; }
+    int h() const override { return 128; }
+    int char_cols() const override { return cols_; }
+    int text_rows() const override { return rows_; }
+    void begin() override {}
+    void clear() override { n=0; }
+    void set_ink(bool) override {}
+    void draw_text(int, int, const char* s) override { if (n<24){ strncpy(line[n++], s, 39); line[n-1][39]=0; } }
     void draw_rect(int,int,int,int,bool) override {}
     void flush() override {}
 };
@@ -110,6 +127,82 @@ int main() {
  assert(strstr(scr2.row0, "BT") != nullptr);    // bluetooth flag
  assert(strstr(scr2.row0, "HOME") != nullptr || strstr(scr2.row0, "HLTH") != nullptr);
 
-    printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
+ // ---- word-aware wrap: no mid-word split on a long agent answer ----
+ {
+     Hud hw; hw.send_cmd = on_cmd; hw.init();
+     const char* big = "the quick brown fox jumps over the lazy dog while the agent streams a very long answer that must not split words mid token";
+     hw.set_detail(big);
+     hw.push(AGENT);
+     LineScreen ls; hw.render(ls);
+     // every captured line (except status row 0) must not split an alpha word
+     for (int i = 1; i < ls.n; ++i) {
+         const char* L = ls.line[i];
+         // find a space followed by a letter at end-of-line case: a line ending
+         // in a letter with next line starting with a letter => split. Reject.
+         int len = (int)strlen(L);
+         if (len > 0 && isalpha((unsigned char)L[len-1])) {
+             // next line must not start with alpha (would be a split)
+             if (i+1 < ls.n && isalpha((unsigned char)ls.line[i+1][0])) {
+                 assert(!"word split across lines");
+             }
+         }
+     }
+ }
+
+ // ---- agent progress bar + step ticks render on wide panels ----
+ {
+     Hud hp; hp.send_cmd = on_cmd; hp.init();
+     hp.push(AGENT); hp.set_detail("thinking...");
+     hp.set_progress(50); hp.add_step("device"); hp.add_step("web");
+     LineScreen ls; hp.render(ls);
+     bool bar = false, steps = false;
+     for (int i = 0; i < ls.n; ++i) {
+         if (strchr(ls.line[i], '[') && strchr(ls.line[i], ']')) bar = true;
+         if (strstr(ls.line[i], "device")) steps = true;
+     }
+     assert(bar);   // progress bar present
+     assert(steps); // step ticks present
+ }
+
+ // ---- idle auto-sleep after sleep_after seconds ----
+ {
+     Hud hs; hs.send_cmd = on_cmd; hs.init();
+     hs.sleep_after = 3;
+     hs.on_wheel(1); assert(hs.screen_on);  // input wakes
+     for (int i = 0; i < 3; ++i) hs.tick_sec();
+     assert(!hs.screen_on);                 // slept
+     hs.on_wheel(1); assert(hs.screen_on);  // input wakes again
+ }
+
+ // ---- nav arrow maps heading to a compass glyph ----
+ {
+     Hud hn; hn.send_cmd = on_cmd; hn.init();
+     hn.set_nav(120, 0, "home");
+     hn.push(NAV);
+     LineScreen ls; hn.render(ls);
+     bool arrow = false;
+     for (int i = 0; i < ls.n; ++i)
+         if (strchr(ls.line[i], 0x18)) arrow = true;  // '↑' for north
+     assert(arrow);
+ }
+
+ // ---- cancel (BTN_B): confirm-no in CONFIRM, else back one level ----
+ {
+     Hud hc; hc.send_cmd = on_cmd; hc.init();
+     int before = ncmd;
+     hc.request_confirm("store note?", ACT_CONFIRM_YES);
+     assert(hc.top() == CONFIRM);
+     hc.on_cancel();                       // declines
+     assert(hc.top() != CONFIRM);
+     assert(cmds[ncmd-1] == ACT_CONFIRM_NO);
+     // back-out from a sub view
+     hc.home(); hc.on_select(); hc.menu_sel = 0; hc.on_select(); // NOTES
+     assert(hc.top() == NOTES);
+     hc.on_cancel();
+     assert(hc.top() == MENU);
+     (void)before;
+ }
+
+ printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }

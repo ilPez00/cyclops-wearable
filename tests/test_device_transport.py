@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from device.transport import (FakeTransport, WifiTransport, BluetoothTransport,
                               CableTransport, build_transport)
+from device.ble import BleLink, FakeBleBackend
 from agent.config import AgentConfig
 from agent.tools.device import make_device_tool
 
@@ -94,3 +95,42 @@ def test_serial_reader_closes_loop_into_bridge():
     assert cap.frames  # display frame emitted back
     os.remove(sp)
 
+
+def test_ble_link_pair_subscribe_dispatch():
+    import tempfile, json
+    from brain.hud_bridge import HudBridge
+    from brain.store import NoteStore
+    from brain.transcriber import StubTranscriber
+    from brain.protocol import encode
+
+    class Cap:
+        def __init__(self): self.frames = []
+        def write(self, b): self.frames.append(b)
+
+    sp = tempfile.mktemp(suffix=".jsonl")
+    store = NoteStore(sp)
+    br = HudBridge(Cap(), store=store, transcriber=StubTranscriber())
+    backend = FakeBleBackend()
+    link = BleLink(br, backend=backend)
+    link.connect()
+    assert link.paired and link.connected
+    frame = encode(9, json.dumps({"a": 2, "arg": "Remind me to call mom by friday"}).encode())
+    backend.push(frame)
+    assert any(n.type == "reminder" for n in store.all())
+    os.remove(sp)
+
+
+def test_ble_link_pc_to_peripheral_write():
+    from brain.hud_bridge import HudBridge
+    from brain.protocol import decode_frame
+    import io
+
+    br = HudBridge(io.StringIO())
+    backend = FakeBleBackend()
+    link = BleLink(br, backend=backend)
+    link.connect()
+    out = link.send_cmd(1, "ping")
+    assert "wrote cmd 1" in out
+    assert backend.written
+    typ, payload = decode_frame(backend.written[-1])
+    assert typ == 9 and b"ping" in payload
