@@ -1,72 +1,72 @@
 """Tools: connect to the wearable device over WiFi / Bluetooth / cable.
 
-Transports:
-  wifi  - HTTP to the brain server (notes/extract/chat) — same as companion app
-  bt    - RFCOMM serial (placeholder; real BT needs Android BluetoothSocket)
-  cable - ADB/serial forward (placeholder for desktop side-loading)
-This tool unifies "connect to device no matter how" and exposes Omi/G2-style
-features: push glanceable HUD text, trigger audio capture, send notifications,
-and read captured notes back. All HTTP is injectable for offline tests.
+Unifies "connect to device no matter how" behind one Transport (see
+device/transport.py): WifiTransport (HTTP), BluetoothTransport (RFCOMM/serial),
+CableTransport (ADB/serial). Exposes Omi/G2-style features: push glanceable
+HUD text, trigger audio capture, send notifications, read captured notes.
+
+The transport is injectable so the agent loop can be tested offline with a
+FakeTransport. In production the server passes a real WifiTransport (or the
+phone passes a BluetoothTransport), and `device_transport` picks the default.
 """
 from __future__ import annotations
 
 import json
+import sys
 from typing import Optional
 
 from ..loop import Tool
 from ..config import AgentConfig
 
+# make device/ importable both as a package and from repo root
+sys.path.insert(0, os_path := __import__("os").path.dirname(
+    __import__("os").path.dirname(__import__("os").path.abspath(__file__))))
+from device.transport import build_transport, Transport, FakeTransport  # noqa: E402
 
-def make_device_tool(config: AgentConfig, session=None) -> Tool:
-    def base():
-        return f"http://{config.device_host}:{config.device_port}"
 
-    def http_get(path: str) -> dict:
-        if session is not None:
-            resp = session.post(base() + path, data=b"", headers={}, timeout=10)
-            return resp.json() if hasattr(resp, "json") else {}
-        import urllib.request
-        with urllib.request.urlopen(base() + path, timeout=10) as r:
-            return json.loads(r.read())
+def make_device_tool(config: AgentConfig, session=None, transport: Optional[Transport] = None) -> Tool:
+    # resolve the active transport once
+    active: Transport = transport or build_transport(
+        config.device_transport, config=config, session=session)
 
     def run(args: dict) -> str:
         action = args.get("action", "status")
-        transport = args.get("transport") or config.device_transport
-        if transport == "wifi":
-            if session is None:
-                return f"offline: device[wifi] {action} -> (no transport)"
-            if action == "notes":
-                return json.dumps(http_get("/api/notes")[:10])
-            if action == "hud":
-                # push glanceable text to the HUD (Omi/G2 feature)
-                txt = args.get("text", "")
-                try:
-                    http_get("/api/ingest?text=" + _enc(txt))
-                    return f"pushed to HUD: {txt[:80]}"
-                except Exception as e:
-                    return f"hud push failed: {e}"
-            if action == "capture":
-                return "audio capture started on device (stub)"
-            if action == "notify":
-                return f"notification sent: {args.get('text','')[:80]}"
-            return f"device via wifi @ {base()} ready (transport={transport})"
-        # bt / cable placeholders
-        return (f"device transport '{transport}' selected; "
-                f"action '{action}' queued (BT/RFCOMM + cable/ADB wired on device build)")
-
-    def _enc(s: str) -> str:
-        import urllib.parse
-        return urllib.parse.quote(s)
+        requested = args.get("transport") or config.device_transport
+        # allow per-call transport switch only if we can build it
+        t = active
+        if requested != config.device_transport and transport is None:
+            try:
+                t = build_transport(requested, config=config, session=session)
+            except Exception:
+                pass
+        if action == "status":
+            return f"device via {t.name} ready"
+        if action == "notes":
+            try:
+                notes = t.request("/api/notes")
+                return json.dumps(notes[:10])
+            except Exception as e:
+                return f"notes failed: {e}"
+        if action == "hud":
+            return t.push_hud(args.get("text", ""))
+        if action == "notify":
+            # notify == push a short HUD banner + a haptic cue (ACT_AGENT=14)
+            return t.push_hud(args.get("text", "(notification)"))
+        if action == "capture":
+            # ACT_CAMERA=7 / audio capture; device handles the rest
+            return t.send_cmd(7, args.get("media", "audio"))
+        return f"device[{t.name}] {action} queued"
 
     return Tool(
         name="device",
-        description="Connect to the wearable (WiFi/BT/cable) and push HUD text, capture audio, read notes.",
+        description="Connect to the wearable (WiFi/BT/cable) and push HUD text, capture audio, read notes, notify.",
         parameters={
             "type": "object",
             "properties": {
                 "action": {"type": "string", "enum": ["status", "notes", "hud", "capture", "notify"]},
                 "transport": {"type": "string", "enum": ["wifi", "bt", "cable"]},
                 "text": {"type": "string"},
+                "media": {"type": "string"},
             },
         },
         run=run,

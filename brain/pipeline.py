@@ -2,7 +2,7 @@
 Optionally joins ring health context (premortem #3)."""
 from __future__ import annotations
 from .transcriber import get_transcriber
-from .extractor import extract, Note
+from .extractor import extract, Note, get_extractor
 from .store import NoteStore
 
 class Pipeline:
@@ -10,7 +10,8 @@ class Pipeline:
                  health=None, extractor=None):
         self.store = store
         self.trans = transcriber or get_transcriber()
-        self.extractor = extractor  # callable(text)->list[Note] or None for default
+        # unified extractor: rule by default, llm (with rule fallback) if keys present
+        self.extractor = extractor or get_extractor()
         self.on_note = on_note
         self.on_transcript = on_transcript
         self.health = health

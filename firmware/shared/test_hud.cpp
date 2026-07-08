@@ -10,7 +10,7 @@ using namespace cyclops;
 // Fake screen: records draw calls, enforces geometry like a 128x32 (4 rows x 21 cols).
 struct FakeScreen : Screen {
     int rows_=4, cols_=21;
-    int draws=0; char last[64]="";
+    int draws=0; char last[64]=""; char row0[64]="";
     int w() const override { return 128; }
     int h() const override { return 32; }
     int char_cols() const override { return cols_; }
@@ -18,7 +18,7 @@ struct FakeScreen : Screen {
     void begin() override {}
     void clear() override {}
     void set_ink(bool) override {}
-    void draw_text(int, int, const char* s) override { draws++; strncpy(last, s, 63); last[63]=0; }
+    void draw_text(int, int row, const char* s) override { draws++; strncpy(last, s, 63); last[63]=0; if (row==0) { strncpy(row0, s, 63); row0[63]=0; } }
     void draw_rect(int,int,int,int,bool) override {}
     void flush() override {}
 };
@@ -35,8 +35,7 @@ int main() {
 
     h.on_select();          // HOME -> MENU
     assert(h.top() == MENU);
-    h.on_wheel(3);          // move down 3 -> index 3 = Translate? no: Health at 4
-    h.menu_sel = 4;         // Health
+    h.menu_sel = 4;         // Health (menu: 0 Notes,1 Agent,2 Transcribe,3 Translate,4 Health)
     h.on_select();          // MENU -> HEALTH (no cmd)
     assert(h.top() == HEALTH);
     h.on_long_back();       // HEALTH -> MENU
@@ -102,6 +101,14 @@ int main() {
     h.add_note("a very long note that should scroll when we push wheel because it exceeds the visible width of the tiny screen by a lot");
     h.note_sel = h.note_count-1; h.on_select();
     int so0 = h.scroll_off; h.on_wheel(1); assert(h.scroll_off > so0);
+
+    // Status bar renders a mode breadcrumb + flags (no crash on tiny screen)
+    Hud h2; h2.send_cmd = on_cmd; h2.init();
+    h2.recording = true; h2.bt = true; h2.hr = 72; h2.bead_batt = 15;
+    FakeScreen scr2; h2.render(scr2);
+ assert(strstr(scr2.row0, "REC") != nullptr);   // recording flag in status bar
+ assert(strstr(scr2.row0, "BT") != nullptr);    // bluetooth flag
+ assert(strstr(scr2.row0, "HOME") != nullptr || strstr(scr2.row0, "HLTH") != nullptr);
 
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;

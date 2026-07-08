@@ -80,12 +80,29 @@ class Agent:
         self.skills = skills or Skills(config.skills_dirs)
         self.memory = memory or MemoryStore(config)
         self.max_iter = max_iter or config.max_tool_iter
+        self.history: list[dict] = []   # prior turns (role/content), in-session memory
+
+    def reset(self):
+        """Clear in-session conversation history."""
+        self.history.clear()
+
+    def history_text(self) -> str:
+        lines = []
+        for m in self.history:
+            role = m.get("role")
+            c = m.get("content")
+            if isinstance(c, list):
+                c = " ".join(b.get("text", "") for b in c if isinstance(b, dict))
+            lines.append(f"{role}: {c}")
+        return "\n".join(lines)
 
     # -- public -------------------------------------------------------------
     def run(self, user_text: str, images: list[str] | None = None,
             audio_transcript: str | None = None) -> TurnResult:
         sys_block = self._system_block()
         messages = [{"role": "system", "content": sys_block}]
+        # replay in-session history so the model has conversational context
+        messages.extend(self.history)
         content = self._user_content(user_text, images, audio_transcript)
         messages.append({"role": "user", "content": content})
 
@@ -95,6 +112,8 @@ class Agent:
                 resp = self.router.chat(messages, tools=self.registry.schemas() or None)
             except Exception as e:
                 result.text = f"[model error] {e}"
+                self._remember("user", content)
+                self._remember("assistant", result.text)
                 return result
             if resp.tool_calls:
                 messages.append({"role": "assistant", "content": resp.text or "",
@@ -113,9 +132,19 @@ class Agent:
                                      "content": out[:4000]})
                 continue
             result.text = resp.text
+            self._remember("user", content)
+            self._remember("assistant", resp.text)
             return result
         result.text = result.text or "[max iterations reached]"
+        self._remember("user", content)
+        self._remember("assistant", result.text)
         return result
+
+    def _remember(self, role: str, content):
+        # keep history bounded (last ~40 messages) to limit context growth
+        self.history.append({"role": role, "content": content})
+        if len(self.history) > 40:
+            self.history = self.history[-40:]
 
     # -- internals ----------------------------------------------------------
     def _system_block(self) -> str:

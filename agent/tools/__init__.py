@@ -22,10 +22,11 @@ from .health import make_health_tool
 from .wearable import make_hud_tool, make_notify_tool, make_capture_tool
 from .screen import make_screen_tool
 from .memory_tool import make_memory_tool
+from .history import make_history_tool
 
 
 def build_registry(config: AgentConfig, session=None, confirm=None,
-                   disable: set[str] | None = None) -> ToolRegistry:
+                   disable: set[str] | None = None, agent=None) -> ToolRegistry:
     disable = disable or set()
     reg = ToolRegistry()
     factories = {
@@ -50,4 +51,7 @@ def build_registry(config: AgentConfig, session=None, confirm=None,
         if name in disable:
             continue
         reg.register(factory())
+    # history needs the live agent instance; register only when available
+    if agent is not None and "history" not in disable:
+        reg.register(make_history_tool(agent))
     return reg

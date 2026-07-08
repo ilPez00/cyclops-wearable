@@ -83,3 +83,47 @@ def extract(text: str) -> list[Note]:
         else:
             notes.append(Note(nid, "summary", s, ts))
     return notes
+
+
+# ---- unified interface (mirrors the transcriber design) -------------------
+class Extractor:
+    """Base class for note extractors."""
+    name = "base"
+    def extract(self, text: str) -> list[Note]:
+        raise NotImplementedError
+
+
+class RuleExtractor(Extractor):
+    name = "rule"
+    def extract(self, text: str) -> list[Note]:
+        return extract(text)
+
+
+def get_extractor(prefer: str = "auto", keys=None, provider: str = "groq",
+                  client=None, model: str = "llama-3.3-70b-versatile") -> Extractor:
+    """Pick an extractor.
+
+    prefer:
+      rule -> deterministic regex extraction (offline, no keys)
+      llm  -> LLM-backed (candidates + confidence), falls back to rule on error
+      auto -> llm if a key/endpoint is configured, else rule
+    """
+    if prefer == "rule":
+        return RuleExtractor()
+    if prefer == "llm":
+        from .llm_extractor import LLMExtractor, LLMClient
+        k = keys or _aikeys()
+        c = client or LLMClient(keys=k, provider=provider)
+        return LLMExtractor(keys=k, provider=provider, client=c, model=model)
+    # auto: only use LLM when a key/endpoint is present
+    from .llm_extractor import LLMExtractor, LLMClient
+    k = keys or _aikeys()
+    if k.get_key(provider) or k.get_endpoint(provider):
+        c = client or LLMClient(keys=k, provider=provider)
+        return LLMExtractor(keys=k, provider=provider, client=c, model=model)
+    return RuleExtractor()
+
+
+def _aikeys():
+    from .aikeys import AiKeys
+    return AiKeys()
