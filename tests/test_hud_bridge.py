@@ -76,3 +76,24 @@ def test_audio_capture_roundtrip():
     assert len(store.all()) >= 1, "transcribe on STOP should store a note"
     assert any(b"TRANSCRIBE" in f for f in cap.frames)
     os.remove("/tmp/cyclops_audio.jsonl")
+
+def test_auto_transcriber_returns_transcriber():
+    from brain.transcriber import get_transcriber, Transcriber, StubTranscriber
+    # auto must never raise and must return a usable Transcriber
+    t = get_transcriber("auto")
+    assert isinstance(t, Transcriber)
+    # explicit stub stays stub (deterministic, used in tests)
+    assert isinstance(get_transcriber("stub"), StubTranscriber)
+
+def test_bridge_uses_injected_transcriber():
+    cap = Cap()
+    from brain.transcriber import StubTranscriber
+    br = HudBridge(cap, transcriber=StubTranscriber())
+    assert br.trans is not None
+    # dispatch transcribe stores a note and emits a frame
+    if os.path.exists("/tmp/cyclops_inj.jsonl"): os.remove("/tmp/cyclops_inj.jsonl")
+    from brain.store import NoteStore
+    br2 = HudBridge(cap, store=NoteStore("/tmp/cyclops_inj.jsonl"), transcriber=StubTranscriber())
+    br2.dispatch(ACT_TRANSCRIBE_START)
+    assert len(br2.store.all()) >= 1
+    os.remove("/tmp/cyclops_inj.jsonl")

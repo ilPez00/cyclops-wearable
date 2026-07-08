@@ -22,6 +22,7 @@ from .protocol_v2 import (parse_hud, build_hud, MSG_HUD_FRAME, HUD_KINDS,
 # numeric id of MSG_CMD in the firmware protocol
 MSG_CMD = 9
 from .protocol import MSG as _MSG
+from .transcriber import get_transcriber
 MSG_AUDIO_META = _MSG["AUDIO_META"]
 MSG_AUDIO_CHUNK = _MSG["AUDIO_CHUNK"]
 MSG_AUDIO_STOP = _MSG["AUDIO_STOP"]
@@ -42,7 +43,8 @@ class HudBridge:
     def __init__(self, sink, store=None, transcriber=None, health=None):
         self.sink = sink
         self.store = store
-        self.trans = transcriber
+        # auto-select a real backend (whisper -> cloud -> stub) when none given
+        self.trans = transcriber if transcriber is not None else get_transcriber("auto")
         self.health = health
         self.tele_script = []
         self.ssh_lines = ["$ ", "cyclops@phone:~# "]
