@@ -61,12 +61,16 @@ def test_live_agent_streaming():
 
     # intermediate progress + step DISPLAY_CMD frames emitted
     import json as _json
+    def _json_of(raw):
+        i = raw.find(b"{")
+        j = raw.rfind(b"}")
+        return _json.loads(raw[i:j+1]) if i >= 0 and j >= i else {}
     prog = [f for f in sink.raw if b"progress" in f]
     step = [f for f in sink.raw if b"step" in f]
     assert prog, f"no progress DISPLAY_CMD: {[r[:40] for r in sink.raw]}"
     assert step, f"no step DISPLAY_CMD: {[r[:40] for r in sink.raw]}"
     # progress value is numeric and <=100
-    first = _json.loads(prog[0])
+    first = _json_of(prog[0])
     assert 0 <= int(first.get("p", -1)) <= 100, first
 
     # final banner present

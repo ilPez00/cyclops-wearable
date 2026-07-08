@@ -9,7 +9,7 @@
 //   Every view shows a 1-line mode breadcrumb in the status bar and transient toasts.
 #include "cyclops_shared.h"
 #include <stdint.h>
-#include <cstdlib>
+#include <stdlib.h>  // AVR/Arduino-safe; declares atoi
 
 namespace cyclops {
 
@@ -125,8 +125,8 @@ struct Hud {
         const char* k = strstr(json, "\"kind\"");
         if (k) {
             if (strstr(k, "\"progress\"")) {
-                const char* p = strstr(k, "\"p\"");
-                if (p) set_progress(atoi(p + 3));
+                const char* p = strstr(k, "\"p\":");
+                if (p) set_progress(atoi(p + 4));
                 return;
             }
             if (strstr(k, "\"step\"")) {

@@ -9,7 +9,7 @@
 //   Every view shows a 1-line mode breadcrumb in the status bar and transient toasts.
 #include "cyclops_shared.h"
 #include <stdint.h>
-#include <cstdlib>
+#include <stdlib.h>  // AVR/Arduino-safe; declares atoi
 
 namespace cyclops {
 
