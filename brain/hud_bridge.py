@@ -21,6 +21,10 @@ from .protocol_v2 import (parse_hud, build_hud, MSG_HUD_FRAME, HUD_KINDS,
 
 # numeric id of MSG_CMD in the firmware protocol
 MSG_CMD = 9
+from .protocol import MSG as _MSG
+MSG_AUDIO_META = _MSG["AUDIO_META"]
+MSG_AUDIO_CHUNK = _MSG["AUDIO_CHUNK"]
+MSG_AUDIO_STOP = _MSG["AUDIO_STOP"]
 
 # --- tiny local stubs (replace with real backends) ---
 _IT_TRANSLATE = {"ciao": "hello", "buongiorno": "good morning", "grazie": "thank you",
@@ -43,6 +47,9 @@ class HudBridge:
         self.tele_script = []
         self.ssh_lines = ["$ ", "cyclops@phone:~# "]
         self._last_detail = ""
+        self._audio_buf = bytearray()
+        self._audio_rate = 16000
+        self._audio_bits = 16
 
     def _emit_text(self, text):
         if hasattr(self.sink, "render_text"):
@@ -55,6 +62,34 @@ class HudBridge:
             self.sink.write(build_hud(kind, lines, more))
 
     def handle_cmd(self, payload):
+        try:
+            d = json.loads(payload.decode())
+        except Exception:
+            return None
+        act = int(d.get("a", 0)); arg = d.get("arg", "") or ""
+        return self.dispatch(act, arg)
+
+    def handle_audio(self, typ, payload):
+        """Accumulate PCM from the device; transcribe on STOP."""
+        if typ == MSG_AUDIO_META:
+            if len(payload) >= 4:
+                self._audio_bits = payload[0] | (payload[1] << 8)
+                self._audio_rate = payload[2] | (payload[3] << 8)
+            return ("meta", (self._audio_rate, self._audio_bits))
+        if typ == MSG_AUDIO_CHUNK:
+            self._audio_buf.extend(payload)
+            return ("chunk", len(self._audio_buf))
+        if typ == MSG_AUDIO_STOP:
+            pcm = bytes(self._audio_buf); self._audio_buf = bytearray()
+            txt = self.trans.transcribe(pcm, self._audio_rate) if self.trans else "stub: heard something"
+            if self.store:
+                from .extractor import extract
+                for n in extract(txt):
+                    self.store.add(n)
+            self._emit_text("TRANSCRIBE: " + txt[:120])
+            return ("transcribed", txt)
+        return (None, None)
+
         try:
             d = json.loads(payload.decode())
         except Exception:
@@ -154,4 +189,6 @@ class FrameReceiver:
         elif self._st == 7:
             if self._type == MSG_CMD:
                 self.br.handle_cmd(bytes(self._buf[3:3 + self._len]))
+            elif self._type in (MSG_AUDIO_META, MSG_AUDIO_CHUNK, MSG_AUDIO_STOP):
+                self.br.handle_audio(self._type, bytes(self._buf[3:3 + self._len]))
             self._st = 0; self._got = 0

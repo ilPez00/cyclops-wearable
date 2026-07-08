@@ -73,8 +73,12 @@ class ModelRouter:
         if self.cfg.model and self.cfg.model != "auto":
             return self.cfg.model
         if self.cfg.local_mode or self.cfg.provider in ("ollama", "lmstudio", "custom"):
-            return os_environ_model("ollama") or "llama3.1"
+            return os_environ_model("ollama") or self.cfg.local_model or "llama3.1"
         return "openai/gpt-4o-mini"  # cheap default for cloud
+
+
+_urllib_session = _default_session  # alias used by tools
+
 
 
 def os_environ_model(fallback_provider: str) -> str:

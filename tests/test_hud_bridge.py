@@ -57,3 +57,22 @@ def test_frame_receiver_end_to_end():
     rcv = FrameReceiver(br)
     rcv.feed(frame)
     assert any(b"TR:" in f for f in cap.frames), "bridge should have emitted a translate frame"
+
+def test_audio_capture_roundtrip():
+    from brain.hud_bridge import HudBridge, FrameReceiver, MSG_CMD
+    from brain.protocol import encode, MSG
+    from brain.transcriber import StubTranscriber
+    from brain.store import NoteStore
+    if os.path.exists("/tmp/cyclops_audio.jsonl"): os.remove("/tmp/cyclops_audio.jsonl")
+    cap = Cap()
+    store = NoteStore("/tmp/cyclops_audio.jsonl")
+    br = HudBridge(cap, store=store, transcriber=StubTranscriber())
+    rcv = FrameReceiver(br)
+    # device announces 16-bit/16k then streams 100 bytes of fake PCM, then stops
+    meta = bytes([16,0, 16000&255, (16000>>8)&255, 1,0,0,0])
+    rcv.feed(encode(MSG["AUDIO_META"], meta))
+    rcv.feed(encode(MSG["AUDIO_CHUNK"], b"\x00\x01"*50))
+    rcv.feed(encode(MSG["AUDIO_STOP"], b""))
+    assert len(store.all()) >= 1, "transcribe on STOP should store a note"
+    assert any(b"TRANSCRIBE" in f for f in cap.frames)
+    os.remove("/tmp/cyclops_audio.jsonl")

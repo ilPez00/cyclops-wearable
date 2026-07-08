@@ -33,6 +33,8 @@ def make_device_tool(config: AgentConfig, session=None) -> Tool:
         action = args.get("action", "status")
         transport = args.get("transport") or config.device_transport
         if transport == "wifi":
+            if session is None:
+                return f"offline: device[wifi] {action} -> (no transport)"
             if action == "notes":
                 return json.dumps(http_get("/api/notes")[:10])
             if action == "hud":

@@ -2,11 +2,12 @@ name: Build Cyclops Companion APK
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, cyclops]
     paths:
       - 'android/**'
       - '.github/workflows/build-apk.yml'
   pull_request:
+    branches: [master, main, cyclops]
     paths:
       - 'android/**'
   workflow_dispatch:

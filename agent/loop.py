@@ -48,6 +48,9 @@ class ToolRegistry:
     def __contains__(self, name: str) -> bool:
         return name in self._tools
 
+    def __len__(self) -> int:
+        return len(self._tools)
+
     def run(self, name: str, args: dict) -> str:
         if name not in self._tools:
             return f"error: unknown tool {name}"
@@ -67,13 +70,13 @@ class TurnResult:
 class Agent:
     def __init__(self, config: AgentConfig, router: Optional[ModelRouter] = None,
                  registry: Optional[ToolRegistry] = None, skills: Optional[Skills] = None,
-                 memory: Optional[MemoryStore] = None, max_iter: int = 6):
+                 memory: Optional[MemoryStore] = None, max_iter: int = 0):
         self.cfg = config
         self.router = router or ModelRouter(config)
         self.registry = registry or ToolRegistry()
         self.skills = skills or Skills(config.skills_dirs)
         self.memory = memory or MemoryStore(config)
-        self.max_iter = max_iter
+        self.max_iter = max_iter or config.max_tool_iter
 
     # -- public -------------------------------------------------------------
     def run(self, user_text: str, images: list[str] | None = None,
@@ -118,9 +121,13 @@ class Agent:
         skills_blk = self.skills.system_block()
         base = ("You are Cyclops, a personal AI agent that routes text, audio and "
                 "images to tools and returns concise results. You can control a "
-                "terminal, read the user's memory/persona/health, ingest media and "
-                "WhatsApp exports, and talk to a wearable device. Prefer tools when "
-                "they help. Be terse unless asked otherwise.")
+                "terminal, read/write files, search the web, read the user's memory/"
+                "persona/health, manage calendar/clipboard, describe images, ingest "
+                "photos/voice/places, export WhatsApp chats, and talk to a wearable "
+                "device (HUD, notifications, capture). Prefer tools when they help. "
+                "Be terse unless asked otherwise.")
+        if self.cfg.system_note:
+            base = self.cfg.system_note + "\n\n" + base
         parts = [base]
         if blk: parts.append(blk)
         if skills_blk: parts.append(skills_blk)

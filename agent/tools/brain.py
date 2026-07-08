@@ -21,6 +21,8 @@ def make_brain_tool(config: AgentConfig, session=None) -> Tool:
 
     def run(args: dict) -> str:
         action = args.get("action", "notes")
+        if session is None:
+            return f"offline: brain {action} -> (no transport)"
         if action == "notes":
             return json.dumps(get("/api/notes")[:20])
         if action == "extract":

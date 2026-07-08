@@ -22,6 +22,10 @@ class AgentConfig:
     # Local-model toggle (the "run AI on device" switch) -------------------
     local_mode: bool = False        # True -> force a local endpoint
     local_base_url: str = "http://127.0.0.1:11434/v1"  # ollama default
+    local_model: str = "llama3.1"
+    local_vision_model: str = "llava"
+    local_stt: str = "http://127.0.0.1:11434"
+    vision_model: str = ""          # cloud vision model override
 
     # Memory / persona / health roots (configurable; default to what exists) -
     hermes_home: str = "~/.hermes"
@@ -39,7 +43,11 @@ class AgentConfig:
 
     # Safety --------------------------------------------------------------
     terminal_confirm: bool = True   # require confirm before shell exec
-    allow_fs_write: bool = True
+    allow_fs_write: bool = False
+
+    # Customization -------------------------------------------------------
+    system_note: str = ""           # extra system prompt text
+    max_tool_iter: int = 6
 
     @classmethod
     def load(cls, path: Optional[str] = None, env: Optional[dict] = None) -> "AgentConfig":
@@ -90,6 +98,19 @@ class AgentConfig:
         if self.local_mode or self.provider in ("ollama", "lmstudio", "custom"):
             return self.local_base_url or self.base_url or "http://127.0.0.1:11434/v1"
         return self.base_url or "https://openrouter.ai/api/v1"
+
+    def provider_for(self, capability: str) -> dict:
+        """Return a per-capability provider override if configured in env.
+
+        capability in: vision | stt | chat.  Looks for CYCLOPS_<CAP>_PROVIDER /
+        CYCLOPS_<CAP>_ENDPOINT / CYCLOPS_<CAP>_MODEL. Falls back to base config.
+        """
+        cap = capability.upper()
+        prov = os.environ.get(f"CYCLOPS_{cap}_PROVIDER", self.provider)
+        endpoint = os.environ.get(f"CYCLOPS_{cap}_ENDPOINT",
+                                  self.effective_endpoint())
+        model = os.environ.get(f"CYCLOPS_{cap}_MODEL", self.model)
+        return {"provider": prov, "endpoint": endpoint, "model": model}
 
     def resolve_key(self, keys=None):
         """Best-effort API key: explicit -> env -> ai key store."""
