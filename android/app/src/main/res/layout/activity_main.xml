@@ -120,6 +120,19 @@
         android:layout_height="wrap_content"
         android:text="@string/send" />
 
+    <!-- Glanceable HUD mirror: shows the banner the wearable glasses would display -->
+    <TextView
+        android:id="@+id/txtHud"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:padding="8dp"
+        android:background="#0A2A33"
+        android:textColor="#7CFFB2"
+        android:textStyle="bold"
+        android:textSize="13sp"
+        android:text="@string/hud_idle" />
+
     <TextView
         android:id="@+id/txtChat"
         android:layout_width="match_parent"

@@ -39,7 +39,6 @@ class ProtoTest {
         val r = br.dispatch(HudBridge.ACT_TRANSLATE, "ciao mondo")
         assertEquals("hello mondo", r)
         assertTrue(frames.isNotEmpty())
-        val decoded = CyclopsProto.Decoder { _, _ -> }.let { "n/a" }
         assertTrue(frames[0][5].toInt() and 0xFF == CyclopsProto.MSG_DISPLAY_CMD)
     }
 }

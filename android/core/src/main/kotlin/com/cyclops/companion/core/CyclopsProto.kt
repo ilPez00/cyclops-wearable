@@ -47,7 +47,7 @@ object CyclopsProto {
     /** Encode a frame. Returns the full frame bytes. */
     fun encode(type: Int, payload: ByteArray): ByteArray {
         val len = payload.size
-        val out = ByteArray(7 + len)
+        val out = ByteArray(8 + len)
         out[0] = MAGIC1; out[1] = MAGIC1; out[2] = MAGIC2
         out[3] = (len and 0xFF).toByte()
         out[4] = ((len shr 8) and 0xFF).toByte()

@@ -52,9 +52,14 @@ class MainActivity : AppCompatActivity() {
                     onResult = { reply, calls, steps ->
                         val stepTxt = if (steps.isEmpty()) "" else "\n• " + steps.joinToString("\n• ")
                         binding.txtChat.text = "Brain ($calls tools): $reply$stepTxt"
+                        // glanceable banner the wearable would show (first line)
+                        binding.txtHud.text = "HUD: ${reply.split("\n").first().take(60)}"
                         binding.editAsk.text?.clear()
                     },
-                    onError = { binding.txtChat.text = "Brain: (unavailable) $it" })
+                    onError = {
+                        binding.txtChat.text = "Brain: (unavailable) $it"
+                        binding.txtHud.text = "HUD: error"
+                    })
             }
         }
         binding.btnSettings.setOnClickListener { showSettings() }

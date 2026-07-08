@@ -6,6 +6,9 @@ tools and model, and results + tool steps stream back. Built on `textual`
 when available; falls back to a plain stdin/stdout REPL if textual isn't
 installed, so it runs anywhere Python 3.10+ exists.
 
+The TUI also mirrors the wearable HUD: a glanceable banner (the agent's first
+line) is shown at the top, echoing what the glasses would display (Omi/G2 style).
+
 Usage:
   python3 shells/tui/cyclops_tui.py
   CYCLOPS_LOCAL=1 python3 shells/tui/cyclops_tui.py   # force local model
@@ -42,6 +45,9 @@ def run_repl():
         if not text:
             continue
         res = agent.run(text)
+        # glanceable banner (what the glasses HUD would show)
+        banner = res.text.split("\n", 1)[0][:60] if res.text else "(no response)"
+        print(f"  [HUD] {banner}")
         if res.tool_calls:
             for s in res.steps:
                 print(f"  · {s['tool']}({s['args']}) -> {s['result'][:120]}")
@@ -51,8 +57,9 @@ def run_repl():
 def main():
     try:
         from textual.app import App, ComposeResult
-        from textual.widgets import Header, Footer, Input, RichLog, Static, Switch, Select
+        from textual.widgets import Header, Footer, Input, RichLog, Static, Switch, Select, Checkbox
         from textual.containers import Vertical, Horizontal
+        from textual.containers import ScrollableContainer
     except Exception:
         run_repl()
         return
@@ -64,14 +71,22 @@ def main():
         def __init__(self):
             super().__init__()
             self.agent = build_agent()
+            # capability toggles (offline tools always available; device/web need transport)
+            self.disabled = {"device", "brain", "vision", "web", "hud", "notify", "capture"}
 
         def compose(self) -> ComposeResult:
             yield Header()
             with Vertical():
-                yield RichLog(id="log", markup=False, wrap=True)
+                yield Static("HUD: ready", id="hud")
+                yield RichLog(id="log", markup=False, wrap=True, max_lines=2000)
                 with Horizontal():
                     yield Input(placeholder="message / attach image url…", id="inp")
                     yield Switch(value=self.agent.cfg.local_mode, id="local")
+                    yield Select([("wifi", "wifi"), ("bt", "bt"), ("cable", "cable")],
+                                 value=self.agent.cfg.device_transport, id="transport", allow_blank=False)
+                with ScrollableContainer(id="caps"):
+                    for name in sorted(self.agent.registry.names()):
+                        yield Checkbox(name, value=name not in self.disabled, id=f"cap_{name}")
             yield Footer()
 
         def on_mount(self) -> None:
@@ -79,6 +94,7 @@ def main():
                 f"[Cyclops] model={self.agent.cfg.model} "
                 f"provider={self.agent.cfg.provider} "
                 f"local={self.agent.cfg.local_mode}")
+            self.query_one("#log").write(f"[tools] {len(self.agent.registry)} available")
 
         def on_input_submitted(self, ev) -> None:
             text = ev.value.strip()
@@ -91,10 +107,28 @@ def main():
             for s in res.steps:
                 log.write(f"  · tool {s['tool']} -> {s['result'][:160]}")
             log.write(f"cyclops> {res.text or '(no response)'}")
+            # glanceable banner (mirrors wearable HUD)
+            banner = res.text.split("\n", 1)[0][:60] if res.text else "(no response)"
+            self.query_one("#hud").update(f"HUD: {banner}")
 
         def on_switch_changed(self, ev) -> None:
             if ev.switch.id == "local":
                 self.agent.cfg.local_mode = ev.value
+
+        def on_select_changed(self, ev) -> None:
+            if getattr(ev.select, "id", "") == "transport":
+                self.agent.cfg.device_transport = str(ev.value)
+
+        def on_checkbox_changed(self, ev) -> None:
+            cid = getattr(ev.checkbox, "id", "") or ""
+            if cid.startswith("cap_"):
+                name = cid[4:]
+                if ev.value:
+                    self.disabled.discard(name)
+                else:
+                    self.disabled.add(name)
+                # rebuild registry with new disabled set
+                self.agent.registry = build_registry(self.agent.cfg, disable=self.disabled)
 
     CyclopsTUI().run()
 

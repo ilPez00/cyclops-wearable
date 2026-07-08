@@ -12,6 +12,7 @@
     <string name="refresh">Refresh</string>
     <string name="connecting">Connecting…</string>
     <string name="empty">No notes yet.</string>
+    <string name="hud_idle">HUD: ready</string>
     <string-array name="transports">
         <item>wifi</item>
         <item>bt</item>

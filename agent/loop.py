@@ -51,6 +51,9 @@ class ToolRegistry:
     def __len__(self) -> int:
         return len(self._tools)
 
+    def names(self) -> list[str]:
+        return list(self._tools.keys())
+
     def run(self, name: str, args: dict) -> str:
         if name not in self._tools:
             return f"error: unknown tool {name}"
