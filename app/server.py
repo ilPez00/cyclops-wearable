@@ -80,8 +80,8 @@ class H(BaseHTTPRequestHandler):
             text = q.get("text", [""])[0]
             if not text:
                 return self._send(400, json.dumps({"error": "missing text"}))
-            from brain.factory import build_extractor
-            extr = build_extractor()
+            from brain.extractor import get_extractor
+            extr = get_extractor()
             notes = extr.extract(text) if hasattr(extr, "extract") else extr(text)
             return self._send(200, json.dumps([n.to_dict() for n in notes]))
         if p.path == "/api/chat":

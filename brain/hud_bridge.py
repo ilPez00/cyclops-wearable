@@ -99,8 +99,9 @@ class HudBridge:
             pcm = bytes(self._audio_buf); self._audio_buf = bytearray()
             txt = self.trans.transcribe(pcm, self._audio_rate) if self.trans else "stub: heard something"
             if self.store:
-                from .extractor import extract
-                for n in extract(txt):
+                from .extractor import get_extractor
+                extr = getattr(self, '_extr', None) or get_extractor()
+                for n in extr.extract(txt):
                     self.store.add(n)
             self._emit_text("TRANSCRIBE: " + txt[:120])
             return ("transcribed", txt)

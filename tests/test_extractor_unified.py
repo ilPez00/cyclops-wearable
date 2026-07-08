@@ -68,3 +68,25 @@ def test_get_extractor_auto_rule_without_keys():
 def test_get_extractor_llm_with_keys():
     e = get_extractor("llm", keys=FakeKeys(ok=True), client=FakeClient("[]"))
     assert isinstance(e, LLMExtractor)
+
+
+def test_hud_bridge_live_uses_auto_extractor():
+    # Regression: the live audio-stop path must extract via the auto-selected
+    # extractor (rule w/o keys), not the bare extract() function.
+    from brain.hud_bridge import HudBridge
+    from brain.store import NoteStore
+    from brain.transcriber import StubTranscriber
+    import tempfile
+
+    class Cap:
+        def __init__(self): self.frames = []
+        def write(self, b): self.frames.append(b)
+
+    sp = tempfile.mktemp(suffix=".jsonl")
+    store = NoteStore(sp)
+    br = HudBridge(Cap(), store=store, transcriber=StubTranscriber())
+    # simulate transport: text with a clear reminder -> rule extractor stores it
+    res = br.handle_cmd(__import__("json").dumps(
+        {"a": 2, "arg": "Remind me to water the plants by friday"}).encode())
+    assert any(n.type == "reminder" for n in store.all())
+    os.remove(sp)
