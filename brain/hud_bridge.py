@@ -17,7 +17,8 @@ from .protocol_v2 import (parse_hud, build_hud, MSG_HUD_FRAME, HUD_KINDS,
                           ACT_TRANSCRIBE_START, ACT_TRANSLATE, ACT_HEALTH,
                           ACT_NAV, ACT_TELEPROMPTER, ACT_CAMERA,
                           ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES,
-                          ACT_CONFIRM_NO, ACT_NOTES)
+                          ACT_CONFIRM_NO, ACT_NOTES, ACT_AGENT, ACT_AGENT_ABORT,
+                          build_hud_agent)
 
 # numeric id of MSG_CMD in the firmware protocol
 MSG_CMD = 9
@@ -40,12 +41,14 @@ def _translate(text):
 _MASK = 0xFF
 
 class HudBridge:
-    def __init__(self, sink, store=None, transcriber=None, health=None):
+    def __init__(self, sink, store=None, transcriber=None, health=None, agent=None):
         self.sink = sink
         self.store = store
         # auto-select a real backend (whisper -> cloud -> stub) when none given
         self.trans = transcriber if transcriber is not None else get_transcriber("auto")
         self.health = health
+        # agent core (cyclops.agent.loop.Agent) — wired by the server; None = stub
+        self.agent = agent
         self.tele_script = []
         self.ssh_lines = ["$ ", "cyclops@phone:~# "]
         self._last_detail = ""

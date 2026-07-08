@@ -5,7 +5,7 @@ import struct, json
 MSGV2 = {"PEER_HELLO":11,"TIME_SYNC":12,"HEALTH_SAMPLE":13,"HUD_FRAME":14,
          "RING_GESTURE":15,"AUDIO_COMPRESSED":16,"CONFIRM":17,"PEER_STATUS":18}
 PEERS = ("bead","glasses","ring","phone","brain")
-HUD_KINDS = ("note","notify","teleprompter","clear")
+HUD_KINDS = ("note","notify","teleprompter","clear","agent")
 
 # HUD action ids (mirror of firmware/lib/cyclops_shared/include/hud.h Action)
 ACT_NOTES=1
@@ -21,6 +21,8 @@ ACT_SETTINGS=10
 ACT_CONFIRM_YES=11
 ACT_CONFIRM_NO=12
 ACT_SELECT=13
+ACT_AGENT=14
+ACT_AGENT_ABORT=15
 
 
 # numeric constants for convenience
@@ -65,6 +67,11 @@ def parse_hud(payload: bytes) -> dict:
         elif tag == "L": lines.append(val)
         elif tag == "M": more = (val == "1")
     return {"kind": kind, "lines": lines, "more": more}
+
+def build_hud_agent(text: str, more: bool = False) -> bytes:
+    """Wrap a multi-line agent answer into an HUD 'agent' frame (Omi/G2 style)."""
+    lines = [l for l in text.split("\n") if l][:4]
+    return build_hud(HUD_KINDS.index("agent"), lines, more)
 
 # ---- HEALTH sample ----
 def build_health(t, hr, spo2, sleep_stage, batt_mv) -> bytes:

@@ -48,18 +48,21 @@ jobs:
         uses: gradle/gradle-build-action@v3
         with:
           build-root-directory: android
+          gradle-version: '8.9'
           arguments: :core:test --stacktrace
 
       - name: Build debug APK
         uses: gradle/gradle-build-action@v3
         with:
           build-root-directory: android
+          gradle-version: '8.9'
           arguments: :app:assembleDebug --stacktrace
 
       - name: Build release APK (unsigned)
         uses: gradle/gradle-build-action@v3
         with:
           build-root-directory: android
+          gradle-version: '8.9'
           arguments: :app:assembleRelease --stacktrace
 
       - name: Upload APKs
