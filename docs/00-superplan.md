@@ -46,25 +46,34 @@ three shells — no logic fork.
 
 ## 3. Built & verified (green)
 - Wire protocol v1 + v2 (framing + CRC16), C++/Python/Kotlin all in sync.
-- Firmware `Hud` state machine (14 modes) — host-testable, **native g++ test PASS**.
-- Brain: stub/whisper transcriber, rule-based note extractor, JSONL+MD store.
+- Firmware `Hud` state machine (14 modes) — host-testable, **native g++ test PASS** (11 cmds) + **proto PASS**.
+- Brain: stub/whisper transcriber, rule-based + LLM note extractor, JSONL+MD store.
 - Display sinks: local / G2 / console. Inputs: wheel, buttons, gyro (nod/shake),
   proximity wake.
 - Web dashboard (stdlib, zero-dep) + JSON API.
-- **Agent core** (loop/models/memory/skills/config) — 17 tools:
-  terminal, fs, vision, web, calendar, clipboard, health, hud, notify, capture,
-  screen, whatsapp_export, media_ingest, device, brain, memory, memory_tool.
+- **Agent core** (loop/models/memory/skills/config) — 17+ tools.
 - **TUI** (textual + REPL) with glanceable HUD banner + per-tool toggles.
 - **Android** full router APK: local-model switch, transport selector (wifi/bt/
-  cable), agent call, HUD mirror banner. Builds on GitHub Actions.
-- **HUD/UX rework (latest):** glanceable `hud_line` banner, `AGENT` mode +
-  `ACT_AGENT`/`ACT_AGENT_ABORT`, live REC timer, transient toasts, mode
-  breadcrumb, DETAIL 256→1024; bridge `dispatch(ACT_AGENT)` + `push_hud()`;
-  server pushes answers to the wearable; Android + TUI mirror the banner.
-- **Tests: 66 passed, 0 failed** (agent core, tools expanded, HUD bridge, wire
-  contract, firmware logic). Secrets excluded via `.gitignore`; code on the
-  `cyclops` branch of `github.com/ilPez00/ayu` (master has >100MB legacy files
-  GitHub rejects — see §6).
+  cable), agent call, HUD mirror banner, **COLMI R02 ring screen** (RingActivity
+  + RingProto). Builds on GitHub Actions.
+- **HUD/UX rework:** glanceable `hud_line` banner, `AGENT` mode + live REC timer,
+  transient toasts, mode breadcrumb, DETAIL 256→1024; bridge `dispatch(ACT_AGENT)`
+  + `push_hud()`; Android + TUI mirror the banner.
+- **P0-A** desktop HUD simulator (decodes real wire frames; `--demo`).
+- **P0-B** OpenGlass / XIAO camera ingest (capture→vision pipeline, offline-safe).
+- **P0-C** EvenRealities G2 HUD layout (4×18) + `even_hub_sdk` `.ehpk` plugin (node smoke test).
+- **P0-D** Consent Mode: `consent_mode` config + `consent` tool + `capture`/`camera`/`omi` gated; firmware REC start gated on consent + `X ` indicator.
+- **P1-A** Omi audio ingestion (source→transcriber→phrase loop, BLE import-safe, consent-gated).
+- **P1-B** local-first pipeline: `local_first` default; cloud only when explicitly opted in.
+- **P1-C** G2/R1 gestures → HUD input (`GEST` protocol + firmware `on_gesture` dispatch + bridge routing).
+- **P1-D** unified health frame (`HealthAggregator` fuses COLMI/Omi/G2, single `build_health` emission).
+- **P2-A** local-first plugin marketplace (`PluginManifest` + `PluginRegistry` + offline-safe `sync`).
+- **P2-B** multi-source context fusion (`ContextAssembler`: notes + health + calendar).
+- **P2-C** phone→wearable health relay (`MSG_HEALTH_SAMPLE` → `on_health_sample`; zero = absent).
+- **P2-D** offline-safe `make flash` (`ENABLE_RING`/`SCREEN` flags) + `docs/flash-xiao.md`.
+- **Tests: 170 passed, 0 failed** (Python full suite) + firmware host gate green.
+  Code on the `cyclops` branch of `github.com/ilPez00/ayu`; `master` carries
+  >100MB legacy binaries (see §6 / T4.10).
 
 ## 4. Tool inventory (capabilities.py — drives UI customization)
 | tool | domain | status |
@@ -120,36 +129,40 @@ three shells — no logic fork.
 
 ## 6. Prioritized roadmap (next tracks)
 **T1 — Make it real on hardware (highest value)**
-1. Flash firmware to XIAO; wire I2S mic + OLED; field-test HOME/MENU/AGENT.  ~[HW ONLY]~
-2. **[DONE]** BLE transport: `BleLink` GATT central + `BleTransport` + streaming
-   `Decoder` in brain/protocol.py; RFCOMM `BluetoothTransport` + `CableTransport`
-   stubs; PC loop closed (`SerialFrameReader` -> `HudBridge`). Offline-tested.
-3. Stream the glanceable banner over BLE to G2/Omi glasses end-to-end.  ~[G2 pending]~
+1. Flash firmware to XIAO; wire I2S mic + OLED; field-test HOME/MENU/AGENT.  ~[HW ONLY — manual on board-attached machine; `make flash` ready (P2-D)]~
+2. **[DONE]** BLE transport: `BleLink` GATT central + `BleTransport` + streaming `Decoder`. Offline-tested.
+3. Stream the glanceable banner over BLE to G2/Omi glasses end-to-end.  ~[G2 layout done P0-C; transport glue pending]~
 
 **T2 — Make the AI actually good**
-4. **[DONE]** real transcriber: faster-whisper (edge) + Deepgram/OpenAI (cloud),
-   auto-selected via `get_transcriber`; stub fallback. (T2.1)
-5. **[DONE]** LLM extraction behind `Extractor` interface: `get_extractor`
-   (rule/llm/auto) wired into live HudBridge + /api/extract + Pipeline; rule
-   fallback on LLM error. (T2.5)
+4. **[DONE]** real transcriber: faster-whisper (edge) + Deepgram/OpenAI (cloud). (T2.1)
+5. **[DONE]** LLM extraction behind `Extractor` interface. (T2.5)
 6. Local vision live test against Ollama llava.  ~[tool exists; live test pending]~
 
 **T3 — Depth & stickiness**
-7. **[DONE]** Agent conversation history + memory write-back; semantic/keyword
-   note search (`store.search` + /api/search). (T3.1 / T3.7)
+7. **[DONE]** Agent conversation history + memory write-back; note search. (T3.1 / T3.7)
 8. Companion-app settings UI (per-tool model/provider/keys, persona editor).
 9. Navigation, live translation, teleprompter script source, music control.
 
+**P0–P2 (completed this cycle, 2026-07-09)**
+- P0-A desktop HUD sim · P0-B OpenGlass cam · P0-C G2 plugin · P0-D Consent Mode
+- P1-A Omi audio · P1-B local-first pipeline · P1-C G2/R1 gestures · P1-D unified health
+- P2-A plugin marketplace · P2-B context fusion · P2-C health relay · P2-D flash guide
+
 **T4 — Hardening**
-10. Resolve `master` vs `cyclops` branch (filter-repo or promote `cyclops`).
-11. Add CI for the firmware (pio run -e native_test) + Kotlin unit tests.
-12. Backup `cyclops/` to healthy `c459b` drive.
+10. Resolve `master` vs `cyclops` branch — open PR `cyclops`→`master` (non-destructive server-side merge). **[IN PROGRESS]**
+11. **[DONE]** CI: firmware host gate (`make test`/`make proto`) runs on the `cyclops` branch + full Python suite + firmware build matrix + native tests. (T4.11)
+12. Backup `cyclops/` to healthy `c459b` drive.  ~[drive unmounted/degraded — blocked]~
+
+**Not locally verifiable (need hardware / live services):**
+- Real XIAO flash + I2S mic field test (T1.1).
+- Live Ollama llava vision test (T2.6).
+- Kotlin `:core:test` (no local gradle 8.9; CI covers it).
 
 ## 7. How to run / verify today
 - Agent/TUI: `cd cyclops && python3 shells/tui/cyclops_tui.py` (or `CYCLOPS_LOCAL=1`).
 - Brain server: `./serve.sh` (or `python3 app/server.py`) → http://localhost:8080.
-- Tests: `python3 tests/run_tests.py tests/test_*.py` → 66 passed.
-- Firmware logic: `g++ -std=c++17 -I shared/include -I lib/cyclops_shared/include shared/test_hud.cpp -o /tmp/t && /tmp/t`.
+- Tests: `python3 tests/run_tests.py tests/test_*.py` → 170 passed.
+- Firmware logic: `cd firmware && make test && make proto` → both green.
 - Android APK: pushed to `cyclops` branch → GitHub Actions builds debug+release
   artifact (download from the Actions run).
 

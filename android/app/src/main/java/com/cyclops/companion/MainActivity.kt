@@ -6,10 +6,12 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.*
+import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.cyclops.companion.databinding.ActivityMainBinding
+import com.google.android.material.chip.Chip
 
 /**
  * Companion app for the Cyclops wearable brain. This is the phone-side
@@ -32,21 +34,25 @@ class MainActivity : AppCompatActivity() {
         binding.listNotes.adapter = adapter
 
         binding.btnRefresh.setOnClickListener { refresh() }
+        // probe connectivity on open
+        setStatus(getString(R.string.status_checking), R.color.cyclops_surface_variant)
         binding.btnIngest.setOnClickListener {
             val t = binding.editIngest.text.toString().trim()
-            if (t.isNotEmpty()) CyclopsApi.ingest(t,
-                onResult = { binding.editIngest.text?.clear(); refresh() },
-                onError = { toast(it) })
+            if (t.isNotEmpty()) { setBusy(true); CyclopsApi.ingest(t,
+                onResult = { binding.editIngest.text?.clear(); setBusy(false); refresh() },
+                onError = { toast(it); setBusy(false) })
         }
         binding.btnExtract.setOnClickListener {
             val t = binding.editExtract.text.toString().trim()
-            if (t.isNotEmpty()) CyclopsApi.extract(t,
-                onResult = { adapter.setNotes(it); binding.txtEmpty.toggle(it.isEmpty()) },
-                onError = { toast(it) })
+            if (t.isNotEmpty()) { setBusy(true); CyclopsApi.extract(t,
+                onResult = { adapter.setNotes(it); binding.txtEmpty.toggle(it.isEmpty()); setBusy(false) },
+                onError = { toast(it); setBusy(false) })
         }
         binding.btnAsk.setOnClickListener {
             val t = binding.editAsk.text.toString().trim()
             if (t.isNotEmpty()) {
+                setBusy(true)
+                setStatus(getString(R.string.connecting), R.color.cyclops_warn)
                 val local = binding.swLocal.isChecked
                 val transport = binding.spinTransport.selectedItem?.toString() ?: "wifi"
                 val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
@@ -61,10 +67,14 @@ class MainActivity : AppCompatActivity() {
                         // glanceable banner the wearable would show (first line)
                         binding.txtHud.text = "HUD: ${reply.split("\n").first().take(60)}"
                         binding.editAsk.text?.clear()
+                        setBusy(false)
+                        setStatus(getString(R.string.status_connected), R.color.cyclops_ok)
                     },
                     onError = {
                         binding.txtChat.text = "Brain: (unavailable) $it"
                         binding.txtHud.text = "HUD: error"
+                        setBusy(false)
+                        setStatus(getString(R.string.status_error), R.color.cyclops_err)
                     })
             }
         }
@@ -83,12 +93,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
+        setBusy(true)
+        setStatus(getString(R.string.status_checking), R.color.cyclops_surface_variant)
         CyclopsApi.notes(
             onResult = {
                 adapter.setNotes(it)
                 binding.txtEmpty.visibility = if (it.isEmpty()) TextView.VISIBLE else TextView.GONE
+                setStatus(getString(R.string.status_connected), R.color.cyclops_ok)
+                setBusy(false)
             },
-            onError = { toast(it); binding.txtEmpty.visibility = TextView.VISIBLE }
+            onError = {
+                toast(it)
+                binding.txtEmpty.visibility = TextView.VISIBLE
+                setStatus(getString(R.string.status_offline), R.color.cyclops_err)
+                setBusy(false)
+            }
         )
     }
 
@@ -179,6 +198,20 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+
+    private fun setStatus(state: String, colorRes: Int) {
+        binding.chipStatus.text = state
+        binding.chipStatus.chipBackgroundColor = android.content.res.ColorStateList.valueOf(
+            androidx.core.content.ContextCompat.getColor(this, colorRes))
+    }
+
+    private fun setBusy(busy: Boolean) {
+        binding.btnRefresh.isEnabled = !busy
+        binding.btnIngest.isEnabled = !busy
+        binding.btnExtract.isEnabled = !busy
+        binding.btnAsk.isEnabled = !busy
     }
 
     private fun toast(msg: String) {

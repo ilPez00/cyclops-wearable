@@ -44,6 +44,18 @@
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
+
+    <com.google.android.material.chip.Chip
+        android:id="@+id/chipStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:checkable="false"
+        android:text="@string/status_checking"
+        app:chipBackgroundColor="@color/cyclops_surface_variant"
+        app:chipStrokeColor="@color/cyclops_on_surface_muted"
+        app:chipStrokeWidth="1dp" />
+
         android:id="@+id/listNotes"
         android:layout_width="match_parent"
         android:layout_height="0dp"
