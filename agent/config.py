@@ -9,6 +9,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
+import json
 
 
 @dataclass
@@ -47,6 +48,7 @@ class AgentConfig:
     allow_fs_write: bool = False
 
     # Customization -------------------------------------------------------
+    persona: str = ""               # companion-app persona (mirrors system_note)
     system_note: str = ""           # extra system prompt text
     max_tool_iter: int = 6
     tool_overrides: dict = field(default_factory=dict)  # tool -> {provider,model,endpoint,key}
@@ -139,19 +141,20 @@ class AgentConfig:
         model = os.environ.get(f"CYCLOPS_{cap}_MODEL", self.model)
         return {"provider": prov, "endpoint": endpoint, "model": model}
 
-    def resolve_key(self, keys=None):
+    def resolve_key(self, keys=None, provider: str | None = None):
         """Best-effort API key: explicit -> env -> ai key store."""
         if self.api_key:
             return self.api_key
-        if self.provider != "auto":
-            envk = (self.provider.upper() + "_API_KEY")
+        prov = provider or self.provider
+        if prov != "auto":
+            envk = (prov.upper() + "_API_KEY")
             if os.environ.get(envk):
                 return os.environ[envk]
         # try the cyclops ai key store
         try:
             from brain.aikeys import AiKeys
             k = AiKeys()
-            for name in (self.provider, "openrouter", "openai", "groq"):
+            for name in (prov, "openrouter", "openai", "groq"):
                 if name == "auto":
                     continue
                 val = k.get_key(name) or k.get_key(name + "_api_key")

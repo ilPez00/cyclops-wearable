@@ -37,7 +37,7 @@ def test_live_agent_streaming():
     # FakeRouter: always returns a tool_call first, then final text
     class FakeRouter:
         def __init__(self): self.n = 0
-        def chat(self, messages, tools=None, temperature=0.4):
+        def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
             from agent.models import ChatResult
             if self.n == 0:
                 self.n += 1

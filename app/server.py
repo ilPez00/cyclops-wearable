@@ -19,6 +19,7 @@ from agent.tools import build_registry
 from agent.loop import Agent
 
 STORE_PATH = os.path.expanduser("~/.cyclops/notes.jsonl")
+PROFILE_PATH = os.path.expanduser("~/.cyclops/profile.json")
 PORT = 8080
 pipeline = None
 agent = None
@@ -166,6 +167,42 @@ class H(BaseHTTPRequestHandler):
                     "action": res[0], "frames": [f.decode("latin1", "replace") for f in cap.frames]}))
             except Exception as e:
                 return self._send(200, json.dumps({"action": None, "error": str(e)}))
+        if p.path == "/api/settings":
+            # current persisted profile (or defaults) for the companion UI
+            cfg = AgentConfig.load_json(PROFILE_PATH) if os.path.exists(PROFILE_PATH) else AgentConfig()
+            return self._send(200, json.dumps(cfg.to_dict()))
+        self._send(404, json.dumps({"error": "not found"}))
+
+    def do_POST(self):
+        p = urlparse(self.path)
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(length) if length else b"{}"
+        try:
+            data = json.loads(body or b"{}")
+        except Exception:
+            data = {}
+        if p.path == "/api/settings":
+            # merge + persist the profile (persona, provider, per-tool overrides, ...)
+            cfg = AgentConfig.load_json(PROFILE_PATH) if os.path.exists(PROFILE_PATH) else AgentConfig()
+            # accept 'persona' as an alias for system_note (companion UI naming)
+            if "persona" in data and "system_note" not in data:
+                data["system_note"] = data.pop("persona")
+            for k, v in data.items():
+                if hasattr(cfg, k):
+                    setattr(cfg, k, v)
+            # keep persona + system_note in sync (single source of truth)
+            if getattr(cfg, "persona", ""):
+                cfg.system_note = cfg.persona
+            os.makedirs(os.path.dirname(PROFILE_PATH), exist_ok=True)
+            cfg.save(PROFILE_PATH)
+            # refresh the running agent to pick up the new profile
+            global agent
+            if agent is not None:
+                try:
+                    agent.cfg = cfg
+                except Exception:
+                    pass
+            return self._send(200, json.dumps({"ok": True, "profile": cfg.to_dict()}))
         self._send(404, json.dumps({"error": "not found"}))
     def log_message(self, *a): pass
 

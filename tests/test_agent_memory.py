@@ -35,13 +35,13 @@ def test_agent_persists_across_runs():
 
     # first agent run
     class R1:
-        def chat(self, m, tools=None, temperature=0.4):
+        def chat(self, m, tools=None, temperature=0.4, **_kwargs):
             return ChatResult(text="Paris is the capital of France.")
     a1 = Agent(cfg, router=R1(), registry=reg, memory=MemoryStore(cfg))
     a1.run("what is the capital of France?")
     # a second, fresh agent over the SAME memory store
     class R2:
-        def chat(self, m, tools=None, temperature=0.4):
+        def chat(self, m, tools=None, temperature=0.4, **_kwargs):
             # surface whether the system block contains the prior turn
             sysblk = m[0]["content"]
             R2.saw = "capital of France" in sysblk

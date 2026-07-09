@@ -111,6 +111,22 @@ class MainActivity : AppCompatActivity() {
         field("Cloud provider (openai/groq/openrouter/...)", "provider")
         val keyEd = field("API key (stored on device only)", "api_key", secret = true)
         field("Persona / system note (extra instructions)", "persona")
+        // per-tool overrides (provider/model) — saved to the brain profile
+        val TOOLS = listOf("vision", "web_search", "web_fetch", "translate", "brain")
+        val toolProvider = mutableMapOf<String, EditText>()
+        val toolModel = mutableMapOf<String, EditText>()
+        val header = TextView(this).apply {
+            text = "Per-tool model overrides"
+            setPadding(0, 16, 0, 8)
+            textSize = 14f
+            layout.addView(this)
+        }
+        for (t in TOOLS) {
+            val lp = field("provider for $t", "tool_${t}_provider")
+            val lm = field("model for $t", "tool_${t}_model")
+            toolProvider[t] = lp
+            toolModel[t] = lm
+        }
         val transSpin = Spinner(this).apply {
             adapter = ArrayAdapter.createFromResource(ctx, R.array.transports,
                 android.R.layout.simple_spinner_item).also {
@@ -130,8 +146,33 @@ class MainActivity : AppCompatActivity() {
                     putString("api_key", keyEd.text.toString().trim())
                     putString("persona", prefs.getString("persona", ""))
                     putString("transport", transSpin.selectedItem?.toString() ?: "wifi")
+                    for (t in TOOLS) {
+                        putString("tool_${t}_provider", toolProvider[t]!!.text.toString().trim())
+                        putString("tool_${t}_model", toolModel[t]!!.text.toString().trim())
+                    }
                 }.apply()
                 CyclopsApi.baseUrl = urlEd.text.toString().trim()
+                // push profile (persona/provider + per-tool overrides) to the brain
+                val overrides = org.json.JSONObject()
+                for (t in TOOLS) {
+                    val p = toolProvider[t]!!.text.toString().trim()
+                    val m = toolModel[t]!!.text.toString().trim()
+                    if (p.isNotEmpty() || m.isNotEmpty()) {
+                        val o = org.json.JSONObject()
+                        if (p.isNotEmpty()) o.put("provider", p)
+                        if (m.isNotEmpty()) o.put("model", m)
+                        overrides.put(t, o)
+                    }
+                }
+                val profile = org.json.JSONObject().apply {
+                    put("persona", prefs.getString("persona", "") ?: "")
+                    put("provider", prefs.getString("provider", "") ?: "")
+                    put("api_key", keyEd.text.toString().trim())
+                    if (overrides.length() > 0) put("tool_overrides", overrides)
+                }
+                CyclopsApi.putSettings(profile.toString(),
+                    onResult = { toast("Settings saved to brain") },
+                    onError = { toast("Save failed: $it") })
                 refresh()
             }
             .setNegativeButton("Cancel", null)

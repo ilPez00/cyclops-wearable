@@ -8,7 +8,7 @@ from agent.models import ChatResult
 
 
 class FakeRouter:
-    def chat(self, messages, tools=None, temperature=0.4):
+    def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
         # final answer only (no tools) so the TUI turn completes offline
         return ChatResult(text="I am Cyclops. Ready.")
 

@@ -83,6 +83,7 @@ class Agent:
         self.history: list[dict] = []   # prior turns (role/content), in-session memory
         # optional live progress callback: cb(tool_name, progress_pct) per iteration
         self.progress_cb: Optional[Callable[[Optional[str], int], None]] = None
+        self._last_tool: Optional[str] = None   # last invoked tool (for per-tool model override)
 
     def reset(self):
         """Clear in-session conversation history."""
@@ -133,6 +134,7 @@ class Agent:
                     except Exception:
                         args = {}
                     out = self.registry.run(name, args)
+                    self._last_tool = name   # feed into next model call for per-tool override
                     result.tool_calls += 1
                     result.steps.append({"tool": name, "args": args, "result": out[:500]})
                     if self.progress_cb:

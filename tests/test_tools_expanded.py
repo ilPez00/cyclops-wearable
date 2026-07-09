@@ -86,7 +86,7 @@ def test_agent_multi_tool_routing():
 
     class FakeRouter:
         def __init__(self): self.n = 0
-        def chat(self, messages, tools=None, temperature=0.4):
+        def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
             self.n += 1
             if self.n == 1:
                 return ChatResult(text="", tool_calls=[{

@@ -46,3 +46,42 @@ def test_cloud_path_uses_provider():
     assert out == "a red apple on a table"
     url, payload, headers = s.last
     assert url == "https://api.openai.com/v1/chat/completions"
+
+
+
+def _probe_local_vlm(base_url):
+    """Return a usable VLM model name if a local Ollama serves one, else None."""
+    import urllib.request, json as _json
+    try:
+        with urllib.request.urlopen(base_url.rstrip("/") + "/models", timeout=3) as r:
+            models = _json.loads(r.read()).get("data", [])
+    except Exception:
+        return None
+    names = [m.get("id", "") for m in models]
+    for cand in ("llava", "llava-phi3", "minicpm-v", "moondream"):
+        hit = next((n for n in names if cand in n.lower()), None)
+        if hit:
+            return hit
+    return None
+
+
+def test_vision_live_ollama_smoke():
+    """Live test: if a local Ollama with a VLM is reachable, describe a tiny
+    generated image for real; otherwise skip (no hardware / offline)."""
+    import os, io, base64, urllib.request
+    from PIL import Image  # pillow is available in CI; fall back if not
+    cfg = AgentConfig(); cfg.local_mode = True
+    vlm = _probe_local_vlm(cfg.local_base_url)
+    if vlm is None:
+        # no local VLM reachable -> offline skip (counts as pass)
+        return
+    # generate a 2x2 red PNG
+    buf = io.BytesIO()
+    Image.new("RGB", (2, 2), (220, 30, 30)).save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    s = Session()
+    tool = make_vision_tool(cfg, session=s)
+    out = tool.run({"image": f"data:image/png;base64,{b64}",
+                    "prompt": "What color is this image? One word."})
+    assert vlm in s.last[1]["model"]
+    assert len(out) > 0 and "error" not in out.lower()

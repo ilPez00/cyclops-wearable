@@ -38,6 +38,25 @@ object CyclopsApi {
 
     private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
+    private fun post(url: URL, body: String): String {
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.connectTimeout = 10_000
+        conn.readTimeout = 30_000
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/json")
+        try {
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val resp = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
+            if (code !in 200..299) throw RuntimeException("HTTP $code: $resp")
+            return resp
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private fun get(url: URL): String {
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
@@ -124,6 +143,25 @@ object CyclopsApi {
             val obj = JSONObject(get(url("/api/hud_cmd", "a" to "14", "arg" to text)))
             val action = obj.optString("action", "")
             onResult(action)
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
+    // Pull the current profile (persona, provider, per-tool overrides, ...) from the brain.
+    fun getSettings(onResult: (JSONObject) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            onResult(JSONObject(get(url("/api/settings"))))
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
+    // Persist the profile (incl. per-tool overrides) to the brain.
+    fun putSettings(json: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(post("/api/settings", json))
+            onResult(obj.optBoolean("ok", false))
         } catch (e: Exception) {
             onError(e.message ?: e.toString())
         }

@@ -10,7 +10,7 @@ from agent.loop import Agent
 
 class FakeRouter:
     """Echoes a deterministic answer; never calls tools, just replies."""
-    def chat(self, messages, tools=None, temperature=0.4):
+    def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
         # last user message text
         last = messages[-1]
         text = last.get("content") if isinstance(last.get("content"), str) else str(last.get("content"))
@@ -34,7 +34,7 @@ def test_history_replayed_into_context():
     cfg = AgentConfig()
     seen = []
     class SpyRouter:
-        def chat(self, messages, tools=None, temperature=0.4):
+        def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
             seen.append(messages)
             return ChatResult(text="ok")
     agent = Agent(cfg, router=SpyRouter(), registry=build_registry(cfg, agent=None))

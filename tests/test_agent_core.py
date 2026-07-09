@@ -16,7 +16,7 @@ from agent.tools.whatsapp import parse_export
 class FakeRouter:
     def __init__(self):
         self.calls = 0
-    def chat(self, messages, tools=None, temperature=0.4):
+    def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
         self.calls += 1
         if self.calls == 1:
             return ChatResult(text="", tool_calls=[{
