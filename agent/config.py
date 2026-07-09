@@ -42,6 +42,10 @@ class AgentConfig:
     device_transport: str = "wifi"  # wifi|bt|cable
     device_host: str = "192.168.1.50"
     device_port: int = 8080
+    camera_source: str = "openglass"  # openglass|xiao|phone (P0-B)
+
+    # Privacy (P0-D, Omi-style Consent Mode) ----------------------------
+    consent_mode: bool = True  # when off, capture/recording is refused
 
     # Safety --------------------------------------------------------------
     terminal_confirm: bool = True   # require confirm before shell exec
@@ -92,6 +96,10 @@ class AgentConfig:
         if env.get("CYCLOPS_DEVICE_HOST"): cfg.device_host = env["CYCLOPS_DEVICE_HOST"]
         if env.get("CYCLOPS_DEVICE_TRANSPORT"):
             cfg.device_transport = env["CYCLOPS_DEVICE_TRANSPORT"]
+        if env.get("CYCLOPS_CAMERA_SOURCE"):
+            cfg.camera_source = env["CYCLOPS_CAMERA_SOURCE"]
+        if env.get("CYCLOPS_CONSENT") in ("0", "false", "no"):
+            cfg.consent_mode = False
         return cfg
 
     def _from_file(self, path: str):
@@ -119,6 +127,7 @@ class AgentConfig:
                 elif k == "local_base_url": self.local_base_url = v
                 elif k == "device_transport": self.device_transport = v
                 elif k == "device_host": self.device_host = v
+                elif k == "consent_mode": self.consent_mode = v in ("true", "1", "yes")
                 elif k == "terminal_confirm": self.terminal_confirm = v in ("true", "1", "yes")
 
     def effective_endpoint(self, provider: str | None = None) -> str:

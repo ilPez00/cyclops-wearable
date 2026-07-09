@@ -19,6 +19,8 @@ CAPABILITIES = [
     ("hud", "wearable", "Show short text on the glasses HUD (Omi/G2).", ["device"]),
     ("notify", "wearable", "Trigger a haptic buzz / notification on the device.", ["device"]),
     ("capture", "wearable", "Ask the wearable to take a photo or record voice.", ["device"]),
+    ("camera", "multimodal", "Capture a frame from the OpenGlass/XIAO camera and analyze it.", ["device", "model"]),
+    ("consent", "privacy", "Consent Mode: gate capture/recording behind explicit opt-in.", []),
     ("screen", "system", "Capture and optionally describe the desktop screen.", []),
     ("whatsapp_export", "social", "Export & summarize WhatsApp chats to feed the AI.", []),
     ("media_ingest", "context", "Index photos, voice recordings and places visited.", []),

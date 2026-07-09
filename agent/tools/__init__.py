@@ -20,6 +20,8 @@ from .calendar import make_calendar_tool
 from .clipboard import make_clipboard_tool
 from .health import make_health_tool
 from .wearable import make_hud_tool, make_notify_tool, make_capture_tool
+from .camera import make_camera_tool
+from .consent import make_consent_tool
 from .screen import make_screen_tool
 from .memory_tool import make_memory_tool
 from .history import make_history_tool
@@ -44,6 +46,8 @@ def build_registry(config: AgentConfig, session=None, confirm=None,
         "hud": lambda: make_hud_tool(config, session=session),
         "notify": lambda: make_notify_tool(config, session=session),
         "capture": lambda: make_capture_tool(config, session=session),
+        "camera": lambda: make_camera_tool(config, session=session),
+        "consent": lambda: make_consent_tool(config),
         "screen": lambda: make_screen_tool(config),
         "memory": lambda: make_memory_tool(config),
     }

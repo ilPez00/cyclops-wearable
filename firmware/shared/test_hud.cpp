@@ -128,6 +128,25 @@ int main() {
  assert(strstr(scr2.row0, "BT") != nullptr);    // bluetooth flag
  assert(strstr(scr2.row0, "HOME") != nullptr || strstr(scr2.row0, "HLTH") != nullptr);
 
+ // ---- consent gate: recording blocked when consent is off ----
+ {
+     Hud hc; hc.send_cmd = on_cmd; hc.init();
+     hc.set_consent(false);
+     hc.home(); hc.on_select(); hc.menu_sel = 2; hc.on_select(); // Transcribe
+     assert(!hc.recording);                 // blocked, no REC
+     hc.on_nod();                           // quick capture toggle
+     assert(!hc.recording);                 // still blocked
+     hc.set_consent(true);
+     hc.on_nod();
+     assert(hc.recording);                  // now allowed
+     // consent JSON frame from brain toggles state
+     Hud hc2; hc2.send_cmd = on_cmd; hc2.init();
+     hc2.apply_display_cmd("{\"kind\":\"consent\",\"on\":0}");
+     assert(!hc2.consent);
+     hc2.apply_display_cmd("{\"kind\":\"consent\",\"on\":1}");
+     assert(hc2.consent);
+ }
+
  // ---- word-aware wrap: no mid-word split on a long agent answer ----
  {
      Hud hw; hw.send_cmd = on_cmd; hw.init();

@@ -18,6 +18,8 @@ def _make(action: str, name: str, desc: str, extra_props: dict, config: AgentCon
     port = config.device_port
 
     def run(args: dict) -> str:
+        if action == "capture" and not config.consent_mode:
+            return "error: consent OFF — capture refused (enable via consent tool)"
         if sess is None:
             payload = {"action": action}
             payload.update({k: args.get(k) for k in extra_props})

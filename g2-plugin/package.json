@@ -1,0 +1,15 @@
+{
+  "name": "cyclops-g2-hud",
+  "version": "0.1.0",
+  "description": "Cyclops HUD plugin for EvenRealities G2 (even_hub_sdk). Renders Cyclops DISPLAY_CMD/HUD_FRAME banners on the 4x18 green HUD.",
+  "main": "main.js",
+  "evenhub": {
+    "display": "mono-green",
+    "maxLines": 4,
+    "maxCols": 18,
+    "permissions": ["ble", "websocket"]
+  },
+  "scripts": {
+    "test": "node test/layout.test.js"
+  }
+}

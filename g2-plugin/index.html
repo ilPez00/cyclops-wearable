@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cyclops G2 HUD</title>
+<style>body{background:#001;color:#0f0;font-family:monospace}</style></head>
+<body>
+  <h3>Cyclops HUD (G2 preview)</h3>
+  <canvas id="g2" width="144" height="64"></canvas>
+  <p>Loads as an even_hub_sdk plugin (.ehpk). The companion app relays Cyclops
+     DISPLAY_CMD / HUD_FRAME frames here; this page draws the 4x18 green HUD.</p>
+  <script src="main.js"></script>
+  <script>
+    // dev preview: render a sample frame
+    const api = { getDisplay: () => ({
+      width: 144, height: 64,
+      drawGrid(grid){ const c=document.getElementById('g2').getContext('2d');
+        c.clearRect(0,0,144,64); c.fillStyle='#0f0'; c.font='14px monospace';
+        grid.forEach((r,i)=>c.fillText(r.join(''),4,16+i*16)); } }),
+      onFrame(){} };
+    registerCyclopsG2(api).onFrame("Kagent\nLMeet Bob at 3pm\nLbring cable\nM0");
+  </script>
+</body></html>

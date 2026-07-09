@@ -71,7 +71,7 @@ struct Hud {
     char confirm_prompt[32] = ""; uint8_t confirm_action = 0;
     int rec_secs = 0;
     uint32_t clock = 0;
-    bool recording = false, screen_on = true, bt = false;
+    bool recording = false, screen_on = true, bt = false, consent = true;
 
     // callbacks: send a command byte to the brain (BLE/USB). Set by main.
     void (*send_cmd)(uint8_t act, const char* arg) = nullptr;
@@ -118,6 +118,7 @@ struct Hud {
         steps[step_n][n] = 0; step_n++;
     }
     void set_progress(int p) { progress = clamp(p, 0, 100); }
+    void set_consent(bool c) { consent = c; }
     // Parse a DISPLAY_CMD JSON from the brain and update Hud state.
     // Handles {"kind":"progress","p":NN}, {"kind":"step","tool":"x"},
     // and default {"kind":"text"/"data"/"text":...} -> add_note.
@@ -131,8 +132,13 @@ struct Hud {
             }
             if (strstr(k, "\"step\"")) {
                 const char* t = strstr(k, "\"tool\"");
-                if (t) { const char* s = strchr(t, ':'); if (s) { ++s; while (*s==' '||*s=='"') ++s;
-                    char buf[12]; int i=0; while (*s && *s!='"' && *s!=',' && i<11) buf[i++]=*s++; buf[i]=0; if (buf[0]) add_step(buf); } }
+                if (t) { const char* s = strchr(t, ':'); if (s) { ++s; while (*s==' '||*s=='\"') ++s;
+                    char buf[12]; int i=0; while (*s && *s!='\"' && *s!=',' && i<11) buf[i++]=*s++; buf[i]=0; if (buf[0]) add_step(buf); } }
+                return;
+            }
+            if (strstr(k, "\"consent\"")) {
+                const char* v = strstr(k, "\"on\"");
+                set_consent(v ? atoi(v + 5) != 0 : true);
                 return;
             }
         }
@@ -175,7 +181,7 @@ struct Hud {
             else if (!strcmp(act, "Notes")) push(NOTES);
             else if (!strcmp(act, "Agent")) { set_detail(""); scroll_off = 0; push(AGENT);
                                                toast("ask via app/voice", 2); }
-            else if (!strcmp(act, "Transcribe")) { recording = true; rec_secs = 0; push(TRANSCRIBE); cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); }
+            else if (!strcmp(act, "Transcribe")) { if (!consent) { toast("consent off", 2); return; } recording = true; rec_secs = 0; push(TRANSCRIBE); cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); }
             else if (!strcmp(act, "Translate")) { set_detail(note_count ? notes[note_sel] : ""); push(TRANSLATE); cmd(ACT_TRANSLATE, note_count ? notes[note_sel] : ""); }
             else if (!strcmp(act, "Health")) push(HEALTH);
             else if (!strcmp(act, "Navigate")) push(NAV);
@@ -212,7 +218,7 @@ struct Hud {
         else { /* on HOME, cancel is a no-op */ }
     }
     void on_back_gesture() { on_long_back(); }
-    void on_nod() { wake(); recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
+    void on_nod() { wake(); if (!recording && !consent) { toast("consent off", 2); return; } recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
 
     void set_health(int h, int s, int rb, int bb) { hr = h; spo2 = s; ring_batt = rb; bead_batt = bb; }
     void set_nav(int dist_m, int head, const char* label) { nav_dist = dist_m; nav_head = head; strncpy(nav_label, label?label:"",23); nav_label[23]=0; }
@@ -237,9 +243,9 @@ struct Hud {
         // status bar row 0: clock + flags + mode breadcrumb
         char sb[32];
         const char* md = mode_name(top());
-        snprintf(sb, sizeof(sb), "%02u:%02u %s%s %s",
+        snprintf(sb, sizeof(sb), "%02u:%02u %s%s%s %s",
                  (clock/3600)%24, (clock/60)%60,
-                 recording ? "REC " : "", bt ? "BT " : "", md);
+                 recording ? "REC " : "", bt ? "BT " : "", consent ? "" : "X ", md);
         scr.set_ink(true); scr.draw_text(0, 0, sb);
 
         Mode m = top();
