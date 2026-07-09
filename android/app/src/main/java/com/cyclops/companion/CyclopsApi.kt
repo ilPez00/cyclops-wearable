@@ -160,7 +160,7 @@ object CyclopsApi {
     // Persist the profile (incl. per-tool overrides) to the brain.
     fun putSettings(json: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
-            val obj = JSONObject(post("/api/settings", json))
+            val obj = JSONObject(post(url("/api/settings"), json))
             onResult(obj.optBoolean("ok", false))
         } catch (e: Exception) {
             onError(e.message ?: e.toString())
