@@ -36,14 +36,16 @@ class HealthAggregator:
     battery_source: str = "ring"                     # drives fused `batt`
 
     def update(self, r: Reading) -> None:
+        # 0 means "not reported this frame" (mirrors the wearable decoder),
+        # so a partial sample never clobbers an existing reading with a zero.
         for f in ("hr", "spo2", "sleep_stage"):
             v = getattr(r, f)
-            if v is None:
+            if v is None or v == 0:
                 continue
             if r.ts >= self._ts.get(f, -1):
                 setattr(self, f, v)
                 self._ts[f] = r.ts
-        if r.batt is not None:
+        if r.batt is not None and r.batt > 0:
             self.batteries[r.source] = r.batt
 
     # -- convenience adapters for the sources we already have ---------------
