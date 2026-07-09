@@ -18,7 +18,7 @@ from .protocol_v2 import (parse_hud, build_hud, MSG_HUD_FRAME, HUD_KINDS,
                           ACT_NAV, ACT_TELEPROMPTER, ACT_CAMERA,
                           ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES,
                           ACT_CONFIRM_NO, ACT_NOTES, ACT_AGENT, ACT_AGENT_ABORT,
-                          build_hud_agent)
+                          build_hud_agent, MSG_RING_GESTURE)
 
 # numeric id of MSG_CMD in the firmware protocol
 MSG_CMD = 9
@@ -55,6 +55,7 @@ class HudBridge:
         self._audio_buf = bytearray()
         self._audio_rate = 16000
         self._audio_bits = 16
+        self.last_gesture = None
 
     def _emit_text(self, text):
         if hasattr(self.sink, "render_text"):
@@ -265,4 +266,6 @@ class FrameReceiver:
                 self.br.handle_cmd(bytes(self._buf[3:3 + self._len]))
             elif self._type in (MSG_AUDIO_META, MSG_AUDIO_CHUNK, MSG_AUDIO_STOP):
                 self.br.handle_audio(self._type, bytes(self._buf[3:3 + self._len]))
+            elif self._type == MSG_RING_GESTURE:
+                self.br.handle_gesture(bytes(self._buf[3:3 + self._len]))
             self._st = 0; self._got = 0
