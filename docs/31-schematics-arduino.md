@@ -101,3 +101,15 @@ source* for the brain — no audio here.
 - 328P has 2 KB RAM — keep strings short; the `add_note` buffer is 64 B.
 - Screen CS pin depends on the `SCREEN_*` build flag.
 - Enclosure CAD: `cad/cyclops_arduino_enclosure.scad`.
+
+## Print files (STL)
+
+Generated OpenSCAD exports in `cad/stl/`:
+- `arduino_body.stl` — Nano on 4 standoffs + hollow for dupont wiring; open
+  -X end gives USB-mini access to the brain.
+- `arduino_lid.stl` — top plate with ST7735 window + 5 control holes + bezel.
+- Regenerate: `openscad -D 'PART="body"' -o cad/stl/arduino_body.stl
+  cad/cyclops_arduino_enclosure.scad` (and `PART="lid"`).
+
+Intended use: desktop HUD dev unit. Wire the ST7735 to the Nano before
+closing the lid.

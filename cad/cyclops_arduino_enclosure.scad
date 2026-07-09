@@ -75,8 +75,15 @@ module lid(){
   }
 }
 
-body();
-translate([body_l+6, 0, 0]) lid();
+// render: PART=body | PART=lid | PART=all (default both side by side)
+if (PART == "body") {
+  body();
+} else if (PART == "lid") {
+  lid();
+} else {
+  body();
+  translate([body_l+6, 0, 0]) lid();
+}
 
 // Note: wire the ST7735 (CS=D10, DC=D9, RST=D8, SCK=D13, MOSI=D11) to the
 // Nano with Dupont jumpers before closing the lid. VBAT/prox/joystick are

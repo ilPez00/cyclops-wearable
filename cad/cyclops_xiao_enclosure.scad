@@ -75,9 +75,15 @@ module lid(){
   }
 }
 
-// render both parts side by side
-body();
-translate([body_l+6, 0, 0]) lid();
+// render: PART=body | PART=lid | PART=all (default both side by side)
+if (PART == "body") {
+  body();
+} else if (PART == "lid") {
+  lid();
+} else {
+  body();
+  translate([body_l+6, 0, 0]) lid();
+}
 
 // ---- printable orientation note ----
 // Print body upside-down (screen window up). Lid glues/snaps on top.

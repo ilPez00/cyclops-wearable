@@ -21,6 +21,7 @@ CAPABILITIES = [
     ("capture", "wearable", "Ask the wearable to take a photo or record voice.", ["device"]),
     ("camera", "multimodal", "Capture a frame from the OpenGlass/XIAO camera and analyze it.", ["device", "model"]),
     ("consent", "privacy", "Consent Mode: gate capture/recording behind explicit opt-in.", []),
+    ("omi", "multimodal", "Capture audio from the Omi pendant and transcribe it.", ["device", "model"]),
     ("screen", "system", "Capture and optionally describe the desktop screen.", []),
     ("whatsapp_export", "social", "Export & summarize WhatsApp chats to feed the AI.", []),
     ("media_ingest", "context", "Index photos, voice recordings and places visited.", []),

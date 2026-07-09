@@ -88,3 +88,16 @@ board also drives the glanceable OLED and reads the Colmi R02 ring over BLE.
 - Screen CS differs per build (`-DSCREEN_*`); BTN_B (GPIO5) overlaps the
   128x32 CS — pick one role per build.
 - Enclosure CAD: `cad/cyclops_xiao_enclosure.scad`.
+
+## Print files (STL)
+
+Generated OpenSCAD exports in `cad/stl/`:
+- `xiao_body.stl` — holds XIAO S3 Sense + screen; print upside-down (screen
+  window facing up) so bridges for the USB-C slot/button holes form cleanly.
+- `xiao_lid.stl` — thin face cover with screen cutout; glue or snap on.
+- Regenerate: `openscad -D 'PART="body"' -o cad/stl/xiao_body.stl
+  cad/cyclops_xiao_enclosure.scad` (and `PART="lid"`).
+
+Intended wear: pendant on a neck lanyard through the two side strap slots,
+or zip-tied to a glasses temple (the 21×17.5 mm body is light enough). Keep
+the ST7735 window clear of the lens.
