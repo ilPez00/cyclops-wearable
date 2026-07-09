@@ -232,23 +232,46 @@ class NoteAdapter : RecyclerView.Adapter<NoteAdapter.VH>() {
         items.clear(); items += list; notifyDataSetChanged()
     }
 
-    class VH(val tv: TextView) : RecyclerView.ViewHolder(tv)
+    // type -> accent color resource
+    private fun accentFor(type: String): Int = when (type.lowercase()) {
+        "task" -> R.color.cyclops_task
+        "reminder" -> R.color.cyclops_reminder
+        "decision" -> R.color.cyclops_decision
+        else -> R.color.cyclops_note
+    }
+
+    class VH(view: android.view.View) : RecyclerView.ViewHolder(view) {
+        val strip: View = view.findViewById(R.id.accStrip)
+        val card: com.google.android.material.card.MaterialCardView = view.findViewById(R.id.card)
+        val type: TextView = view.findViewById(R.id.txtType)
+        val text: TextView = view.findViewById(R.id.txtText)
+        val badge: com.google.android.material.chip.Chip = view.findViewById(R.id.badgeCandidate)
+        val due: TextView = view.findViewById(R.id.txtDue)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val tv = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_2, parent, false) as TextView
-        return VH(tv)
+        val v = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_note, parent, false)
+        return VH(v)
     }
 
     override fun getItemCount() = items.size
 
     override fun onBindViewHolder(holder: VH, pos: Int) {
         val n = items[pos]
-        val tag = buildString {
-            append(n.type.uppercase())
-            if (n.candidate) append(" • candidate")
-            if (n.due != null) append(" • due ${n.due}")
+        val ctx = holder.itemView.context
+        holder.strip.setBackgroundColor(
+            androidx.core.content.ContextCompat.getColor(ctx, accentFor(n.type)))
+        holder.type.text = n.type.uppercase()
+        holder.type.setTextColor(
+            androidx.core.content.ContextCompat.getColor(ctx, accentFor(n.type)))
+        holder.text.text = n.text
+        holder.badge.visibility = if (n.candidate) TextView.VISIBLE else TextView.GONE
+        if (n.due != null) {
+            holder.due.visibility = TextView.VISIBLE
+            holder.due.text = "due ${n.due}"
+        } else {
+            holder.due.visibility = TextView.GONE
         }
-        holder.tv.text = "$tag\n${n.text}"
     }
 }

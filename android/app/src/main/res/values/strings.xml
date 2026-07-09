@@ -21,6 +21,7 @@
     <string name="status_connected">Connected</string>
     <string name="status_offline">Offline</string>
     <string name="status_error">Connection error</string>
+    <string name="candidate">candidate</string>
     <string name="ring_note">Reads HR / SpO2 / battery over BLE (NUS). No pairing. Keep the ring within ~1 m. Data stays on-device unless you forward it.</string>
     <string-array name="transports">
         <item>wifi</item>
