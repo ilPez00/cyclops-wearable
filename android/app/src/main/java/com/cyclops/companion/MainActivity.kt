@@ -1,6 +1,7 @@
 package com.cyclops.companion
 
 import android.content.Intent
+import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val adapter = NoteAdapter()
+    private var serviceRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         // top app bar menu (Settings / Ring)
         binding.topbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.menu_wearable -> { toggleWearable(); true }
                 R.id.menu_settings -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
                 R.id.menu_ring -> { startActivity(Intent(this, RingActivity::class.java)); true }
                 else -> false
@@ -129,6 +132,25 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+
+    private fun toggleWearable() {
+        serviceRunning = !serviceRunning
+        val intent = Intent(this, CyclopsService::class.java)
+        if (serviceRunning) {
+            ContextCompat.startForegroundService(this, intent)
+            binding.chipStatus.text = getString(R.string.status_checking)
+        } else {
+            intent.action = CyclopsService.ACTION_STOP
+            startService(intent)
+        }
+        invalidateOptionsMenu()
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.findItem(R.id.menu_wearable)?.setTitle(
+            if (serviceRunning) R.string.wearable_disconnect else R.string.wearable_connect)
+        return super.onPrepareOptionsMenu(menu)
+    }
 
     private fun setStatus(state: String, colorRes: Int) {
         binding.chipStatus.text = state

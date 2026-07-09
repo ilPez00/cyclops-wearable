@@ -7,6 +7,10 @@
         android:icon="@drawable/ic_ring"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menu_wearable"
+        android:title="@string/wearable_connect"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menu_settings"
         android:title="@string/settings"
         android:icon="@drawable/ic_settings"
