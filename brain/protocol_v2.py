@@ -7,6 +7,10 @@ MSGV2 = {"PEER_HELLO":11,"TIME_SYNC":12,"HEALTH_SAMPLE":13,"HUD_FRAME":14,
 PEERS = ("bead","glasses","ring","phone","brain")
 HUD_KINDS = ("note","notify","teleprompter","clear","agent")
 
+# Ring/glasses gesture ids (G2 R1 tap/swipe, COLMI wheel) -> HUD nav.
+GEST = {"up":1,"down":2,"select":3,"back":4,"nod":5,"home":6}
+GEST_NAME = {v:k for k,v in GEST.items()}
+
 # HUD action ids (mirror of firmware/lib/cyclops_shared/include/hud.h Action)
 ACT_NOTES=1
 ACT_TRANSCRIBE_START=2
@@ -84,6 +88,16 @@ def parse_health(payload: bytes) -> dict:
             k, v = kv.split("=", 1)
             d[k] = int(v)
     return d
+
+# ---- RING/glasses gesture ----
+def build_ring_gesture(gesture) -> bytes:
+    """Encode a gesture (name or id) as a RING_GESTURE payload."""
+    code = GEST[gesture] if isinstance(gesture, str) else int(gesture)
+    return bytes([code])
+
+def parse_ring_gesture(payload: bytes) -> dict:
+    code = payload[0] if payload else 0
+    return {"code": code, "name": GEST_NAME.get(code, "?")}
 
 def peer_hello(peer, caps, fw="0.1", v=2) -> bytes:
     return json.dumps({"v":v,"peer":peer,"caps":list(caps),"fw":fw}).encode()

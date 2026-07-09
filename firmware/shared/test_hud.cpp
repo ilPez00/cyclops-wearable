@@ -147,6 +147,28 @@ int main() {
      assert(hc2.consent);
  }
 
+ // ---- P1-C: ring/glasses gesture dispatch -> HUD nav ----
+ {
+     Hud hg; hg.send_cmd = on_cmd; hg.init(); hg.home();
+     hg.on_gesture(3);                 // select: HOME -> MENU
+     assert(hg.top() == MENU);
+     int before = hg.menu_sel;
+     hg.on_gesture(2);                 // down
+     assert(hg.menu_sel == before + 1);
+     hg.on_gesture(1);                 // up
+     assert(hg.menu_sel == before);
+     hg.menu_sel = 0;                  // Notes
+     hg.on_gesture(3);                 // select -> NOTES
+     assert(hg.top() == NOTES);
+     hg.on_gesture(4);                 // back -> MENU
+     assert(hg.top() == MENU);
+     hg.on_gesture(6);                 // home -> HOME
+     assert(hg.top() == HOME);
+     hg.set_consent(true);
+     hg.on_gesture(5);                 // nod -> toggles recording
+     assert(hg.recording);
+ }
+
  // ---- word-aware wrap: no mid-word split on a long agent answer ----
  {
      Hud hw; hw.send_cmd = on_cmd; hw.init();

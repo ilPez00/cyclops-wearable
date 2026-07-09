@@ -218,6 +218,20 @@ struct Hud {
         else { /* on HOME, cancel is a no-op */ }
     }
     void on_back_gesture() { on_long_back(); }
+    // Ring/glasses gesture dispatch (codes mirror protocol_v2.GEST):
+    // 1 up, 2 down, 3 select, 4 back, 5 nod, 6 home.
+    void on_gesture(int code) {
+        wake();
+        switch (code) {
+            case 1: on_wheel(-1); break;   // up
+            case 2: on_wheel(1);  break;   // down
+            case 3: on_select();  break;
+            case 4: on_long_back(); break;
+            case 5: on_nod();     break;
+            case 6: home();       break;
+            default: break;
+        }
+    }
     void on_nod() { wake(); if (!recording && !consent) { toast("consent off", 2); return; } recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
 
     void set_health(int h, int s, int rb, int bb) { hr = h; spo2 = s; ring_batt = rb; bead_batt = bb; }

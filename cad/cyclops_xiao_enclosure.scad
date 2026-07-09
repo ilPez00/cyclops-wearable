@@ -75,10 +75,11 @@ module lid(){
   }
 }
 
-// render: PART=body | PART=lid | PART=all (default both side by side)
-if (PART == "body") {
+// render: PART=body | PART=lid | PART=all (default: both side by side)
+// is_undef(PART) -> show both so the GUI is never empty.
+if (!is_undef(PART) && PART == "body") {
   body();
-} else if (PART == "lid") {
+} else if (!is_undef(PART) && PART == "lid") {
   lid();
 } else {
   body();

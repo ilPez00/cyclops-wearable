@@ -97,6 +97,22 @@ class HudBridge:
         act = int(d.get("a", 0)); arg = d.get("arg", "") or ""
         return self.dispatch(act, arg)
 
+    def handle_gesture(self, payload):
+        """Route a RING_GESTURE frame (G2 R1 / COLMI wheel) to HUD nav.
+
+        The bridge doesn't run the firmware Hud, so it forwards the gesture as
+        a nav intent to the device sink and returns the gesture name. `nod`
+        toggles transcription via the normal dispatch path.
+        """
+        from .protocol_v2 import parse_ring_gesture, ACT_TRANSCRIBE_START
+        g = parse_ring_gesture(payload)
+        self.last_gesture = g["name"]
+        if g["name"] == "nod":
+            return self.dispatch(ACT_TRANSCRIBE_START, "")
+        # forward nav gestures back to the device HUD
+        self.sink(b"G" + bytes([g["code"]]))
+        return g["name"]
+
     def handle_audio(self, typ, payload):
         """Accumulate PCM from the device; transcribe on STOP."""
         if typ == MSG_AUDIO_META:

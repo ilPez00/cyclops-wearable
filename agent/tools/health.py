@@ -10,11 +10,16 @@ from ..loop import Tool
 from ..config import AgentConfig
 
 
-def make_health_tool(config: AgentConfig) -> Tool:
+def make_health_tool(config: AgentConfig, aggregator=None) -> Tool:
     root = os.path.expanduser(config.digigio_home)
 
     def run(args: dict) -> str:
         action = args.get("action", "summary")
+        if action == "vitals":
+            # unified live vitals fused from ring/omi/g2 (P1-D)
+            from device.health_fuse import HealthAggregator
+            agg = aggregator or HealthAggregator()
+            return json.dumps(agg.snapshot())
         if action == "summary":
             lines = []
             for f in glob.glob(os.path.join(root, "**", "health*.jsonl"), recursive=True)[:3]:
@@ -45,7 +50,7 @@ def make_health_tool(config: AgentConfig) -> Tool:
         parameters={
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["summary", "log"]},
+                "action": {"type": "string", "enum": ["summary", "log", "vitals"]},
                 "note": {"type": "string"},
             },
             "required": ["action"],
