@@ -301,7 +301,21 @@ int main() {
     ring_make_packet(rt_req, RING_CMD_START_REAL_TIME, sub, 2);
     assert(rt_req[0] == RING_CMD_START_REAL_TIME && rt_req[1] == 1 && rt_req[2] == 1);
     assert(rt_req[15] == ring_checksum(rt_req));
-}
+ }
+
+ // ---- P2-C: phone -> wearable health relay (MSG_HEALTH_SAMPLE) ----
+ {
+     Hud hr; hr.send_cmd = on_cmd; hr.init();
+     hr.on_health_sample("t=1000,hr=74,spo2=96,sl=0,batt=88");
+     assert(hr.hr == 74);
+     assert(hr.spo2 == 96);
+     assert(hr.ring_batt == 88);
+     // partial sample (HR only) must not clobber existing spo2/battery
+     hr.on_health_sample("t=1001,hr=80,spo2=0,batt=0");
+     assert(hr.hr == 80);
+     assert(hr.spo2 == 96);   // unchanged (spo2=0 treated as absent)
+     assert(hr.ring_batt == 88);
+ }
 
 printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;

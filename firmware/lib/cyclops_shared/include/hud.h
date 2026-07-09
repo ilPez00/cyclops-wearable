@@ -235,6 +235,17 @@ struct Hud {
     void on_nod() { wake(); if (!recording && !consent) { toast("consent off", 2); return; } recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
 
     void set_health(int h, int s, int rb, int bb) { hr = h; spo2 = s; ring_batt = rb; bead_batt = bb; }
+    // Incoming MSG_HEALTH_SAMPLE (phone->wearable relay, P2-C): parse
+    // "t=,hr=,spo2=,sl=,batt=" and apply. We only take hr/spo2/ring_batt.
+    void on_health_sample(const char* p) {
+        auto atoi_k = [&](const char* k) -> int {
+            const char* v = strstr(p, k); if (!v) return -1;
+            return atoi(v + strlen(k));
+        };
+        int h = atoi_k("hr="); if (h > 0) hr = h;
+        int s = atoi_k("spo2="); if (s > 0) spo2 = s;
+        int b = atoi_k("batt="); if (b > 0) ring_batt = b;
+    }
     void set_nav(int dist_m, int head, const char* label) { nav_dist = dist_m; nav_head = head; strncpy(nav_label, label?label:"",23); nav_label[23]=0; }
     void set_tele(const char* /*full*/, int page) { tele_page = page; }
 

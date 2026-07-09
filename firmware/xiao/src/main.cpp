@@ -80,6 +80,7 @@ static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
     char tmp[256]; if (n >= sizeof(tmp)) n = sizeof(tmp)-1;
     memcpy(tmp, p, n); tmp[n] = 0;
     if (type == cyclops::MSG_DISPLAY_CMD || type == cyclops::MSG_NOTE) ui_apply_display(tmp);
+    else if (type == cyclops::MSG_HEALTH_SAMPLE) hud.on_health_sample(tmp);  // P2-C relay
 }
 
 static void ui_apply_display(const char* json) {

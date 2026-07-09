@@ -53,7 +53,14 @@ module lid(style="pebble"){
 // ---------- VARIANT A: pebble (smooth, organic) ----------
 module pebble(){
   difference(){
-    rbox(body_l, body_w, body_h, 5);   // very round
+    union(){
+      rbox(body_l, body_w, body_h, 5);   // very round
+      // glasses-temple clip fin on back (-Y), spring-tab shape
+      translate([body_l/2-6, -3, base_h]) hull(){
+        cube([12, 4, 5]);
+        translate([2, -2, 1]) cube([8, 2, 3]);
+      }
+    }
     cutouts();
   }
 }
