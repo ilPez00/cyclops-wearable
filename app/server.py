@@ -215,9 +215,22 @@ def main():
     # AI-stack key store (/home/gio/ai_api.txt, ~/.env) provides credentials,
     # otherwise falls back to the deterministic local stub + rule engine.
     pipeline = build_pipeline(store_path=STORE_PATH)
+    # Shared live context assembler (P2-B) — fused notes/health/calendar. The
+    # ring/omi vitals are fed in via the health relay; here we start with the
+    # agent's own note store so the fused block is never empty-crashes.
+    from brain.context import ContextAssembler
+    assembler = ContextAssembler()
+    try:
+        from brain.store import NoteStore
+        ns = NoteStore(STORE_PATH)
+        assembler.add_notes([n for n in ns.all()][-20:])
+    except Exception:
+        pass
     # Agent core: Hermes-style loop with tools (terminal/whatsapp/media/device/brain).
     # Local-first; uses CYCLOPS_LOCAL / provider env to pick cloud vs local model.
-    agent = Agent(AgentConfig.load(env=dict(os.environ)), registry=build_registry(AgentConfig.load()))
+    agent = Agent(AgentConfig.load(env=dict(os.environ)),
+                  registry=build_registry(AgentConfig.load(), context_assembler=assembler),
+                  context=assembler)
     # HUD bridge: fulfills wearable MSG_CMD locally and pushes glanceable banners
     # back to the glasses. Wired with the agent so the device's AGENT command uses
     # the real core. Sink is a no-op here; the phone/BLE side swaps in a real writer.

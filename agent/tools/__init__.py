@@ -23,13 +23,16 @@ from .wearable import make_hud_tool, make_notify_tool, make_capture_tool
 from .camera import make_camera_tool
 from .consent import make_consent_tool
 from .omi import make_omi_tool
+from .context import make_context_tool
+from .plugin import make_plugin_tool
 from .screen import make_screen_tool
 from .memory_tool import make_memory_tool
 from .history import make_history_tool
 
 
 def build_registry(config: AgentConfig, session=None, confirm=None,
-                   disable: set[str] | None = None, agent=None) -> ToolRegistry:
+                   disable: set[str] | None = None, agent=None,
+                   context_assembler=None) -> ToolRegistry:
     disable = disable or set()
     reg = ToolRegistry()
     factories = {
@@ -50,6 +53,8 @@ def build_registry(config: AgentConfig, session=None, confirm=None,
         "camera": lambda: make_camera_tool(config, session=session),
         "consent": lambda: make_consent_tool(config),
         "omi": lambda: make_omi_tool(config),
+        "context": lambda: make_context_tool(config, assembler=context_assembler),
+        "plugin": lambda: make_plugin_tool(config),
         "screen": lambda: make_screen_tool(config),
         "memory": lambda: make_memory_tool(config),
     }

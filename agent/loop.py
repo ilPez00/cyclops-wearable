@@ -73,13 +73,15 @@ class TurnResult:
 class Agent:
     def __init__(self, config: AgentConfig, router: Optional[ModelRouter] = None,
                  registry: Optional[ToolRegistry] = None, skills: Optional[Skills] = None,
-                 memory: Optional[MemoryStore] = None, max_iter: int = 0):
+                 memory: Optional[MemoryStore] = None, max_iter: int = 0,
+                 context=None):
         self.cfg = config
         self.router = router or ModelRouter(config)
         self.registry = registry or ToolRegistry()
         self.skills = skills or Skills(config.skills_dirs)
         self.memory = memory or MemoryStore(config)
         self.max_iter = max_iter or config.max_tool_iter
+        self.context = context  # brain.context.ContextAssembler (live fused context)
         self.history: list[dict] = []   # prior turns (role/content), in-session memory
         # optional live progress callback: cb(tool_name, progress_pct) per iteration
         self.progress_cb: Optional[Callable[[Optional[str], int], None]] = None
@@ -181,6 +183,10 @@ class Agent:
         if skills_blk: parts.append(skills_blk)
         rec = self.memory.recall(limit=self.cfg.memory_recall or 8)
         if rec: parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
+        if self.context is not None:
+            fused = self.context.render()
+            if fused and fused != "[context] empty":
+                parts.append("LIVE CONTEXT (fused notes/health/calendar):\n" + fused)
         return "\n\n".join(parts)
 
     def persist_turn(self, user_text: str, answer: str):

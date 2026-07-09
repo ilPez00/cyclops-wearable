@@ -29,6 +29,7 @@ class ContextAssembler:
 
     def load_calendar(self, path: str) -> "ContextAssembler":
         """Read upcoming events from a JSONL file (one JSON object per line)."""
+        self._calendar_path = path
         self._calendar = []
         if path and os.path.exists(path):
             with open(path, encoding="utf-8") as f:

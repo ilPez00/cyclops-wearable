@@ -22,6 +22,8 @@ CAPABILITIES = [
     ("camera", "multimodal", "Capture a frame from the OpenGlass/XIAO camera and analyze it.", ["device", "model"]),
     ("consent", "privacy", "Consent Mode: gate capture/recording behind explicit opt-in.", []),
     ("omi", "multimodal", "Capture audio from the Omi pendant and transcribe it.", ["device", "model"]),
+    ("context", "context", "Show the fused live context (notes + health + calendar).", []),
+    ("plugin", "system", "List/sync the local-first plugin marketplace (offline-safe).", []),
     ("screen", "system", "Capture and optionally describe the desktop screen.", []),
     ("whatsapp_export", "social", "Export & summarize WhatsApp chats to feed the AI.", []),
     ("media_ingest", "context", "Index photos, voice recordings and places visited.", []),

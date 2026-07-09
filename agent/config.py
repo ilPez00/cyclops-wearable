@@ -36,6 +36,8 @@ class AgentConfig:
     memory_file: str = "MEMORY.md"
     user_file: str = "USER.md"
     memory_recall: int = 8        # how many persisted turns to inject as context
+    config_dir: str = "~/.config/cyclops"   # P2-A: plugin registry root
+    plugin_index_url: str = ""     # P2-A: marketplace index (empty = offline)
 
     # Skills --------------------------------------------------------------
     skills_dirs: list[str] = field(default_factory=lambda: ["~/.hermes/skills"])

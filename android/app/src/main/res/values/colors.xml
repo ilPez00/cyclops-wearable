@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cyclops Material 3 dark palette.
+         Cyan/teal accent on near-black surfaces — the "glanceable HUD" look.
+         Avoid hardcoding hex in layouts; reference these tokens. -->
+    <color name="cyclops_bg">#0B0F12</color>
+    <color name="cyclops_surface">#12181C</color>
+    <color name="cyclops_surface_variant">#1B2329</color>
+    <color name="cyclops_on_surface">#E6F1F5</color>
+    <color name="cyclops_on_surface_muted">#8A9AA3</color>
+
+    <color name="cyclops_primary">#22D3EE</color>
+    <color name="cyclops_primary_container">#0A2A33</color>
+    <color name="cyclops_on_primary">#042027</color>
+
+    <!-- type accents for notes -->
+    <color name="cyclops_task">#22D3EE</color>
+    <color name="cyclops_reminder">#FBBF24</color>
+    <color name="cyclops_decision">#A78BFA</color>
+    <color name="cyclops_note">#7CFFB2</color>
+    <color name="cyclops_candidate">#FB7185</color>
+
+    <color name="cyclops_ok">#34D399</color>
+    <color name="cyclops_warn">#FBBF24</color>
+    <color name="cyclops_err">#F87171</color>
+</resources>
