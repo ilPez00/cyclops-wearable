@@ -111,7 +111,11 @@ class HudBridge:
         if g["name"] == "nod":
             return self.dispatch(ACT_TRANSCRIBE_START, "")
         # forward nav gestures back to the device HUD
-        self.sink(b"G" + bytes([g["code"]]))
+        blob = b"G" + bytes([g["code"]])
+        if hasattr(self.sink, "write"):
+            self.sink.write(blob)
+        else:
+            self.sink(blob)
         return g["name"]
 
     def handle_audio(self, typ, payload):

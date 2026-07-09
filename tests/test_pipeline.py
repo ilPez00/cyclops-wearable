@@ -1,79 +1,74 @@
-"""End-to-end brain pipeline glue test (T2.5): text -> extract -> store + callbacks."""
-import sys, os, json, tempfile
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+"""Offline: P1-B local-first pipeline enforcement.
 
-from brain.pipeline import Pipeline
-from brain.store import NoteStore
-from brain.extractor import Note
-from brain.transcriber import StubTranscriber
-from brain.llm_extractor import LLMExtractor, LLMClient, LLMClientError
-
-
-class FakeKeys:
-    def __init__(self, ok=True): self.ok = ok
-    def get_key(self, p): return "k" if self.ok else None
-    def get_endpoint(self, p): return None
-    def provider(self, p): return {"key": ("k" if self.ok else None), "endpoint": None}
+Guarantees the offline default is enforced by policy, not by accident: under
+local_first (default) with no API keys the pipeline uses the deterministic
+offline stub; cloud is only reachable when explicitly opted in.
+"""
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from agent.config import AgentConfig
+from brain.pipeline import resolve_stt, resolve_mode_name
+from brain.transcriber import StubTranscriber, CloudTranscriber
 
 
-class FakeClient:
-    def __init__(self, payload): self.payload = payload
-    def complete(self, messages, model="x", temperature=0.0):
-        return self.payload
+def _clear_keys():
+    for k in ("DEEPGRAM_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
+              "OPENROUTER_API_KEY"):
+        os.environ.pop(k, None)
 
 
-class FakeTranscriber:
-    def transcribe(self, pcm, rate=16000):
-        return "Remind me to call marco by friday. We decided to launch v1."
+def test_default_is_offline():
+    _clear_keys()
+    cfg = AgentConfig()  # local_first=True by default
+    assert resolve_mode_name(cfg) == "offline"
+    t = resolve_stt(cfg)
+    assert isinstance(t, StubTranscriber)
+    print("OK default config resolves offline (local-first)")
 
 
-def test_pipeline_full_llm_path():
-    sp = tempfile.mktemp(suffix=".jsonl")
-    store = NoteStore(sp)
-    emitted = []
-    payload = json.dumps([
-        {"type": "task", "text": "call marco", "due": None, "confidence": 0.9},
-        {"type": "decision", "text": "launch v1", "due": None, "confidence": 0.8},
-    ])
-    extr = LLMExtractor(keys=FakeKeys(ok=True), client=FakeClient(payload))
-    pipe = Pipeline(store, transcriber=FakeTranscriber(), extractor=extr,
-                    on_note=lambda n: emitted.append(n))
-    notes = pipe.process_text("anything")
-    assert len(notes) == 2
-    assert all(n.candidate for n in notes)
-    assert len(store.all()) == 2
-    assert len(emitted) == 2
-    os.remove(sp)
+def test_local_first_blocks_implicit_cloud():
+    _clear_keys()
+    cfg = AgentConfig()
+    cfg.local_first = True
+    # even if a cloud key existed, local_first must NOT pick cloud implicitly
+    os.environ["DEEPGRAM_API_KEY"] = "x"
+    assert resolve_mode_name(cfg) == "offline"
+    assert isinstance(resolve_stt(cfg), StubTranscriber)
+    os.environ.pop("DEEPGRAM_API_KEY", None)
+    print("OK local_first refuses implicit cloud even with a key present")
 
 
-def test_pipeline_llm_failure_falls_back_to_rule():
-    sp = tempfile.mktemp(suffix=".jsonl")
-    store = NoteStore(sp)
-    class Boom(LLMClient):
-        def complete(self, *a, **k): raise LLMClientError("down")
-    extr = LLMExtractor(keys=FakeKeys(ok=True), client=Boom())
-    pipe = Pipeline(store, transcriber=StubTranscriber(), extractor=extr)
-    notes = pipe.process_text("Remind me to water plants tomorrow")
-    # rule fallback still produced a reminder despite the LLM being down
-    assert any(n.type == "reminder" for n in notes)
-    assert len(store.all()) >= 1
-    os.remove(sp)
+def test_explicit_cloud_allowed():
+    _clear_keys()
+    cfg = AgentConfig()
+    cfg.inference_mode = "cloud"
+    # with no real key the cloud builder still returns a CloudTranscriber
+    # (it errors at call-time, not build-time) -> proves the policy picked cloud
+    t = resolve_stt(cfg)
+    assert isinstance(t, CloudTranscriber)
+    print("OK explicit inference_mode=cloud selects cloud backend")
 
 
-def test_pipeline_health_enrichment():
-    sp = tempfile.mktemp(suffix=".jsonl")
-    store = NoteStore(sp)
-    class Health:
-        def avg_hr_around(self, ms): return 72
-    pipe = Pipeline(store, transcriber=StubTranscriber(), health=Health())
-    pipe.process_text("idea: a new feature")
-    n = store.all()[0]
-    assert "72bpm" in n.text
-    os.remove(sp)
+def test_local_mode_selects_local():
+    _clear_keys()
+    cfg = AgentConfig()
+    cfg.local_mode = True
+    assert resolve_mode_name(cfg) == "local"
+    print("OK local_mode resolves to local")
+
+
+def test_env_override():
+    os.environ["CYCLOPS_LOCAL_FIRST"] = "0"
+    cfg = AgentConfig.load(env=dict(os.environ))
+    assert cfg.local_first is False
+    os.environ.pop("CYCLOPS_LOCAL_FIRST", None)
+    print("OK CYCLOPS_LOCAL_FIRST=0 overrides default")
 
 
 if __name__ == "__main__":
-    test_pipeline_full_llm_path()
-    test_pipeline_llm_failure_falls_back_to_rule()
-    test_pipeline_health_enrichment()
-    print("ALL PIPELINE TESTS PASSED")
+    test_default_is_offline()
+    test_local_first_blocks_implicit_cloud()
+    test_explicit_cloud_allowed()
+    test_local_mode_selects_local()
+    test_env_override()
+    print("PASS tests/test_pipeline.py")

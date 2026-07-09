@@ -47,3 +47,28 @@ class Pipeline:
             self.store.add(n)
             if self.on_note: self.on_note(n)
         return notes
+
+
+# ---- P1-B: local-first inference policy ---------------------------------
+# Resolved here (not in agent.config) so brain stays importable without agent.
+def resolve_stt(cfg, keys=None):
+    """Return a Transcriber for the resolved mode (enforces local-first).
+
+    Cloud is only selected when the user explicitly opts in; otherwise we stay
+    offline (deterministic stub) or use a local whisper endpoint. We never
+    phone home implicitly.
+    """
+    from .transcriber import get_transcriber, StubTranscriber
+    mode = cfg.resolve_mode()
+    if mode == "cloud":
+        return get_transcriber("cloud", keys=keys)
+    if mode == "local":
+        try:
+            return get_transcriber("whisper")
+        except Exception:
+            return StubTranscriber()
+    return StubTranscriber()  # offline-first default
+
+
+def resolve_mode_name(cfg) -> str:
+    return cfg.resolve_mode()

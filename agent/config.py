@@ -22,6 +22,8 @@ class AgentConfig:
 
     # Local-model toggle (the "run AI on device" switch) -------------------
     local_mode: bool = False        # True -> force a local endpoint
+    local_first: bool = True        # P1-B: prefer offline/local; cloud only if explicit
+    inference_mode: str = "auto"    # auto|offline|local|cloud (resolved by resolve_mode)
     local_base_url: str = "http://127.0.0.1:11434/v1"  # ollama default
     local_model: str = "llama3.1"
     local_vision_model: str = "llava"
@@ -93,6 +95,10 @@ class AgentConfig:
         if env.get("CYCLOPS_BASE_URL"): cfg.base_url = env["CYCLOPS_BASE_URL"]
         if env.get("CYCLOPS_LOCAL") in ("1", "true", "yes"):
             cfg.local_mode = True
+        if env.get("CYCLOPS_LOCAL_FIRST") in ("0", "false", "no"):
+            cfg.local_first = False
+        if env.get("CYCLOPS_INFERENCE_MODE") in ("offline", "local", "cloud", "auto"):
+            cfg.inference_mode = env["CYCLOPS_INFERENCE_MODE"]
         if env.get("CYCLOPS_DEVICE_HOST"): cfg.device_host = env["CYCLOPS_DEVICE_HOST"]
         if env.get("CYCLOPS_DEVICE_TRANSPORT"):
             cfg.device_transport = env["CYCLOPS_DEVICE_TRANSPORT"]
@@ -124,6 +130,8 @@ class AgentConfig:
                     section = "model"; continue
                 section = None
                 if k == "local_mode": self.local_mode = v in ("true", "1", "yes")
+                elif k == "local_first": self.local_first = v in ("true", "1", "yes")
+                elif k == "inference_mode": self.inference_mode = v
                 elif k == "local_base_url": self.local_base_url = v
                 elif k == "device_transport": self.device_transport = v
                 elif k == "device_host": self.device_host = v
@@ -149,6 +157,24 @@ class AgentConfig:
                                   self.effective_endpoint())
         model = os.environ.get(f"CYCLOPS_{cap}_MODEL", self.model)
         return {"provider": prov, "endpoint": endpoint, "model": model}
+
+    def resolve_mode(self) -> str:
+        """Resolve the effective inference mode (P1-B local-first policy).
+
+        - explicit cloud -> cloud (only when the user opted in)
+        - local_first + local_mode -> local
+        - local_first (default) -> offline unless a local model is reachable
+        - auto -> local-first offline by default
+        """
+        m = self.inference_mode
+        if m == "cloud":
+            return "cloud"
+        if m == "offline":
+            return "offline"
+        if m == "local" or self.local_mode:
+            return "local"
+        # auto / local_first default: stay offline-first
+        return "offline" if self.local_first else "cloud"
 
     def resolve_key(self, keys=None, provider: str | None = None):
         """Best-effort API key: explicit -> env -> ai key store."""
