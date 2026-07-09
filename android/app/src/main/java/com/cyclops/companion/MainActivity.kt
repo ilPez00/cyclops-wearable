@@ -1,6 +1,7 @@
 package com.cyclops.companion
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -68,6 +69,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.btnSettings.setOnClickListener { showSettings() }
+        binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
 
         // transport selector (wifi / bt / cable)
         ArrayAdapter.createFromResource(

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/ring_title"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#00E5FF" />
+
+        <Button
+            android:id="@+id/btnRingConnect"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/ring_connect" />
+
+        <TextView
+            android:id="@+id/txtRingStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#888"
+            android:text="@string/ring_idle" />
+
+        <TextView
+            android:id="@+id/txtRingHr"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#7CFFB2"
+            android:text="HR --" />
+
+        <TextView
+            android:id="@+id/txtRingSpo2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#7CFFB2"
+            android:text="SpO2 --%" />
+
+        <TextView
+            android:id="@+id/txtRingBatt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#ccc"
+            android:text="Battery --%" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="12sp"
+            android:textColor="#666"
+            android:text="@string/ring_note" />
+    </LinearLayout>
+</FrameLayout>

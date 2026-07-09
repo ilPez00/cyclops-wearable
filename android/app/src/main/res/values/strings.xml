@@ -13,6 +13,11 @@
     <string name="connecting">Connecting…</string>
     <string name="empty">No notes yet.</string>
     <string name="hud_idle">HUD: ready</string>
+    <string name="ring_title">COLMI R02 Ring</string>
+    <string name="ring_connect">Connect ring</string>
+    <string name="ring_disconnect">Disconnect</string>
+    <string name="ring_idle">Ring: not connected</string>
+    <string name="ring_note">Reads HR / SpO2 / battery over BLE (NUS). No pairing. Keep the ring within ~1 m. Data stays on-device unless you forward it.</string>
     <string-array name="transports">
         <item>wifi</item>
         <item>bt</item>

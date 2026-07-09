@@ -31,6 +31,12 @@
             android:text="@string/settings" />
 
         <Button
+            android:id="@+id/btnRing"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ring_title" />
+
+        <Button
             android:id="@+id/btnRefresh"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

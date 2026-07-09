@@ -169,6 +169,7 @@ void setup() {
 #ifdef ENABLE_RING
     ring.begin("R02_");   // scan for + connect to the COLMI R02 (see docs/30)
 #endif
+}
 
 static bool last_a=true, last_b=true;
 static uint32_t last_hb=0;
