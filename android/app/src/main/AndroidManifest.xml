@@ -26,6 +26,11 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings"
+            android:screenOrientation="portrait" />
+        <activity
             android:name=".RingActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

@@ -22,6 +22,15 @@
     <string name="status_offline">Offline</string>
     <string name="status_error">Connection error</string>
     <string name="candidate">candidate</string>
+    <string name="settings_url">Brain server URL</string>
+    <string name="settings_local_endpoint">Local model endpoint (e.g. http://127.0.0.1:11434/v1)</string>
+    <string name="settings_provider">Cloud provider (openai/groq/openrouter/…)</string>
+    <string name="settings_api_key">API key (stored on device only)</string>
+    <string name="settings_persona">Persona / system note</string>
+    <string name="settings_transport">Transport</string>
+    <string name="settings_tool_overrides">Per-tool model overrides</string>
+    <string name="settings_saved">Settings saved to brain</string>
+    <string name="save">Save</string>
     <string name="ring_note">Reads HR / SpO2 / battery over BLE (NUS). No pairing. Keep the ring within ~1 m. Data stays on-device unless you forward it.</string>
     <string-array name="transports">
         <item>wifi</item>
