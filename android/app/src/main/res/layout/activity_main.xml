@@ -1,162 +1,202 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="12dp">
+    android:background="@color/cyclops_bg">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <TextView
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/topbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/cyclops_surface"
+            app:titleTextColor="@color/cyclops_primary"
+            app:title="@string/app_name"
+            app:menu="@menu/main_menu" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/chipStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="@color/cyclops_primary" />
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:checkable="false"
+            android:text="@string/status_checking"
+            app:chipBackgroundColor="@color/cyclops_surface_variant"
+            app:chipStrokeColor="@color/cyclops_on_surface_muted"
+            app:chipStrokeWidth="1dp" />
 
-        <View
-            android:layout_width="0dp"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe"
+            android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:layout_marginTop="8dp">
 
-        <Button
-            android:id="@+id/btnSettings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/settings" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
 
-        <Button
-            android:id="@+id/btnRing"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/ring_title" />
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/listNotes"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:padding="4dp" />
 
-        <Button
-            android:id="@+id/btnRefresh"
-            android:layout_width="wrap_content"
+                <LinearLayout
+                    android:id="@+id/emptyState"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:visibility="gone"
+                    android:padding="24dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/empty_title"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/cyclops_on_surface" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/empty_body"
+                        android:gravity="center"
+                        android:textColor="@color/cyclops_on_surface_muted" />
+                </LinearLayout>
+            </FrameLayout>
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/refresh" />
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/ingest_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editIngest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="2" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnIngest"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/ingest" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:hint="@string/extract_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editExtract"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnExtract"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/extract" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:hint="@string/ask_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editAsk"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/local_model"
+                    android:textColor="@color/cyclops_on_surface_muted" />
+                <Switch
+                    android:id="@+id/swLocal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/transport"
+                    android:textColor="@color/cyclops_on_surface_muted" />
+                <Spinner
+                    android:id="@+id/spinTransport"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="@color/cyclops_primary" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAsk"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/send" />
+
+            <TextView
+                android:id="@+id/txtHud"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:padding="8dp"
+                android:background="@color/cyclops_primary_container"
+                android:textColor="@color/cyclops_note"
+                android:textStyle="bold"
+                android:textSize="13sp"
+                android:text="@string/hud_idle" />
+
+            <TextView
+                android:id="@+id/txtChat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/cyclops_primary"
+                android:textIsSelectable="true" />
+        </LinearLayout>
     </LinearLayout>
-
-    <com.google.android.material.chip.Chip
-        android:id="@+id/chipStatus"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:checkable="false"
-        android:text="@string/status_checking"
-        app:chipBackgroundColor="@color/cyclops_surface_variant"
-        app:chipStrokeColor="@color/cyclops_on_surface_muted"
-        app:chipStrokeWidth="1dp" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/listNotes"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="8dp" />
-
-    <TextView
-        android:id="@+id/txtEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/empty"
-        android:visibility="gone"
-        android:gravity="center"
-        android:textColor="@color/cyclops_on_surface_muted" />
-
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/editIngest"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/ingest_hint"
-        android:inputType="textMultiLine"
-        android:minLines="2" />
-
-    <Button
-        android:id="@+id/btnIngest"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/ingest" />
-
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/editExtract"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/extract_hint" />
-
-    <Button
-        android:id="@+id/btnExtract"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/extract" />
-
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/editAsk"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/ask_hint" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Local model"
-            android:textColor="@color/cyclops_on_surface_muted" />
-        <Switch
-            android:id="@+id/swLocal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Transport"
-            android:textColor="@color/cyclops_on_surface_muted" />
-        <Spinner
-            android:id="@+id/spinTransport"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/btnAsk"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/send" />
-
-    <!-- Glanceable HUD mirror: shows the banner the wearable glasses would display -->
-    <TextView
-        android:id="@+id/txtHud"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:padding="8dp"
-        android:background="@color/cyclops_primary_container"
-        android:textColor="@color/cyclops_note"
-        android:textStyle="bold"
-        android:textSize="13sp"
-        android:text="@string/hud_idle" />
-
-    <TextView
-        android:id="@+id/txtChat"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="@color/cyclops_primary"
-        android:textIsSelectable="true" />
-
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

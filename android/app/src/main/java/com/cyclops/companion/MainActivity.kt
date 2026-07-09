@@ -1,6 +1,5 @@
 package com.cyclops.companion
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -11,6 +10,9 @@ import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import android.view.Menu
+import android.view.MenuItem
 import com.cyclops.companion.databinding.ActivityMainBinding
 import com.google.android.material.chip.Chip
 
@@ -34,7 +36,6 @@ class MainActivity : AppCompatActivity() {
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
 
-        binding.btnRefresh.setOnClickListener { refresh() }
         // probe connectivity on open
         setStatus(getString(R.string.status_checking), R.color.cyclops_surface_variant)
         binding.btnIngest.setOnClickListener {
@@ -47,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnExtract.setOnClickListener {
             val t = binding.editExtract.text.toString().trim()
             if (t.isNotEmpty()) { setBusy(true); CyclopsApi.extract(t,
-                onResult = { adapter.setNotes(it); binding.txtEmpty.toggle(it.isEmpty()); setBusy(false) },
+                onResult = { adapter.setNotes(it); val e = it.isEmpty(); binding.emptyState.visibility = if (e) View.VISIBLE else View.GONE; binding.listNotes.visibility = if (e) View.GONE else View.VISIBLE; setBusy(false) },
                 onError = { toast(it); setBusy(false) })
             }
         }
@@ -81,8 +82,6 @@ class MainActivity : AppCompatActivity() {
                     })
             }
         }
-        binding.btnSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
-        binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
 
         // transport selector (wifi / bt / cable)
         ArrayAdapter.createFromResource(
@@ -91,6 +90,18 @@ class MainActivity : AppCompatActivity() {
             ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.spinTransport.adapter = ad
         }
+
+        // top app bar menu (Settings / Ring)
+        binding.topbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.menu_settings -> startActivity(Intent(this, SettingsActivity::class.java)); true
+                R.id.menu_ring -> startActivity(Intent(this, RingActivity::class.java)); true
+                else -> false
+            }
+        }
+
+        // swipe-to-refresh
+        binding.swipe.setOnRefreshListener { refresh() }
 
         refresh()
     }
@@ -101,13 +112,17 @@ class MainActivity : AppCompatActivity() {
         CyclopsApi.notes(
             onResult = {
                 adapter.setNotes(it)
-                binding.txtEmpty.visibility = if (it.isEmpty()) TextView.VISIBLE else TextView.GONE
+                val empty = it.isEmpty()
+                binding.emptyState.visibility = if (empty) View.VISIBLE else View.GONE
+                binding.listNotes.visibility = if (empty) View.GONE else View.VISIBLE
                 setStatus(getString(R.string.status_connected), R.color.cyclops_ok)
                 setBusy(false)
+                binding.swipe.isRefreshing = false
             },
             onError = {
                 toast(it)
-                binding.txtEmpty.visibility = TextView.VISIBLE
+                binding.emptyState.visibility = View.VISIBLE
+                binding.listNotes.visibility = View.GONE
                 setStatus(getString(R.string.status_offline), R.color.cyclops_err)
                 setBusy(false)
             }
@@ -122,10 +137,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setBusy(busy: Boolean) {
-        binding.btnRefresh.isEnabled = !busy
         binding.btnIngest.isEnabled = !busy
         binding.btnExtract.isEnabled = !busy
         binding.btnAsk.isEnabled = !busy
+        binding.swipe.isRefreshing = busy
     }
 
     private fun toast(msg: String) {
