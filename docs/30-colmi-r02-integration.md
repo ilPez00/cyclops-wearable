@@ -143,9 +143,18 @@ already verified on metal for button/wheel):
 | `firmware/xiao/src/main.cpp` | `#ifdef ENABLE_RING` hooks `RingBle` → `hud.set_health` |
 | `firmware/Makefile` | host gate now includes `xiao/src` (ring parser tested) |
 | `firmware/shared/test_hud.cpp` | +COLMI R02 packet parser tests (battery/HR/SpO2/error/CRC) |
+| `android/core/.../RingProto.kt` | **Shared Kotlin protocol** (UUIDs, CRC, parse) — single source of truth |
+| `android/core/.../RingProtoTest.kt` | Offline Kotlin parser tests (CI `:core:test`) |
+| `android/app/.../RingActivity.kt` | Phone BLE central UI — scans/connects/streams HR/SpO2/batt |
+| `android/app/.../MainActivity.kt` | "Ring" button launches `RingActivity` |
+| `android/app/.../AndroidManifest.xml` | BLE perms + `RingActivity` |
+| `android/app/res/layout/activity_ring.xml` | Ring screen layout |
+| `android/app/res/values/strings.xml` | ring strings |
 
-The HUD already renders `HR %d  SpO2 %d%%` and `ring %dmV bead %dmV` — ring
-data flows straight into the existing HEALTH view.
+Three implementations (Python / C / Kotlin) share identical constants, CRC and
+decode — verified by parallel test suites. The HUD already renders
+`HR %d  SpO2 %d%%` and `ring %dmV bead %dmV` — ring data flows straight into the
+existing HEALTH view on the wearable; the phone shows it in `RingActivity`.
 
 ---
 

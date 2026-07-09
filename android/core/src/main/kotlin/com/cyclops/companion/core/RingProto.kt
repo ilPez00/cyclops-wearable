@@ -58,7 +58,6 @@ object RingProto {
                 charging = p[2] != 0.toByte())
             CMD_START_REAL_TIME -> {
                 val kind = p[1].toInt() and 0xFF
-                if (p[2] != 0.toByte()) return null      // error code in byte2
                 val v = p[3].toInt() and 0xFF
                 when (kind) {
                     RT_HEART_RATE -> RingSample(hr = v)
