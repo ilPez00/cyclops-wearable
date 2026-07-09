@@ -22,6 +22,7 @@
 
         <com.google.android.material.chip.Chip
             android:id="@+id/chipStatus"
+            android:contentDescription="@string/status_desc"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
@@ -52,6 +53,7 @@
 
                 <LinearLayout
                     android:id="@+id/emptyState"
+            android:contentDescription="@string/empty_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"

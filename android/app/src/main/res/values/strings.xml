@@ -26,6 +26,7 @@
     <string name="empty_body">Ingest a transcript or tap Extract to pull out tasks, reminders and decisions.</string>
     <string name="local_model">Local model</string>
     <string name="transport">Transport</string>
+    <string name="status_desc">Brain connection status</string>
     <string name="settings_url">Brain server URL</string>
     <string name="settings_local_endpoint">Local model endpoint (e.g. http://127.0.0.1:11434/v1)</string>
     <string name="settings_provider">Cloud provider (openai/groq/openrouter/…)</string>

@@ -4,9 +4,11 @@
     <item
         android:id="@+id/menu_ring"
         android:title="@string/ring_title"
+        android:icon="@drawable/ic_ring"
         app:showAsAction="never" />
     <item
         android:id="@+id/menu_settings"
         android:title="@string/settings"
+        android:icon="@drawable/ic_settings"
         app:showAsAction="never" />
 </menu>
