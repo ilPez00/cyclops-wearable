@@ -13,11 +13,16 @@
 #include <driver/i2s.h>
 
 #if defined(SCREEN_ST7735)
-static cyclops::St7735Screen screen(7, 2, 1, 8, 10, 9);
+// XIAO S3: HW-SPI SCK=GPIO7(D8) MOSI=GPIO9(D10) MISO=GPIO8(D9).
+// CS=GPIO6(D5) DC=GPIO2(D1) RST=GPIO1(D0). CS must NOT be GPIO7 (that's SCK).
+static cyclops::St7735Screen screen(6, 2, 1, 8, 10, 9);
 #elif defined(SCREEN_128x64)
 static cyclops::Ssd1306_128x64_Screen screen(6, 2, 1, 8, 10, 9, 1);
 #elif defined(SCREEN_128x32)
 static cyclops::Ssd1306_128x32_Screen screen(5, 2, 1, 8, 10, 9, 1);
+#elif defined(SCREEN_128x32_I2C)
+// 4-pin I2C OLED: only SDA/SCL/VCC/GND wired. SPI args ignored, rst_pin=-1.
+static cyclops::Ssd1306_128x32_I2C_Screen screen(0, 0, 0, 0, 0, 0, -1);
 #endif
 
 #define PIN_WHEEL_A 0

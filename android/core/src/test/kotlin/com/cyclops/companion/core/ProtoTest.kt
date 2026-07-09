@@ -33,12 +33,24 @@ class ProtoTest {
     }
 
     @Test
-    fun bridgeFulfillsTranslate() {
-        val frames = mutableListOf<ByteArray>()
-        val br = HudBridge(object : HudBridge.Sink { override fun write(frame: ByteArray) { frames.add(frame) } })
-        val r = br.dispatch(HudBridge.ACT_TRANSLATE, "ciao mondo")
-        assertEquals("hello mondo", r)
-        assertTrue(frames.isNotEmpty())
-        assertTrue(frames[0][5].toInt() and 0xFF == CyclopsProto.MSG_DISPLAY_CMD)
+    fun bridgeEmitsParseableFrameForHostileJsonText() {
+        // A note containing quotes/backslashes/newlines used to corrupt the
+        // display frame (premortem #2). The frame must survive a round-trip
+        // through encode -> Decoder.
+        val got = mutableListOf<ByteArray>()
+        val br = HudBridge(object : HudBridge.Sink { override fun write(f: ByteArray) { got.add(f) } })
+        br.dispatch(HudBridge.ACT_TRANSLATE, "say \"hi\"\nnow")  // emits via emitText
+        assertEquals(1, got.size)
+        val frame = got[0]
+        assertEquals(CyclopsProto.MSG_DISPLAY_CMD, frame[5].toInt() and 0xFF)
+        // decode it back and confirm the payload is valid JSON (no broken quotes)
+        val decoded = mutableListOf<Pair<Int, ByteArray>>()
+        CyclopsProto.Decoder { t, p -> decoded.add(t to p) }.feed(frame)
+        assertEquals(1, decoded.size)
+        val json = decoded[0].second.decodeToString()
+        assertTrue(json.startsWith("""{"kind":"text","data":"""))
+        assertTrue(json.endsWith("}"))
+        // the embedded text must be escaped, not raw newlines/quotes
+        assertTrue("\"hi\"" !in json.substringAfter("data\":\"").substringBefore("\"}"))
     }
 }

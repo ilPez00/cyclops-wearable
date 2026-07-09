@@ -93,7 +93,15 @@ class HudBridge(
         text.lowercase().split(" ").joinToString(" ") { itTranslate[it] ?: it }
 
     private fun emitText(text: String) {
-        val json = """{"kind":"text","data":"$text"}""".toByteArray()
+        // Escape JSON specials so notes containing " \ newline can't corrupt
+        // the display frame the glasses parse (premortem #2).
+        val esc = text
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n")
+            .replace("\t", "\\t")
+        val json = """{"kind":"text","data":"$esc"}""".toByteArray()
         sink.write(CyclopsProto.encode(CyclopsProto.MSG_DISPLAY_CMD, json))
     }
 
