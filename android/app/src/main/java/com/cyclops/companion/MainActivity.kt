@@ -94,8 +94,8 @@ class MainActivity : AppCompatActivity() {
         // top app bar menu (Settings / Ring)
         binding.topbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.menu_settings -> startActivity(Intent(this, SettingsActivity::class.java)); true
-                R.id.menu_ring -> startActivity(Intent(this, RingActivity::class.java)); true
+                R.id.menu_settings -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
+                R.id.menu_ring -> { startActivity(Intent(this, RingActivity::class.java)); true }
                 else -> false
             }
         }
