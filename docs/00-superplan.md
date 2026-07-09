@@ -88,7 +88,11 @@ three shells — no logic fork.
 **Hardware bring-up (firmware/device)**
 - Real I2S mic + I2C OLED on XIAO; flash & field-test (only Arduino/XIAO envs
   compile; native_test used for logic).
-- BLE transport for G2/Omi (RFCOMM + GATT). `device.py` bt/cable are stubs.
+- BLE transport for G2/Omi: GATT done (T1.2#3). `device.py` cable is real; bt
+  uses BleTransport.
+- **Colmi R02 smart-ring (HR/SpO2/battery) BLE** — DONE (v0.5): XIAO ring client
+  (ring_ble), shared ring_proto.h, android RingActivity + RingProto Kotlin mirror,
+  device/colmi_r02.py async central + tests. [DONE 2026-07-09]
 - Vibration motor feedback; low-batt auto-sleep; gyro gesture calibration.
 
 **AI stack (quality)**
