@@ -1,6 +1,7 @@
 // Host logic test for cyclops::Hud (no display hardware needed).
 #include "hud.h"
 #include "screen.h"
+#include "ring_proto.h"
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -218,6 +219,49 @@ int main() {
      assert(hd.note_count == 1 && strcmp(hd.notes[0], "hello world") == 0);
  }
 
- printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
+ // ---- COLMI R02 16-byte packet protocol (parser shared with Python) ----
+{
+    // battery response: cmd 3, level 64%, charging 0
+    uint8_t batt[16] = {3, 64, 0, 0,0,0,0,0,0,0,0,0,0,0,0, 0};
+    batt[15] = ring_checksum(batt);
+    assert(ring_is_valid(batt));
+    RingSample rs;
+    assert(ring_parse(batt, rs));
+    assert(rs.battery == 64 && !rs.charging);
+
+    // real-time HR: cmd 105, kind=1 (HR), err=0, value=78
+    uint8_t hr[16] = {105, 1, 0, 78, 0,0,0,0,0,0,0,0,0,0,0, 0};
+    hr[15] = ring_checksum(hr);
+    assert(ring_parse(hr, rs) && rs.hr == 78);
+
+    // real-time SpO2: cmd 105, kind=3, value=97
+    uint8_t sp[16] = {105, 3, 0, 97, 0,0,0,0,0,0,0,0,0,0,0, 0};
+    sp[15] = ring_checksum(sp);
+    assert(ring_parse(sp, rs) && rs.spo2 == 97);
+
+    // error response (byte[0] >= 0x80) must be rejected
+    uint8_t err[16] = {0x80|3, 0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0};
+    err[15] = ring_checksum(err);
+    assert(!ring_is_valid(err));
+    RingSample rs2;
+    assert(!ring_parse(err, rs2));  // ignored, no field change
+
+    // bad checksum must be rejected
+    uint8_t bad[16] = {3, 50, 0,0,0,0,0,0,0,0,0,0,0,0,0, 0};
+    bad[15] = (uint8_t)(ring_checksum(bad) ^ 0xFF);  // corrupt CRC
+    assert(!ring_is_valid(bad));
+
+    // request builder round-trips checksum
+    uint8_t req[16];
+    ring_make_packet(req, RING_CMD_BATTERY);
+    assert(req[0] == RING_CMD_BATTERY && req[15] == ring_checksum(req));
+    uint8_t rt_req[16];
+    uint8_t sub[2] = {RING_RT_HEART_RATE, 1};
+    ring_make_packet(rt_req, RING_CMD_START_REAL_TIME, sub, 2);
+    assert(rt_req[0] == RING_CMD_START_REAL_TIME && rt_req[1] == 1 && rt_req[2] == 1);
+    assert(rt_req[15] == ring_checksum(rt_req));
+}
+
+printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }

@@ -15,7 +15,7 @@
 
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -Wall -Wextra
-INC      := -I shared/include -I lib/cyclops_shared/include
+INC      := -I shared/include -I lib/cyclops_shared/include -I xiao/src
 
 .PHONY: test proto native xiao flash monitor clean
 

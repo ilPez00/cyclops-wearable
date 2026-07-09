@@ -7,6 +7,7 @@
 #include "screen.h"
 #include "screens.h"
 #include "hud.h"
+#include "ring_ble.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -38,6 +39,9 @@ static cyclops::Ssd1306_128x32_Screen screen(5, 2, 1, 8, 10, 9, 1);
 #define MIC_BUF_SAMPLES 256
 
 static cyclops::Hud hud;
+#ifdef ENABLE_RING
+static cyclops::RingBle ring;          // COLMI R02 BLE central (opt-in)
+#endif
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
 static NimBLECharacteristicCallbacks* note_cb = nullptr;
@@ -162,7 +166,9 @@ void setup() {
     NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
     adv->addServiceUUID(SRVC);
     adv->start();
-}
+#ifdef ENABLE_RING
+    ring.begin("R02_");   // scan for + connect to the COLMI R02 (see docs/30)
+#endif
 
 static bool last_a=true, last_b=true;
 static uint32_t last_hb=0;
@@ -179,6 +185,13 @@ void loop() {
     }
     if (!b && last_b) hud.on_cancel();                                  // B short = cancel/back
     last_a=a; last_b=b;
+#ifdef ENABLE_RING
+    ring.update();
+    if (ring.connected()) {
+        const auto& s = ring.sample();
+        hud.set_health(s.hr, s.spo2, s.battery, s.battery);  // ring_batt == bead_batt slot
+    }
+#endif
     if (millis()-last_hb > 5000) {
         last_hb = millis();
         char s[80]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
