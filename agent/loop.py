@@ -113,7 +113,8 @@ class Agent:
             self.progress_cb(None, 0)   # thinking…
         for _ in range(self.max_iter):
             try:
-                resp = self.router.chat(messages, tools=self.registry.schemas() or None)
+                resp = self.router.chat(messages, tools=self.registry.schemas() or None,
+                                        tool=self._last_tool)
             except Exception as e:
                 result.text = f"[model error] {e}"
                 self._remember("user", content)
@@ -145,10 +146,12 @@ class Agent:
             self._remember("assistant", resp.text)
             if self.progress_cb:
                 self.progress_cb(None, 100)
+            self.persist_turn(user_text, result.text)
             return result
         result.text = result.text or "[max iterations reached]"
         self._remember("user", content)
         self._remember("assistant", result.text)
+        self.persist_turn(user_text, result.text)
         return result
 
     def _remember(self, role: str, content):
@@ -174,7 +177,18 @@ class Agent:
         parts = [base]
         if blk: parts.append(blk)
         if skills_blk: parts.append(skills_blk)
+        rec = self.memory.recall(limit=self.cfg.memory_recall or 8)
+        if rec: parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
         return "\n\n".join(parts)
+
+    def persist_turn(self, user_text: str, answer: str):
+        """Write the Q/A back to persistent memory (offline-safe)."""
+        try:
+            self.memory.append_note(f"user: {user_text}", kind="turn")
+            if answer:
+                self.memory.append_note(f"cyclops: {answer[:500]}", kind="turn")
+        except Exception:
+            pass
 
     def _user_content(self, text, images, audio_transcript):
         blocks = []

@@ -231,6 +231,9 @@ def build_transport(kind: str, config=None, session=None, **kw) -> Transport:
                             name=kw.get("name", ""))
     if kind == "cable":
         return CableTransport(tty=kw.get("tty", ""), adb=kw.get("adb", False))
+    if kind == "g2":
+        from .g2 import G2Transport
+        return G2Transport(backend=kw.get("backend"))
     if kind == "fake":
         return FakeTransport()
     raise ValueError(f"unknown transport {kind!r}")

@@ -71,3 +71,30 @@ class MemoryStore:
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
         return str(path)
+
+    def recall(self, limit: int = 8) -> str:
+        """Return the last `limit` persisted notes as a compact context blob.
+        Offline-safe: returns '' if none/file missing."""
+        hermes = Path(self.cfg.hermes_home).expanduser()
+        path = hermes / "cyclops_notes.jsonl"
+        try:
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            return ""
+        recs = []
+        for ln in lines:
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                recs.append(json.loads(ln))
+            except Exception:
+                continue
+        if not recs:
+            return ""
+        tail = recs[-limit:]
+        out = []
+        for r in tail:
+            kind = r.get("kind", "note")
+            out.append(f"- ({kind}) {r.get('text', '')}")
+        return "\n".join(out)

@@ -32,6 +32,7 @@ class AgentConfig:
     digigio_home: str = "~/digigio"     # mounted digigio brain (persona/health)
     memory_file: str = "MEMORY.md"
     user_file: str = "USER.md"
+    memory_recall: int = 8        # how many persisted turns to inject as context
 
     # Skills --------------------------------------------------------------
     skills_dirs: list[str] = field(default_factory=lambda: ["~/.hermes/skills"])
@@ -48,6 +49,31 @@ class AgentConfig:
     # Customization -------------------------------------------------------
     system_note: str = ""           # extra system prompt text
     max_tool_iter: int = 6
+    tool_overrides: dict = field(default_factory=dict)  # tool -> {provider,model,endpoint,key}
+
+    # ---- JSON profile (companion settings persist here) ----
+    def to_dict(self) -> dict:
+        out = {}
+        for k, v in self.__dict__.items():
+            if k.startswith("_"):
+                continue
+            out[k] = v
+        return out
+
+    def save(self, path: str):
+        """Persist the full profile (incl. per-tool overrides) to JSON."""
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=2, default=str)
+
+    @classmethod
+    def load_json(cls, path: str) -> "AgentConfig":
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        cfg = cls()
+        for k, v in data.items():
+            if hasattr(cfg, k):
+                setattr(cfg, k, v)
+        return cfg
 
     @classmethod
     def load(cls, path: Optional[str] = None, env: Optional[dict] = None) -> "AgentConfig":
@@ -93,9 +119,10 @@ class AgentConfig:
                 elif k == "device_host": self.device_host = v
                 elif k == "terminal_confirm": self.terminal_confirm = v in ("true", "1", "yes")
 
-    def effective_endpoint(self) -> str:
+    def effective_endpoint(self, provider: str | None = None) -> str:
         """Resolve the OpenAI-compatible base_url for the current provider."""
-        if self.local_mode or self.provider in ("ollama", "lmstudio", "custom"):
+        prov = provider or self.provider
+        if self.local_mode or prov in ("ollama", "lmstudio", "custom"):
             return self.local_base_url or self.base_url or "http://127.0.0.1:11434/v1"
         return self.base_url or "https://openrouter.ai/api/v1"
 
