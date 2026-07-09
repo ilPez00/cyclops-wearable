@@ -149,13 +149,23 @@ static void stop_capture() {
 
 void setup() {
     Serial.begin(115200);
+    Serial.println("[boot] Cyclops XIAO S3 Sense");
+#ifdef SCREEN_ST7735
+    Serial.println("[boot] screen=ST7735 128x128");
+#elif defined(SCREEN_128x64)
+    Serial.println("[boot] screen=SSD1306 128x64");
+#elif defined(SCREEN_128x32)
+    Serial.println("[boot] screen=SSD1306 128x32");
+#endif
     screen.begin();
+    Serial.println("[boot] screen.begin ok");
     pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
     pinMode(PIN_WHEEL_A, INPUT_PULLUP); pinMode(PIN_WHEEL_B, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(PIN_WHEEL_A), wheel_isr, CHANGE);
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
     hud.init();
+    Serial.println("[boot] hud.init ok");
     NimBLEDevice::init("CyclopsXIAO");
     srv = NimBLEDevice::createServer();
     srv->setCallbacks(new SrvCb());
@@ -197,6 +207,8 @@ void loop() {
     if (millis()-last_hb > 5000) {
         last_hb = millis();
         char s[80]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
+        Serial.printf("[hb] %s rec=%d bt=%d mode=%s\n", s, hud.recording,
+                      hud.bt, hud.mode_name(hud.top()));
     }
     hud.render(screen);
     delay(50);
