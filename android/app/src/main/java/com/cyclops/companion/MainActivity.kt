@@ -41,12 +41,14 @@ class MainActivity : AppCompatActivity() {
             if (t.isNotEmpty()) { setBusy(true); CyclopsApi.ingest(t,
                 onResult = { binding.editIngest.text?.clear(); setBusy(false); refresh() },
                 onError = { toast(it); setBusy(false) })
+            }
         }
         binding.btnExtract.setOnClickListener {
             val t = binding.editExtract.text.toString().trim()
             if (t.isNotEmpty()) { setBusy(true); CyclopsApi.extract(t,
                 onResult = { adapter.setNotes(it); binding.txtEmpty.toggle(it.isEmpty()); setBusy(false) },
                 onError = { toast(it); setBusy(false) })
+            }
         }
         binding.btnAsk.setOnClickListener {
             val t = binding.editAsk.text.toString().trim()
