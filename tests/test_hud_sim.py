@@ -55,10 +55,30 @@ def test_grid_geometry():
     print("OK grid is 4x21")
 
 
+def test_profile_128x128_geometry():
+    # The default XIAO S3 Sense target: 21x16 grid (mirrors St7735Screen).
+    sim = HudSim(profile="128x128")
+    assert (sim.cols, sim.rows) == (21, 16), sim.profile
+    grid = sim.render()
+    assert len(grid) == 16, f"expected 16 rows, got {len(grid)}"
+    assert all(len(r) == 21 for r in grid)
+    print("OK 128x128 profile is 21x16 (matches firmware St7735Screen)")
+
+
+def test_profile_g2_geometry():
+    sim = HudSim(profile="g2")
+    assert (sim.cols, sim.rows) == (18, 4)
+    grid = sim.render()
+    assert len(grid) == 4 and all(len(r) == 18 for r in grid)
+    print("OK g2 profile is 18x4")
+
+
 if __name__ == "__main__":
     test_hud_frame()
     test_display_cmd_progress_and_steps()
     test_display_cmd_text_note()
     test_health_status_bar()
     test_grid_geometry()
+    test_profile_128x128_geometry()
+    test_profile_g2_geometry()
     print("PASS tests/test_hud_sim.py")

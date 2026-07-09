@@ -28,8 +28,23 @@ except Exception:  # allow running from repo root or shells/ without package
 _KIND_NAMES = {i: n for i, n in enumerate(HUD_KINDS)} if HUD_KINDS else {}
 
 
+# Panel profiles. Mirrors the firmware Screen drivers (screens.h) so the
+# laptop simulator renders the SAME grid geometry as the real panel.
+#   legacy  = 21x4  (128x32/64 OLED style, the original glanceable grid)
+#   128x128 = 21x16 (ST7735 RGB565 TFT — the default XIAO S3 Sense target)
+#   g2      = 18x4  (EvenRealities G2 4x18 green microLED)
+PROFILES = {
+    "legacy":  (21, 4),
+    "128x128": (21, 16),
+    "g2":      (18, 4),
+}
+
+
 class HudSim:
-    def __init__(self, cols: int = 21, rows: int = 4):
+    def __init__(self, cols: int = 21, rows: int = 4, profile: str = "legacy"):
+        if profile in PROFILES:
+            cols, rows = PROFILES[profile]
+        self.profile = profile
         self.cols = cols
         self.rows = rows
         self.mode = "HOME"
@@ -58,7 +73,7 @@ class HudSim:
                 self.steps.append(tool)
         elif kind == "text":
             text = obj.get("text") or obj.get("data") or ""
-            self.lines = self._wrap(text)
+            self.lines = self._wrap(text, self.cols)
 
     def feed_hud_frame(self, payload: bytes):
         d = parse_hud(payload)
@@ -70,12 +85,12 @@ class HudSim:
 
     # ---- helpers ----
     @staticmethod
-    def _wrap(text: str) -> list[str]:
+    def _wrap(text: str, cols: int = 21) -> list[str]:
         out = []
         for para in text.split("\n"):
             while para:
-                out.append(para[:21])
-                para = para[21:]
+                out.append(para[:cols])
+                para = para[cols:]
         return out[:3]
 
     def set_health(self, hr=None, spo2=None, batt=None):
@@ -127,14 +142,15 @@ class HudSim:
         return "\n".join(self.render())
 
 
-def demo():
-    sim = HudSim()
+def demo(profile: str = "legacy"):
+    sim = HudSim(profile=profile)
     # 1) agent answer arrives as a HUD_FRAME (Omi/G2 style)
     from brain.protocol_v2 import build_hud
     sim.feed_hud_frame(build_hud(HUD_KINDS.index("agent"),
-                                 ["Meet Bob at 3pm", "bring the cable"], more=False))
+                                 [f"Meet Bob at 3pm"[:sim.cols],
+                                  f"bring the cable"[:sim.cols]], more=False))
     sim.set_health(hr=72, spo2=97, batt=80)
-    print("--- after agent frame ---")
+    print(f"--- after agent frame ({sim.profile} {sim.cols}x{sim.rows}) ---")
     print(sim)
     # 2) agent streams progress + steps as DISPLAY_CMD
     sim.feed_display_cmd(b'{"kind":"progress","p":42}')
@@ -148,5 +164,10 @@ def demo():
     print(sim)
 
 
+def demo_128x128():
+    demo(profile="128x128")
+
+
 if __name__ == "__main__":
-    demo()
+    import sys
+    demo(profile=sys.argv[1] if len(sys.argv) > 1 else "legacy")
