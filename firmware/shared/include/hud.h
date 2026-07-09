@@ -345,16 +345,7 @@ struct Hud {
         scr.flush();
     }
 
-private:
-    static int clamp(int v, int lo, int hi) { if (v<lo) v=lo; if (v>hi) v=hi; return v; }
-    static void trim(char* s, int cols) { if ((int)strlen(s) > cols) s[cols]=0; }
-    static const char* trunc(const char* s, int cols) { static char b[128]; int n=0; while (s[n] && n<cols && n<127) { b[n]=s[n]; ++n; } b[n]=0; return b; }
-    static const char* nav_arrow(int deg) {
-        // 8-point compass arrow from heading (0=N). Pure glyph, BOM-free.
-        static const char* arrows[8] = {"\x18","\x1E","\x1B","\x1F","\x19","\x11","\x1A","\x17"};
-        int i = ((deg % 360) + 360) % 360;
-        return arrows[(i + 22) / 45 % 8];
-    }
+    // Public: human-readable mode label (also used by host/serial debug).
     static const char* mode_name(Mode m) {
         switch (m) {
             case HOME: return "HOME"; case MENU: return "MENU"; case NOTES: return "NOTES";
@@ -364,6 +355,17 @@ private:
             case SETTINGS: return "CFG"; case CONFIRM: return "?"; case AGENT: return "AGENT";
         }
         return "";
+    }
+
+private:
+    static int clamp(int v, int lo, int hi) { if (v<lo) v=lo; if (v>hi) v=hi; return v; }
+    static void trim(char* s, int cols) { if ((int)strlen(s) > cols) s[cols]=0; }
+    static const char* trunc(const char* s, int cols) { static char b[128]; int n=0; while (s[n] && n<cols && n<127) { b[n]=s[n]; ++n; } b[n]=0; return b; }
+    static const char* nav_arrow(int deg) {
+        // 8-point compass arrow from heading (0=N). Pure glyph, BOM-free.
+        static const char* arrows[8] = {"\x18","\x1E","\x1B","\x1F","\x19","\x11","\x1A","\x17"};
+        int i = ((deg % 360) + 360) % 360;
+        return arrows[(i + 22) / 45 % 8];
     }
     template<typename S>
     void draw_detail(S& scr, int rows, int cols, int start_row) {
