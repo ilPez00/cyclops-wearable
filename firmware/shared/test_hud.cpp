@@ -356,6 +356,48 @@ int main() {
          (void)before; (void)nbefore;
      }
 
-     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
+     // ---- pixel graphics helpers: draw_pixel / drawGauge / drawBatteryIcon / drawProgressBar ----
+    {
+        // Screen that counts pixel + rect calls (real geometry, no hardware).
+        struct PixScreen : Screen {
+            int px=0, rects=0, fills=0;
+            int w() const override { return 128; }
+            int h() const override { return 64; }
+            int char_cols() const override { return 21; }
+            int text_rows() const override { return 4; }
+            void begin() override {}
+            void clear() override {}
+            void set_ink(bool) override {}
+            void draw_text(int,int,const char*) override {}
+            void draw_rect(int,int,int,int,bool) override { rects++; }
+            void draw_pixel(int,int,bool) override { px++; }
+            void fill_rect(int,int,int,int,bool) override { fills++; }
+            void flush() override {}
+        };
+        PixScreen ps;
+        Hud::drawGauge(ps, 64, 40, 14, 50);     // track + half-filled arc
+        assert(ps.px > 0);                       // arcs drew pixels
+        int pxGauge = ps.px;
+
+        PixScreen ps2;
+        Hud::drawBatteryIcon(ps2, 2, 54, 80);
+        assert(ps2.rects >= 2 && ps2.fills >= 1); // body + terminal + fill
+
+        PixScreen ps3;
+        Hud::drawProgressBar(ps3, 0, 60, 100, 4, 50);
+        assert(ps3.rects >= 1 && ps3.fills >= 1);
+
+        PixScreen ps4;
+        Hud::drawBoot(ps4, 64, 32, 20, 2);
+        assert(ps4.px > 0);
+
+        // HEALTH mode on a 128x64 panel actually invokes the pixel helpers
+        Hud hp; hp.init(); hp.push(HEALTH); hp.set_health(74, 96, 88, 90);
+        PixScreen ps5; hp.render(ps5);
+        assert(ps5.px > 0);                       // gauges + batt icon drawn
+        (void)pxGauge;
+    }
+
+    printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }

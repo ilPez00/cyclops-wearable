@@ -24,6 +24,28 @@ public:
     virtual void flush() = 0;
     virtual void text_size(int s) { (void)s; }   // no-op default (mono stays 1)
 
+    // Pixel-level primitives. Defaults are no-ops so existing drivers/test
+    // mocks that only implement draw_rect keep compiling. Real OLED/TFT
+    // drivers override these for crisp graphics.
+    virtual void draw_pixel(int, int, bool = true) {}
+    virtual void draw_line(int x0, int y0, int x1, int y1, bool on = true) {
+        // Bresenham default built on draw_pixel (override for speed).
+        int dx = abs(x1 - x0), dy = -abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+        int err = dx + dy;
+        for (;;) {
+            draw_pixel(x0, y0, on);
+            if (x0 == x1 && y0 == y1) break;
+            int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+    }
+    virtual void fill_rect(int x, int y, int w, int h, bool on = true) {
+        for (int yy = y; yy < y + h; ++yy)
+            for (int xx = x; xx < x + w; ++xx) draw_pixel(xx, yy, on);
+    }
+
     // default layout: status bar (row 0) + note list
     void render_ui(const UiState& ui) {
         clear();

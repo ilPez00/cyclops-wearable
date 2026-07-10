@@ -10,6 +10,7 @@
 #include "cyclops_shared.h"
 #include <stdint.h>
 #include <stdlib.h>  // AVR/Arduino-safe; declares atoi
+#include <cmath>    // sinf/cosf for arc drawing
 
 namespace cyclops {
 
@@ -85,6 +86,7 @@ struct Hud {
     uint32_t clock = 0;
     bool recording = false, screen_on = true, bt = false, consent = true;
     bool video = false;              // video capture active (A-long)
+    int boot_frame = 0;              // 0..3 boot spinner, then settled
     BtnBindings bindings;            // remappable 2x3 button grid (app-configurable)
 
     // callbacks: send a command byte to the brain (BLE/USB). Set by main.
@@ -177,6 +179,7 @@ struct Hud {
     void tick_sec() {
         if (recording) ++rec_secs;
         if (toast_ttl > 0) --toast_ttl;
+        if (boot_frame < 4) ++boot_frame;     // ~4s boot spinner, then settled
         if (screen_on) { if (++idle >= sleep_after) screen_on = false; }
     }
 
@@ -317,6 +320,53 @@ struct Hud {
         if (on_agent_request) on_agent_request(prompt ? prompt : "");
     }
 
+    // ---- pixel-graphics helpers (templated on Screen S) ----
+    // Pure drawing primitives built on S.draw_pixel / S.draw_line /
+    // S.fill_rect. Host-testable: a Screen mock can record the calls.
+    template<typename S>
+    static void drawArc(S& scr, int cx, int cy, int r, int a0, int a1, int step = 3) {
+        for (int a = a0; a <= a1; a += step) {
+            float rad = a * 3.14159265f / 180.f;
+            int x = cx + (int)(r * sinf(rad));
+            int y = cy - (int)(r * cosf(rad));
+            scr.draw_pixel(x, y, true);
+        }
+    }
+
+    // Radial gauge: background arc + filled arc up to [progress] 0..100.
+    template<typename S>
+    static void drawGauge(S& scr, int cx, int cy, int r, int progress, int gap = 90) {
+        int a0 = 90 + gap / 2;          // start (bottom-left gap)
+        int a1 = a0 + 360 - gap;        // end (bottom-right gap)
+        drawArc(scr, cx, cy, r, a0, a1, 4);                 // track
+        int filled = a0 + (int)((360 - gap) * clamp(progress, 0, 100) / 100.f);
+        drawArc(scr, cx, cy, r, a0, filled, 4);             // value
+    }
+
+    // Horizontal progress bar from (x,y) width w, height h, 0..100.
+    template<typename S>
+    static void drawProgressBar(S& scr, int x, int y, int w, int h, int progress) {
+        scr.draw_rect(x, y, w, h, true);                    // frame
+        int fw = (int)((w - 2) * clamp(progress, 0, 100) / 100.f);
+        if (fw > 0) scr.fill_rect(x + 1, y + 1, fw, h - 2, true);
+    }
+
+    // Battery glyph: body + terminal, fill level 0..100.
+    template<typename S>
+    static void drawBatteryIcon(S& scr, int x, int y, int level) {
+        scr.draw_rect(x, y, 14, 7, true);                   // body outline
+        scr.draw_rect(x + 14, y + 2, 2, 3, true);           // terminal
+        int fw = (int)(12 * clamp(level, 0, 100) / 100.f);
+        if (fw > 0) scr.fill_rect(x + 1, y + 1, fw, 5, true);
+    }
+
+    // Boot animation frame (spinner). frame 0..3 cycles a sweeping arc.
+    template<typename S>
+    static void drawBoot(S& scr, int cx, int cy, int r, int frame) {
+        int a = (frame % 4) * 90;
+        drawArc(scr, cx, cy, r, a, a + 60, 3);
+    }
+
     // ---- render to a Screen ----
     template<typename S>
     void render(S& scr) {
@@ -335,8 +385,12 @@ struct Hud {
         Mode m = top();
         int body = 1;
         if (m == HOME) {
-            // glanceable banner (the AI's last line) in larger type on capable panels
-            if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
+            // boot spinner for the first ~2s on pixel-capable panels
+            if (boot_frame < 4 && scr.w() >= 48 && scr.h() >= 32) {
+                drawBoot(scr, scr.w() / 2, scr.h() / 2, scr.h() / 3, boot_frame);
+                char ln[32]; snprintf(ln, sizeof(ln), "Cyclops %d", boot_frame);
+                scr.draw_text(0, rows - 1, ln);
+            } else if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
             else { scr.draw_text(0, body, "Cyclops ready"); body++; }
             char ln[32];
             snprintf(ln, sizeof(ln), "%dmV %d notes %s", (bead_batt>0?bead_batt:ring_batt),
@@ -381,8 +435,15 @@ struct Hud {
             draw_detail(scr, rows, cols, body);
         } else if (m == HEALTH) {
             char ln[32];
-            snprintf(ln, sizeof(ln), "HR %d  SpO2 %d%%", hr, spo2); scr.draw_text(0,body,ln);
-            snprintf(ln, sizeof(ln), "ring %dmV bead %dmV", ring_batt, bead_batt); scr.draw_text(0,body+1,ln);
+            snprintf(ln, sizeof(ln), "HR %d  SpO2 %d%%", hr, spo2); scr.draw_text(0, body, ln);
+            snprintf(ln, sizeof(ln), "ring %dmV bead %dmV", ring_batt, bead_batt); scr.draw_text(0, body+1, ln);
+            // pixel graphics on capable panels (>=64px wide): HR + SpO2 arcs + batt icon
+            if (scr.w() >= 64 && scr.h() >= 48) {
+                int cx = scr.w() / 2;
+                drawGauge(scr, cx - 18, body + 18, 14, hr > 0 ? (hr * 100 / 200) : 0);
+                drawGauge(scr, cx + 18, body + 18, 14, spo2);
+                drawBatteryIcon(scr, 2, scr.h() - 10, bead_batt > 0 ? bead_batt : ring_batt);
+            }
         } else if (m == NAV) {
             char ln[32]; snprintf(ln, sizeof(ln), "%s %dm", nav_arrow(nav_head), nav_dist); scr.draw_text(0,body,ln);
             scr.draw_text(0,body+1,nav_label);
