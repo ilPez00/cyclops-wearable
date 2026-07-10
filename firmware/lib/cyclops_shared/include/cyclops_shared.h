@@ -18,13 +18,21 @@ inline uint16_t crc16_ccitt_false(const uint8_t* d, size_t n, uint16_t seed = 0x
 
 namespace cyclops {
 
+// audio backpressure counter (incremented when a BLE notify is dropped because
+// the queue is full; see audio_task in xiao/src/main.cpp). inline so it has a
+// single definition across host + xiao builds without a separate TU.
+inline unsigned long audio_dropped = 0;
+
 enum MsgType : uint8_t {
     MSG_HELLO=1, MSG_HEARTBEAT=2, MSG_INPUT_EVENT=3, MSG_AUDIO_META=4,
     MSG_AUDIO_CHUNK=5, MSG_DISPLAY_CMD=6, MSG_NOTE=7, MSG_STATUS=8,
     MSG_CMD=9, MSG_ACK=10,
     MSG_PEER_HELLO=11, MSG_TIME_SYNC=12, MSG_HEALTH_SAMPLE=13,
     MSG_HUD_FRAME=14, MSG_RING_GESTURE=15, MSG_AUDIO_COMPRESSED=16,
-    MSG_CONFIRM=17, MSG_PEER_STATUS=18, MSG_AUDIO_STOP=19, MSG_TTS=20
+    MSG_CONFIRM=17, MSG_PEER_STATUS=18, MSG_AUDIO_STOP=19, MSG_TTS=20,
+    // OTA firmware update over BLE (see ota.h). BEGIN/CHUNK/END are phone->device,
+    // ACK is device->phone for flow-control + verify result.
+    MSG_OTA_BEGIN=21, MSG_OTA_CHUNK=22, MSG_OTA_END=23, MSG_OTA_ACK=24
 };
 
 // Encode a frame. Returns byte count (0 on overflow). cap must be >= 7+plen.

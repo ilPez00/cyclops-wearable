@@ -23,6 +23,14 @@ bool sd_ready() { return sd_mounted; }
 
 void sd_log_line(const char* tag, const char* text) {
   if (!sd_mounted) return;
+  // Rollover: keep the log bounded so a long wear doesn't fill the card.
+  static constexpr unsigned long MAX_BYTES = 256 * 1024;  // 256 KB
+  if (SD.exists("/cyclops.log")) {
+    File probe = SD.open("/cyclops.log", FILE_READ);
+    bool over = probe && (unsigned long)probe.size() > MAX_BYTES;
+    if (probe) probe.close();
+    if (over) SD.remove("/cyclops.log");
+  }
   File f = SD.open("/cyclops.log", FILE_APPEND);
   if (!f) return;
   unsigned long sec = millis() / 1000;

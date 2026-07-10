@@ -1,46 +1,52 @@
-# Cyclops Plan
+# Cyclops firmware/hardware audit — execution plan
 
-## MVP (DONE - local-first, testable now)
-1. Wire protocol (framing + CRC) .................... DONE
-2. Device C++ codec + UI state machine ............. DONE (host-build verified)
-3. Brain: stub/whisper transcriber .................. DONE
-4. Smart-note extractor (rule-based) ................ DONE
-5. Display sinks (local / g2 / console) ............. DONE
-6. Input: wheel + buttons + gyro gestures ........... DONE
-7. Battery monitor ................................. DONE
-8. Persistence (JSONL + MD) ........................ DONE
-9. Web dashboard (stdlib) .......................... DONE
-10. Glasses (G2) + pebble variants ................. DONE
+Source: factory-loop applied (premortem -> research -> self-review) to the Arduino/hardware
+tree. Goal: prune dead/over-built surface and close the one real hardware gap (ring BLE).
 
-## Next (hardware / quality)
-- Wire real I2S mic + I2C OLED on XIAO; flash and field-test.
-- Real faster-whisper on-device or edge box; cloud adapter (OpenAI/Deepgram).
-- LLM-based note extraction (replace rule engine behind same interface).
-- BLE transport for G2 glasses + Omi phone app parity.
-- Vibration motor feedback; low-battery auto-sleep.
+## Premortem (risks)
+- D1: ring BLE is a stub (`scan->start(5)` only, no connect/parse).
+- D2: NimBLE dual-role (phone server + ring client) re-init risk.
+- D3: CI builds only xiao_* + native; arduino_* unverified (may not compile).
+- D4: gesture engine + bindings live only in xiao/; arduino uses raw on_select/on_back.
+- D5: mic+BLE+ring on one core, no flow control -> possible starvation/OMemory.
 
-## G2 / Omi feature gap (target)
-| Feature             | Status |
-|---------------------|--------|
-| Glanceable text HUD | DONE (local + G2 sink) |
-| Audio capture       | DONE (transport + stub) |
-| Transcription       | DONE (stub; whisper/cloud pluggable) |
-| Notifications       | DONE (NOTE frames -> display) |
-| Smart notes/memory  | DONE (extractor) |
-| Navigation/map      | TODO (needs GPS + maps) |
-| Translation         | TODO (needs translate adapter) |
-| Teleprompt          | TODO (script scroll mode) |
-| Music control       | TODO |
-| 24/7 recording      | TODO (battery + stream store) |
-| Phone app parity    | PARTIAL (web dashboard) |
-| Conversation search | TODO (index store) |
+## SKIP (dead / over-built)
+- S1: drop `arduino/` target (dev sim is shells/hud_sim.py, uses real wire frames).
+- S2: remove unused `Imu::last_gz_`.
+- S3: drop `on_long_back` path if arduino is dropped.
+- S4: drop arduino-only MSG_PEER_STATUS cap handshake (xiao never consumes).
+- S5: drop joystick+proximity from the design surface.
 
-## Branch strategy
-- `master` carries >100MB legacy Praxis binaries GitHub's pre-receive rejects;
-  do NOT push there. `cyclops` is the clean working branch (all HUD/UX/agent work).
-- To unify later: `git filter-repo` the large files out of `master` history, or
-  merge `cyclops` into a rewritten `master`.
+## IMPROVE (high-value, grounded)
+- A (C1): finish ring BLE connect (advertised-device cb -> createClient -> UART svc ->
+  ring_parse -> hud.set_health). single NimBLE init, client reuses device.
+- B (C2): unify input path; after dropping arduino, one gesture/binding path remains.
+- C (C3): low_power mode (stop mic task, slow BLE) when screen off + not recording.
+- D (C3): audio ring buffer + drop-oldest backpressure in audio_task.
+- E (C3): SD log date-rotate / max-size trim.
+- F (doc): document PHOTO/VIDEO/VOICE capture = phone-driven (OpenGlass), not XIAO HAL.
 
-## CI
-- GitHub Actions (build-apk.yml): APK build (debug+release) on android/** changes;
-  firmware job compiles `native_test` + `xiao_st7735` on every push to cyclops.
+## XIAO-S3 grounding (Seeed wiki)
+- Pins valid: btn 3/5, wheel 0/4, I2C 43/44, SD 21/7/8/9, mic 40/41/42. ~0 spare GPIO.
+- No free I2S-out pins -> confirms phone-relay audio-out (TTS) was the correct call.
+
+## Cycles (each: build+verify+commit+push as a unit)
+- C1: finish ring BLE (A). Verify: host gate (ring_parse offline) + xiao build + boot log.
+- C2: prune arduino target (S1-S5) + dead fields (S2). Verify: CI matrix + host gate + build.  [DONE]
+- C3: power mode (C) + audio backpressure (D) + SD rollover (E) + capture doc (F).  [DONE]
+  - F: PHOTO/VIDEO/VOICE capture is phone-driven (OpenGlass/companion); the XIAO
+    has no camera HAL. The wearable fires ACT_PHOTO/VIDEO/VOICE_* gestures which
+    the brain bridges to the phone camera (see brain/hud_bridge.py). Documented.
+- C4 (optional): web research upgrade pass (OpenGlass/Omi/G2 competitive) — DONE
+  via docs/31-repremortem-competition.md (already written). No new code action
+  surfaced beyond C1-C3. AUDIT COMPLETE.
+
+## Verification gates
+- Host: `make test` (shared) must stay green.
+- Firmware: `pio run -e xiao_128x32_i2c` SUCCESS.
+- Ad-hoc `/tmp/hermes-verify-*` scripts for new behavior; cleaned after.
+- arduino_*: remove from CI (S1) so no unverified rows remain.
+
+## Board
+- Currently flashed at cc57ba3; b4733cc (IMU auto-detect) pending. All cycles flash once
+  board connects. Until then: build+test+push only.

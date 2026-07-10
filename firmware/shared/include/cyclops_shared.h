@@ -18,6 +18,11 @@ inline uint16_t crc16_ccitt_false(const uint8_t* d, size_t n, uint16_t seed = 0x
 
 namespace cyclops {
 
+// audio backpressure counter (incremented when a BLE notify is dropped because
+// the queue is full; see audio_task in xiao/src/main.cpp). inline so it has a
+// single definition across host + xiao builds without a separate TU.
+inline unsigned long audio_dropped = 0;
+
 enum MsgType : uint8_t {
     MSG_HELLO=1, MSG_HEARTBEAT=2, MSG_INPUT_EVENT=3, MSG_AUDIO_META=4,
     MSG_AUDIO_CHUNK=5, MSG_DISPLAY_CMD=6, MSG_NOTE=7, MSG_STATUS=8,
