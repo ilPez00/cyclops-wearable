@@ -26,7 +26,7 @@ object RingProto {
     const val RT_HEART_RATE = 1
     const val RT_SPO2 = 3
 
-    /** sum(byte[0..14]) & 0xFF (byte15 is 0 while computing). */
+    /** sum of bytes 0..14, masked with 0xFF (byte15 is 0 while computing). */
     fun crc(p: ByteArray): Byte {
         var s = 0
         for (i in 0..14) s += p[i].toInt() and 0xFF

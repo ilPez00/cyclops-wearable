@@ -6,8 +6,8 @@ import java.util.zip.CRC32
  * Cyclops OTA-over-BLE sender — Kotlin mirror of firmware/lib/cyclops_shared/include/ota.h.
  *
  * Packs the phone->device side of the update protocol:
- *   MSG_OTA_BEGIN  [size:u32-le][crc32:u32-le][chunk:u32-le]
- *   MSG_OTA_CHUNK  [seq:u32-le][data...]
+ *   MSG_OTA_BEGIN  (size:u32-le, crc32:u32-le, chunk:u32-le)
+ *   MSG_OTA_CHUNK  (seq:u32-le, data...)
  *   MSG_OTA_END    (empty)
  * and parses the device->phone MSG_OTA_ACK json {"seq":n,"st":code}.
  *
@@ -42,7 +42,7 @@ object OtaSender {
     fun begin(size: Long, crc32: Long, chunk: Int): ByteArray =
         u32le(size) + u32le(crc32) + u32le(chunk.toLong())
 
-    /** CHUNK payload = [seq][data]. */
+    /** CHUNK payload = (seq, data). */
     fun chunk(seq: Int, data: ByteArray): ByteArray = u32le(seq.toLong()) + data
 
     /** Parsed ACK from the device. */
