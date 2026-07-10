@@ -85,6 +85,7 @@ struct Hud {
     int rec_secs = 0;
     uint32_t clock = 0;
     bool recording = false, screen_on = true, bt = false, consent = true;
+    bool charging = false;            // bead/ring battery charging state
     bool video = false;              // video capture active (A-long)
     int boot_frame = 0;              // 0..3 boot spinner, then settled
     BtnBindings bindings;            // remappable 2x3 button grid (app-configurable)
@@ -94,9 +95,16 @@ struct Hud {
     void (*on_transcribe_toggle)() = nullptr;  // device starts/stops mic capture
     void (*on_agent_request)(const char* prompt) = nullptr;  // host streams answer via set_agent()
     void (*on_note)(const char* text) = nullptr;  // fired when a note line is added (SD/log sink)
+    // MSG_STATUS frame (t=8). v2 adds mode/spo2/prog/toast/recs/steps while
+    // keeping the v1 keys (batt/chg/rec/bt/hr) so older parsers still work.
     int status_json(char* out, size_t cap) const {
-        return snprintf(out, cap, "{\"t\":8,\"batt\":%u,\"chg\":%d,\"rec\":%d,\"bt\":%d,\"hr\":%d}",
-                        (unsigned)bead_batt, 0, recording?1:0, bt?1:0, hr);
+        const char* m = mode_name(top());
+        return snprintf(out, cap,
+            "{\"t\":8,\"batt\":%u,\"chg\":%d,\"rec\":%d,\"bt\":%d,\"hr\":%d,"
+            "\"spo2\":%d,\"mode\":\"%s\",\"prog\":%d,\"recs\":%d,\"toast\":\"%s\"}",
+            (unsigned)bead_batt, charging?1:0, recording?1:0, bt?1:0, hr,
+            spo2, m, progress, rec_secs,
+            toast_ttl > 0 ? toast_msg : "");
     }
 
     void init() { sp = 0; push(HOME); note_count = 0; menu_sel = 0; hud_len = 0; toast_ttl = 0; }
@@ -307,6 +315,7 @@ struct Hud {
         int h = atoi_k("hr="); if (h > 0) hr = h;
         int s = atoi_k("spo2="); if (s > 0) spo2 = s;
         int b = atoi_k("batt="); if (b > 0) ring_batt = b;
+        int c = atoi_k("chg="); if (c > 0) charging = true; else if (strstr(p, "chg=0")) charging = false;
     }
     void set_nav(int dist_m, int head, const char* label) { nav_dist = dist_m; nav_head = head; strncpy(nav_label, label?label:"",23); nav_label[23]=0; }
     void set_tele(const char* /*full*/, int page) { tele_page = page; }

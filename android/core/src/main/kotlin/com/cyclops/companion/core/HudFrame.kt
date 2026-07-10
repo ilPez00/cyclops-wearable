@@ -35,13 +35,34 @@ data class HudFrame(
         fun fromStatusJson(json: String): HudFrame? {
             val t = intField(json, "t")
             if (t != 8) return null
+            // mode is a quoted string key ("mode":"HOME"); parse it separately
+            val mode = strField(json, "mode")
             return HudFrame(
+                mode = mode.ifEmpty { "HOME" },
                 batteryMv = intField(json, "batt"),
                 charging = intField(json, "chg") != 0,
                 recording = intField(json, "rec") != 0,
                 bluetooth = intField(json, "bt") != 0,
-                hr = intField(json, "hr")
+                hr = intField(json, "hr"),
+                spo2 = intField(json, "spo2"),
+                progress = intField(json, "prog"),
+                toast = strField(json, "toast")
             )
+        }
+
+        /** Pull the quoted string after `"key":` in a flat-ish JSON string. */
+        private fun strField(json: String, key: String): String {
+            val i = json.indexOf("\"$key\"")
+            if (i < 0) return ""
+            val colon = json.indexOf(':', i)
+            if (colon < 0) return ""
+            var j = colon + 1
+            while (j < json.length && (json[j] == ' ' || json[j] == '\t')) j++
+            if (j >= json.length || json[j] != '"') return ""
+            val start = j + 1
+            var k = start
+            while (k < json.length && json[k] != '"') k++
+            return json.substring(start, k)
         }
 
         /** Pull the integer after `"key":` in a flat-ish JSON string. */

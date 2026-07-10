@@ -398,6 +398,22 @@ int main() {
         (void)pxGauge;
     }
 
+    // ---- MSG_STATUS v2 frame carries mode/spo2/prog/toast/recs ----
+    {
+        Hud hs; hs.init();
+        hs.push(AGENT); hs.set_progress(42); hs.toast("sent", 2);
+        hs.set_health(74, 96, 88, 90); hs.set_consent(true);
+        char buf[256];
+        int n = hs.status_json(buf, sizeof(buf));
+        assert(n > 0 && n < (int)sizeof(buf));
+        assert(strstr(buf, "\"t\":8") != nullptr);
+        assert(strstr(buf, "\"mode\":\"AGENT\"") != nullptr);
+        assert(strstr(buf, "\"prog\":42") != nullptr);
+        assert(strstr(buf, "\"spo2\":96") != nullptr);
+        assert(strstr(buf, "\"toast\":\"sent\"") != nullptr);
+        assert(strstr(buf, "\"hr\":74") != nullptr);
+    }
+
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }

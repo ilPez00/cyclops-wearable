@@ -15,6 +15,19 @@ class HudFrameTest {
     }
 
     @Test
+    fun parseStatusJsonV2Full() {
+        val f = HudFrame.fromStatusJson(
+            """{"t":8,"batt":80,"chg":1,"rec":0,"bt":1,"hr":74,"spo2":96,"mode":"AGENT","prog":42,"recs":0,"toast":"sent"}""")
+        assertNotNull(f)
+        assertEquals("AGENT", f!!.mode)
+        assertTrue(f.charging)
+        assertEquals(74, f.hr)
+        assertEquals(96, f.spo2)
+        assertEquals(42, f.progress)
+        assertEquals("sent", f.toast)
+    }
+
+    @Test
     fun parseStatusJsonRejectsWrongType() {
         assertNull(HudFrame.fromStatusJson("""{"t":6,"batt":80}"""))
     }
