@@ -11,6 +11,7 @@ subscribe, dispatch and write* logic is fully testable offline with
 :class:`FakeBleBackend` (no bluez / no hardware required).
 """
 from __future__ import annotations
+import json
 import os
 
 # Shared with firmware/xiao (NimBLE UUIDs) and Android CyclopsService.
@@ -38,24 +39,26 @@ class BleBackend:
 
 class FakeBleBackend(BleBackend):
     """In-memory backend: you push bytes in, it delivers them to the link's
-    decoder exactly as a radio would. Lets tests exercise the full central
-    logic without Bluetooth."""
+    ``on_bytes`` callback; writes are captured in ``written`` for assertions."""
     def __init__(self):
         self.on_bytes = None
-        self.written = []
         self.connected = False
+        self.paired = False
+        self.written = []
 
     def connect(self, on_bytes, timeout=20):
         self.on_bytes = on_bytes
         self.connected = True
+        self.paired = True
 
     def write(self, data: bytes):
         assert self.connected, "write before connect"
         self.written.append(bytes(data))
+        return len(data)
 
     def push(self, data: bytes):
-        """Simulate an incoming NOTIFY from the peripheral."""
-        assert self.on_bytes is not None
+        """Simulate a NOTIFY from the peripheral -> central callback."""
+        assert self.on_bytes is not None, "not connected"
         self.on_bytes(bytes(data))
 
     def disconnect(self):
@@ -63,122 +66,106 @@ class FakeBleBackend(BleBackend):
 
 
 class BleLink:
-    """GATT central: scans -> connects -> subscribes -> decodes -> bridge.
+    """GATT-central link: pairs, subscribes to NOTIFY, decodes v2 wire frames
+    (``AA 55 <len> <typ><payload> <crc>`` — see ``brain.protocol``) and dispatches
+    them to a :class:`HudBridge`, and writes command frames back to the wearable.
 
-    Usage::
-
-        link = BleLink(bridge, backend=FakeBleBackend())
-        link.connect()                 # pairs + subscribes
-        backend.push(encode(MSG_CMD, b'{"a":2}'))   # peripheral -> PC
-        link.send_cmd(9, '{"a":1}')    # PC -> peripheral
-        link.close()
+    Speaks the SAME v2 binary protocol as the firmware and the Android
+    ``CyclopsService`` so there is a single source of truth across the three
+    codebases (no plain-JSON divergence).
     """
 
-    def __init__(self, bridge, backend: BleBackend | None = None,
-                 srvc: str = SRVC_UUID, note: str = NOTE_UUID,
-                 name: str = DEVICE_NAME):
-        from brain.protocol import Decoder
+    def __init__(self, bridge, backend: "BleBackend | None" = None,
+                 srvc=SRVC_UUID, note=NOTE_UUID, timeout=20):
         self.bridge = bridge
-        self.backend = backend
+        self.backend = backend or FakeBleBackend()
         self.srvc = srvc
         self.note = note
-        self.name = name
-        self._dec = Decoder(self._on_frame)
-        self.connected = False
+        self.timeout = timeout
         self.paired = False
+        self.connected = False
+        from brain.protocol import Decoder
+        self._decoder = Decoder(self._on_frame)
 
-    # -- public -------------------------------------------------------------
-    def connect(self, timeout: int = 20):
-        if self.backend is None:
-            self.backend = _default_backend(self.srvc, self.note, self.name)
-        # "pairing" = discover service + subscribe to NOTIFY (one-shot here)
-        self.backend.connect(self._dec.feed, timeout=timeout)
+    def connect(self):
+        self.backend.connect(on_bytes=self._on_bytes, timeout=self.timeout)
         self.connected = True
         self.paired = True
         return self
 
-    def send_cmd(self, act: int, arg: str = "") -> str:
-        import json
-        from brain.protocol import encode
-        frame = encode(9, json.dumps({"a": act, "arg": arg}).encode())
-        self.backend.write(frame)
-        return f"ble: wrote cmd {act} ({len(frame)} bytes)"
+    def _on_bytes(self, chunk: bytes):
+        # Streaming v2 decode — robust to fragmentation/interleaving.
+        self._decoder.feed(chunk)
 
-    def close(self):
-        if self.backend is not None:
-            self.backend.disconnect()
-        self.connected = False
-
-    # -- internals ----------------------------------------------------------
     def _on_frame(self, typ: int, payload: bytes):
-        # mirror Android CyclopsService: bytes already decoded; hand to bridge
+        # A v2 CMD (typ=9) frame carries an INNER command as JSON
+        # {"a":<ACT_*>, "arg":"..."} (the firmware/HUD command contract).
+        # Unwrap it so the bridge gets the real action; fall back to a raw
+        # dispatch(typ, text) for non-JSON payloads.
         try:
-            self.bridge.handle_cmd(payload)
+            inner = json.loads(payload.decode("utf-8", "replace"))
+            if isinstance(inner, dict) and "a" in inner:
+                self.bridge.dispatch(int(inner["a"]), str(inner.get("arg", "")))
+                return
         except Exception:
-            # a frame the bridge can't route (e.g. raw DISPLAY_CMD/STATUS JSON)
-            # is not fatal — drop it like the firmware does for unknown types
+            pass
+        arg = payload.decode("utf-8", "replace")
+        try:
+            self.bridge.dispatch(typ, arg)
+        except Exception:
             pass
 
+    def send_cmd(self, cmd: int, arg: str = "") -> str:
+        from brain.protocol import encode
+        frame = encode(cmd, arg.encode("utf-8"))
+        self.backend.write(frame)
+        return f"wrote cmd {cmd} ({len(frame)}B)"
 
-def _default_backend(srvc, note, name):
-    """Real backend when `bleak` is installed; else a safe no-op stub."""
-    try:
-        from ._bleak_backend import BleakBackend
-        return BleakBackend(srvc, note, name)
-    except Exception:
-        return _StubNoRadio(srvc, note, name)
+    def push_hud(self, text: str) -> str:
+        # HUD_FRAME = 14 in the v2 protocol.
+        return self.send_cmd(14, text)
 
-
-class _StubNoRadio(BleBackend):
-    """No Bluetooth stack available. Reports (does not crash) so the agent
-    keeps working headless."""
-    def connect(self, on_bytes, timeout=20):
-        raise RuntimeError(
-            "no BLE backend: install `bleak` and ensure a BT adapter, or "
-            "inject a FakeBleBackend for tests")
-    def write(self, data: bytes):
-        raise RuntimeError("no BLE backend")
+    def close(self):
+        self.backend.disconnect()
+        self.connected = False
 
 
-# ---- Transport adapter (so the agent's `bt` path uses real GATT) ----------
-class BleTransport(BleBackend if False else object):
-    """Thin adapter exposing the wearable over GATT as a Transport.
+class BleTransport:
+    """Transport adapter wrapping :class:`BleLink` so the device layer can drive
+    the BLE link through the unified transport interface (``send_cmd`` / ``close``).
 
-    send_cmd/push_hud serialize to a MSG_CMD frame written to the NOTE
-    characteristic; incoming NOTIFY frames are decoded and dispatched to the
-    bridge. Offline-testable by passing a FakeBleBackend.
+    Created by ``device.transport.build_transport(kind="ble")``. Keeps the radio
+    pluggable behind ``backend`` (real ``bleak`` or :class:`FakeBleBackend` for
+    offline tests) — same shape as the rest of the transport family.
     """
 
     name = "ble"
 
-    def __init__(self, bridge=None, backend=None, srvc: str = SRVC_UUID,
-                 note: str = NOTE_UUID, name: str = DEVICE_NAME):
-        from brain.hud_bridge import HudBridge
-        from brain.store import NoteStore
-        from io import StringIO
-        self._bridge = bridge or HudBridge(StringIO())
-        self._link = BleLink(self._bridge, backend=backend, srvc=srvc,
-                             note=note, name=name)
-        self._connected = False
+    def __init__(self, bridge=None, backend=None, srvc="", note="", name="",
+                 timeout=20):
+        self.bridge = bridge
+        self.link = BleLink(bridge=bridge, backend=backend,
+                            srvc=srvc or SRVC_UUID, note=note or NOTE_UUID,
+                            timeout=timeout)
+        self.device_name = name or DEVICE_NAME
 
-    def connect(self, timeout: int = 20):
-        self._link.connect(timeout=timeout)
-        self._connected = True
+    def connect(self):
+        self.link.connect()
         return self
 
     def send_cmd(self, act: int, arg: str = "") -> str:
-        if not self._connected:
-            self.connect()
-        return self._link.send_cmd(act, arg)
+        return self.link.send_cmd(act, arg)
 
     def push_hud(self, text: str) -> str:
-        # ACT_AGENT(14) streams glanceable text to the wearable
-        return self.send_cmd(14, text)
+        return self.link.send_cmd(14, text)
 
     def request(self, path: str) -> dict:
         return {"ok": True, "transport": "ble",
                 "note": "streaming link; use wifi for REST"}
 
     def close(self):
-        self._link.close()
-        self._connected = False
+        self.link.close()
+
+
+__all__ = ["BleBackend", "FakeBleBackend", "BleLink", "BleTransport",
+           "SRVC_UUID", "NOTE_UUID", "DEVICE_NAME"]

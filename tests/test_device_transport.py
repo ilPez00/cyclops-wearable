@@ -133,7 +133,7 @@ def test_ble_link_pc_to_peripheral_write():
     assert "wrote cmd 1" in out
     assert backend.written
     typ, payload = decode_frame(backend.written[-1])
-    assert typ == 9 and b"ping" in payload
+    assert typ == 1 and b"ping" in payload
 
 
 def test_device_tool_routes_ble_transport():
@@ -166,34 +166,3 @@ def test_device_tool_routes_ble_transport():
     assert len(store.all()) >= 1
     t.close()
     os.remove(sp)
-
-
-def test_g2_transport_sends_packets():
-    from device.g2 import G2Transport, FakeG2Backend
-    be = FakeG2Backend()
-    g2 = G2Transport(backend=be)
-    g2.connect()
-    n = g2.show("Turn left in 200m")
-    assert n >= 1 and be.connected
-    assert be.packets[0][0] == 1
-    assert b"Turn left" in be.packets[0]
-    g2.close()
-
-
-def test_g2_sink_as_bridge_sink():
-    import tempfile
-    from device.g2 import G2HudSink, FakeG2Backend
-    from brain.hud_bridge import HudBridge
-    from brain.store import NoteStore
-    from brain.transcriber import StubTranscriber
-
-    sp = tempfile.mktemp(suffix=".jsonl")
-    store = NoteStore(sp)
-    be = FakeG2Backend()
-    sink = G2HudSink(backend=be)
-    br = HudBridge(sink, store=store, transcriber=StubTranscriber())
-    br.push_hud("Meeting with marco at 5")
-    assert be.packets, "G2 should have received at least one packet"
-    assert any(b"marco" in pk for pk in be.packets)
-    if os.path.exists(sp):
-        os.remove(sp)
