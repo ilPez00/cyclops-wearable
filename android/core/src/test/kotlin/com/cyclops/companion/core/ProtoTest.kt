@@ -63,7 +63,7 @@ class ProtoTest {
         assertTrue(json.startsWith("""{"kind":"text","data":"""))
         assertTrue(json.endsWith("}"))
         // the embedded text must be escaped, not raw newlines/quotes
-        assertTrue("\"hi\"" !in json.substringAfter("data\":\"").substringBefore("\"}\"))
+        assertTrue("\"hi\"" !in json.substringAfter("data\":\"").substringBefore("\"}\""))
     }
 
     @Test
