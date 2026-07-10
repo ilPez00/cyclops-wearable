@@ -1,12 +1,10 @@
 package com.cyclops.companion
 
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import kotlin.concurrent.thread
 
 /**
@@ -27,16 +25,8 @@ object CyclopsApi {
     @Volatile
     var baseUrl: String = "http://192.168.1.50:8080"
 
-    private fun url(path: String, vararg params: Pair<String, String>): URL {
-        val sb = StringBuilder(baseUrl.trimEnd('/')).append(path)
-        if (params.isNotEmpty()) {
-            sb.append('?')
-            params.joinTo(sb, "&") { "${it.first}=${enc(it.second)}" }
-        }
-        return URL(sb.toString())
-    }
-
-    private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
+    private fun url(path: String, vararg params: Pair<String, String>): URL =
+        URL(BrainContracts.buildUrl(baseUrl, path, *params))
 
     private fun post(url: URL, body: String): String {
         val conn = url.openConnection() as HttpURLConnection
@@ -75,10 +65,7 @@ object CyclopsApi {
 
     fun notes(onResult: (List<Note>) -> Unit, onError: (String) -> Unit) = thread {
         try {
-            val arr = JSONArray(get(url("/api/notes")))
-            val out = mutableListOf<Note>()
-            for (i in 0 until arr.length()) out += Note.from(arr.getJSONObject(i))
-            onResult(out)
+            onResult(BrainContracts.parseNotes(get(url("/api/notes"))))
         } catch (e: Exception) {
             onError(e.message ?: e.toString())
         }
@@ -95,10 +82,7 @@ object CyclopsApi {
 
     fun extract(text: String, onResult: (List<Note>) -> Unit, onError: (String) -> Unit) = thread {
         try {
-            val arr = JSONArray(get(url("/api/extract", "text" to text)))
-            val out = mutableListOf<Note>()
-            for (i in 0 until arr.length()) out += Note.from(arr.getJSONObject(i))
-            onResult(out)
+            onResult(BrainContracts.parseNotes(get(url("/api/extract", "text" to text))))
         } catch (e: Exception) {
             onError(e.message ?: e.toString())
         }
@@ -118,19 +102,12 @@ object CyclopsApi {
                 "endpoint" to if (endpoint.isNotEmpty()) endpoint else "",
                 "api_key" to if (apiKey.isNotEmpty()) apiKey else ""
             ).toTypedArray()
-            val obj = JSONObject(get(url("/api/agent", *params)))
-            val reply = obj.optString("reply", obj.optString("text", ""))
-            val calls = obj.optInt("tool_calls", 0)
-            val steps = mutableListOf<String>()
-            val arr = obj.optJSONArray("steps")
-            if (arr != null) for (i in 0 until arr.length()) {
-                val s = arr.getJSONObject(i)
-                steps.add("${s.optString("tool")}: ${s.optString("result")}")
-            }
+            val res = BrainContracts.parseAgent(get(url("/api/agent", *params)))
+            if (res == null) { onError("no reply"); return@thread }
             // mirror the answer onto the wearable HUD (Omi/G2 glanceable banner)
-            try { hud(reply, {}, {}) } catch (_: Exception) {}
-            if (reply.isNotEmpty()) onResult(reply, calls, steps)
-            else onError(obj.optString("error", "no reply"))
+            // only when we actually got one (premortem #4: don't push blanks)
+            try { hud(res.reply, {}, {}) } catch (_: Exception) {}
+            onResult(res.reply, res.toolCalls, res.steps)
         } catch (e: Exception) {
             onError(e.message ?: e.toString())
         }
@@ -167,25 +144,7 @@ object CyclopsApi {
         }
     }
 
-    data class Note(
-        val id: String,
-        val type: String,
-        val text: String,
-        val due: String?,
-        val source: String,
-        val candidate: Boolean,
-        val confidence: Double?
-    ) {
-        companion object {
-            fun from(j: JSONObject) = Note(
-                id = j.optString("id", ""),
-                type = j.optString("type", "summary"),
-                text = j.optString("text", ""),
-                due = if (j.isNull("due")) null else j.optString("due"),
-                source = j.optString("source", "audio"),
-                candidate = j.optBoolean("candidate", false),
-                confidence = if (j.has("confidence")) j.optDouble("confidence") else null
-            )
-        }
-    }
+    // Re-export the core Note so existing callers (MainActivity) keep resolving
+    // CyclopsApi.Note without changes.
+    typealias Note = BrainContracts.Note
 }
