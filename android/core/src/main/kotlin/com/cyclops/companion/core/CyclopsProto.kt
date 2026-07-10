@@ -47,15 +47,16 @@ object CyclopsProto {
     /** Encode a frame. Returns the full frame bytes. */
     fun encode(type: Int, payload: ByteArray): ByteArray {
         val len = payload.size
+        // C++ layout: AA 55 <len:u16 LE> <type> <payload> <crc:u16 LE>  => 7 + len bytes
         val out = ByteArray(7 + len)
         out[0] = MAGIC1; out[1] = MAGIC2
-        out[3] = (len and 0xFF).toByte()
-        out[4] = ((len shr 8) and 0xFF).toByte()
-        out[5] = (type and 0xFF).toByte()
-        payload.copyInto(out, 6)
-        val crc = crc16CcittFalse(out.copyOfRange(3, 6 + len))
-        out[6 + len] = (crc and 0xFF).toByte()
-        out[7 + len] = ((crc shr 8) and 0xFF).toByte()
+        out[2] = (len and 0xFF).toByte()
+        out[3] = ((len shr 8) and 0xFF).toByte()
+        out[4] = (type and 0xFF).toByte()
+        payload.copyInto(out, 5)
+        val crc = crc16CcittFalse(out.copyOfRange(2, 5 + len))  // [len_lo,len_hi,type]+payload
+        out[5 + len] = (crc and 0xFF).toByte()
+        out[6 + len] = ((crc shr 8) and 0xFF).toByte()
         return out
     }
 

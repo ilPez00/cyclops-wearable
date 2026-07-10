@@ -38,12 +38,12 @@ class RingProtoTest {
     @Test
     fun parseRealTimeHrAndSpo2() {
         val hr = RingProto.startRealTime(RingProto.RT_HEART_RATE).clone()
-        hr[3] = 78; hr[15] = RingProto.crc(hr)
+        hr[2] = 0; hr[3] = 78; hr[15] = RingProto.crc(hr)
         val sh = RingProto.parse(hr)!!
         assertEquals(78, sh.hr); assertEquals(0, sh.spo2)
 
         val sp = RingProto.startRealTime(RingProto.RT_SPO2).clone()
-        sp[3] = 97; sp[15] = RingProto.crc(sp)
+        sp[2] = 0; sp[3] = 97; sp[15] = RingProto.crc(sp)
         val ss = RingProto.parse(sp)!!
         assertEquals(97, ss.spo2)
     }
