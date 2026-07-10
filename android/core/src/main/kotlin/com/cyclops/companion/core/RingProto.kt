@@ -57,6 +57,8 @@ object RingProto {
             CMD_BATTERY -> RingSample(battery = p[1].toInt() and 0xFF,
                 charging = p[2] != 0.toByte())
             CMD_START_REAL_TIME -> {
+                // ring reports an error in byte[2] (C++ ring_proto.h:61 / colmi_r02.py)
+                if (p[2] != 0.toByte()) return null
                 val kind = p[1].toInt() and 0xFF
                 val v = p[3].toInt() and 0xFF
                 when (kind) {

@@ -62,6 +62,15 @@ class RingProtoTest {
     }
 
     @Test
+    fun rejectsRealTimeErrorByte2() {
+        // Ring reports an error in byte[2] of a real-time response -> must be ignored
+        // (audit: C++ ring_proto.h:61 / Python colmi_r02.py reject when p[2]!=0).
+        val hr = RingProto.startRealTime(RingProto.RT_HEART_RATE).clone()
+        hr[2] = 1; hr[3] = 78; hr[15] = RingProto.crc(hr)  // valid CRC, but error flag in byte[2]
+        assertNull(RingProto.parse(hr))
+    }
+
+    @Test
     fun uuidsMatchPythonAndFirmware() {
         assertEquals("6e40fff0-b5a3-f393-e0a9-e50e24dcca9e", RingProto.SRVC.toString())
         assertEquals("6e400002-b5a3-f393-e0a9-e50e24dcca9e", RingProto.RX.toString())
