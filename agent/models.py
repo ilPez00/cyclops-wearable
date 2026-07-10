@@ -23,23 +23,8 @@ class ChatResult:
 
 # --- transport shim (stdlib default; injectable) -------------------------
 def _default_session():
-    import urllib.request as req
-    import urllib.error as err
-
-    class Resp:
-        def __init__(self, status, body):
-            self.status = status; self._b = body
-        def json(self): return json.loads(self._b)
-
-    class Sess:
-        def post(self, url, data=None, headers=None, timeout=60, files=None):
-            r = req.Request(url, data=data, headers=headers or {}, method="POST")
-            try:
-                with req.urlopen(r, timeout=timeout) as resp:
-                    return Resp(resp.status, resp.read().decode("utf-8", "ignore"))
-            except err.HTTPError as e:
-                return Resp(e.code, e.read().decode("utf-8", "ignore"))
-    return Sess()
+    from brain.http import stdlib_session
+    return stdlib_session()
 
 
 class ModelRouter:

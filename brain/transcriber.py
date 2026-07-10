@@ -114,47 +114,8 @@ class CloudTranscriber(Transcriber):
 
 
 def _urllib_session():
-    """Minimal requests-like wrapper over stdlib urllib (no third-party dep)."""
-    import json as _json
-    import urllib.request as _req
-    import urllib.error as _err
-
-    class _Resp:
-        def __init__(self, status, body):
-            self.status = status
-            self._body = body
-        def json(self):
-            return _json.loads(self._body)
-
-    class _Session:
-        def post(self, url, data=None, headers=None, timeout=30, files=None):
-            if files is not None:
-                # multipart/form-data encoding
-                boundary = "----cyclopsboundary"
-                parts = []
-                for k, v in files.items():
-                    if isinstance(v, tuple):
-                        fname, fdata, ctype = v
-                        parts.append(f"--{boundary}\r\n".encode()
-                                     + f'Content-Disposition: form-data; name="{k}"; filename="{fname}"\r\n'.encode()
-                                     + f"Content-Type: {ctype}\r\n\r\n".encode()
-                                     + fdata + b"\r\n")
-                    else:
-                        parts.append(f"--{boundary}\r\n".encode()
-                                     + f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode()
-                                     + v.encode() + b"\r\n")
-                body = b"".join(parts) + f"--{boundary}--\r\n".encode()
-                h = dict(headers or {})
-                h["Content-Type"] = f"multipart/form-data; boundary={boundary}"
-                req = _req.Request(url, data=body, headers=h, method="POST")
-            else:
-                req = _req.Request(url, data=data, headers=headers or {}, method="POST")
-            try:
-                with _req.urlopen(req, timeout=timeout) as r:
-                    return _Resp(r.status, r.read().decode("utf-8", "ignore"))
-            except _err.HTTPError as e:
-                return _Resp(e.code, e.read().decode("utf-8", "ignore"))
-    return _Session()
+    from .http_session import stdlib_session
+    return stdlib_session()
 
 
 def from_aikeys(keys=None, audio_provider: str = "deepgram") -> CloudTranscriber:

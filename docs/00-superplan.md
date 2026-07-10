@@ -71,7 +71,7 @@ three shells — no logic fork.
 - **P2-B** multi-source context fusion (`ContextAssembler`: notes + health + calendar).
 - **P2-C** phone→wearable health relay (`MSG_HEALTH_SAMPLE` → `on_health_sample`; zero = absent).
 - **P2-D** offline-safe `make flash` (`ENABLE_RING`/`SCREEN` flags) + `docs/flash-xiao.md`.
-- **Tests: 173 passed, 0 failed** (Python full suite) + firmware host gate green.
+- **Tests: 187 passed, 0 failed** (Python full suite) + firmware host gate green.
    Code on `main` branch of `github.com/ilPez00/cyclops-wearable`.
 
 ## 4. Tool inventory (capabilities.py — drives UI customization)

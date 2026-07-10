@@ -11,7 +11,7 @@ This file is the at-a-glance snapshot.
 ## Verification snapshots
 | Gate | Result |
 |------|--------|
-| Python full suite (`tests/run_tests.py tests/test_*.py`) | **173 passed, 0 failed** |
+| Python full suite (`tests/run_tests.py tests/test_*.py`) | **187 passed, 0 failed** |
 | Firmware host gate (`make test`) | **14 cmds PASS** |
 | Firmware proto gate (`make proto`) | **ALL SHARED TESTS PASSED** |
 | G2 layout parity (Python↔JS) | PASS |

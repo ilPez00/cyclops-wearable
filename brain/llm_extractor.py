@@ -133,24 +133,7 @@ class LLMExtractor:
         return notes
 
 
-# ---- stdlib HTTP session (mirrors transcriber._urllib_session) -----------
+# ---- stdlib HTTP session (shared) ----------------------------------------
 def _urllib_session():
-    import urllib.request as _req
-    import urllib.error as _err
-
-    class _Resp:
-        def __init__(self, status, body):
-            self.status = status
-            self._body = body
-        def json(self):
-            return json.loads(self._body)
-
-    class _Session:
-        def post(self, url, data=None, headers=None, timeout=30, files=None):
-            req = _req.Request(url, data=data, headers=headers or {}, method="POST")
-            try:
-                with _req.urlopen(req, timeout=timeout) as r:
-                    return _Resp(r.status, r.read().decode("utf-8", "ignore"))
-            except _err.HTTPError as e:
-                return _Resp(e.code, e.read().decode("utf-8", "ignore"))
-    return _Session()
+    from .http import stdlib_session
+    return stdlib_session()
