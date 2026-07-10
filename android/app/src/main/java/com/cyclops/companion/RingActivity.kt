@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.cyclops.companion.core.GaugeGeometry
 import androidx.core.app.ActivityCompat
 import com.cyclops.companion.core.RingProto
 import com.cyclops.companion.core.RingSample
@@ -135,11 +136,21 @@ class RingActivity : AppCompatActivity() {
 
     private fun onSample(s: RingSample) {
         runOnUiThread {
-            if (s.hr != 0) binding.txtRingHr.text = "HR ${s.hr}"
-            if (s.spo2 != 0) binding.txtRingSpo2.text = "SpO2 ${s.spo2}%"
-            if (s.battery != 0 || s.charging)
-                binding.txtRingBatt.text = "Battery ${s.battery}%" +
+            if (s.hr != 0) {
+                binding.gaugeHr.setValue(s.hr / 200f, GaugeGeometry.healthLabel(s.hr))
+            } else {
+                binding.gaugeHr.label = "--"
+            }
+            if (s.spo2 != 0) {
+                binding.gaugeSpo2.setValue(s.spo2 / 100f, GaugeGeometry.healthLabel(s.spo2, "%"))
+            } else {
+                binding.gaugeSpo2.label = "--"
+            }
+            if (s.battery != 0 || s.charging) {
+                binding.barBatt.fraction = s.battery / 100f
+                binding.barBatt.label = "Battery ${s.battery}%" +
                     if (s.charging) " (charging)" else ""
+            }
         }
     }
 
@@ -156,9 +167,10 @@ class RingActivity : AppCompatActivity() {
     }
 
     private fun resetUi() {
-        binding.txtRingHr.text = "HR --"
-        binding.txtRingSpo2.text = "SpO2 --%"
-        binding.txtRingBatt.text = "Battery --%"
+        binding.gaugeHr.label = "--"
+        binding.gaugeSpo2.label = "--"
+        binding.barBatt.fraction = 0f
+        binding.barBatt.label = "Battery --%"
         binding.btnRingConnect.text = getString(R.string.ring_connect)
     }
 
