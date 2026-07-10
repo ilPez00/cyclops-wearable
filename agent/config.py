@@ -35,6 +35,10 @@ class AgentConfig:
     digigio_home: str = "~/digigio"     # mounted digigio brain (persona/health)
     memory_file: str = "MEMORY.md"
     user_file: str = "USER.md"
+    # Cyclops writes its OWN memory here so it never clobbers the user's real
+    # ~/.hermes/MEMORY.md / USER.md.
+    memory_root: str = "~/.cyclops/memory"
+    memory_max_chars: int = 240   # per-card char budget (Hermes-style, cache-cheap)
     memory_recall: int = 8        # how many persisted turns to inject as context
     config_dir: str = "~/.config/cyclops"   # P2-A: plugin registry root
     plugin_index_url: str = ""     # P2-A: marketplace index (empty = offline)

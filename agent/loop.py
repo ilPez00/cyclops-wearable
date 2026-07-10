@@ -15,6 +15,7 @@ from .config import AgentConfig
 from .memory import MemoryStore
 from .skills import Skills
 from .models import ModelRouter, ChatResult
+from . import learning as learning_mod
 
 
 @dataclass
@@ -151,6 +152,9 @@ class Agent:
             if self.progress_cb:
                 self.progress_cb(None, 100)
             self.persist_turn(user_text, result.text)
+            # Hermes-style learning: review the turn off-thread and persist any
+            # durable user/agent facts to memory. Never blocks the reply.
+            self._learn(user_text, result.text)
             return result
         result.text = result.text or "[max iterations reached]"
         self._remember("user", content)
@@ -166,8 +170,6 @@ class Agent:
 
     # -- internals ----------------------------------------------------------
     def _system_block(self) -> str:
-        mem = self.memory.read()
-        blk = mem.system_block()
         skills_blk = self.skills.system_block()
         base = ("You are Cyclops, a personal AI agent that routes text, audio and "
                 "images to tools and returns concise results. You can control a "
@@ -179,7 +181,13 @@ class Agent:
         if self.cfg.system_note:
             base = self.cfg.system_note + "\n\n" + base
         parts = [base]
-        if blk: parts.append(blk)
+        # Hermes-style durable memory: agent facts (MEMORY.md) + user profile (USER.md)
+        agent_mem = self.memory.read(target="agent")
+        if agent_mem:
+            parts.append("AGENT MEMORY (durable facts about the world/environment):\n" + agent_mem)
+        user_mem = self.memory.read(target="user")
+        if user_mem:
+            parts.append("USER PROFILE (who the user is, preferences, how they work):\n" + user_mem)
         if skills_blk: parts.append(skills_blk)
         rec = self.memory.recall(limit=self.cfg.memory_recall or 8)
         if rec: parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
@@ -192,9 +200,22 @@ class Agent:
     def persist_turn(self, user_text: str, answer: str):
         """Write the Q/A back to persistent memory (offline-safe)."""
         try:
-            self.memory.append_note(f"user: {user_text}", kind="turn")
+            self.memory.append(f"user: {user_text}", target="agent")
             if answer:
-                self.memory.append_note(f"cyclops: {answer[:500]}", kind="turn")
+                self.memory.append(f"cyclops: {answer[:500]}", target="agent")
+        except Exception:
+            pass
+
+    def _learn(self, user_text: str, answer: str):
+        """Kick off a Hermes-style learning review of the completed turn.
+
+        Runs on a daemon thread (via learning.learn_from_turn) so the agent's
+        reply is never delayed. No-op when the router can't reach a model.
+        """
+        try:
+            learning_mod.learn_from_turn(
+                user_text, answer, self.memory,
+                router=self.router, async_ok=True)
         except Exception:
             pass
 

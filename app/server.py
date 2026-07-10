@@ -171,6 +171,31 @@ class H(BaseHTTPRequestHandler):
             # current persisted profile (or defaults) for the companion UI
             cfg = AgentConfig.load_json(PROFILE_PATH) if os.path.exists(PROFILE_PATH) else AgentConfig()
             return self._send(200, json.dumps(cfg.to_dict()))
+        if p.path == "/api/memory":
+            # Hermes-style memory view: both targets with stable indices.
+            try:
+                from agent.memory import MemoryStore
+                store = MemoryStore(AgentConfig.load(env=dict(os.environ)))
+                out = {"agent": [c.to_dict() for c in store.list("agent")],
+                       "user": [c.to_dict() for c in store.list("user")]}
+                return self._send(200, json.dumps(out))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/learn":
+            # Trigger a learning review of recent turns (the app's "Learn" btn).
+            # Offline-safe: returns {"learned": 0} when no LLM is configured.
+            try:
+                from agent.memory import MemoryStore
+                from agent import learning as learning_mod
+                cfg = AgentConfig.load(env=dict(os.environ))
+                store = MemoryStore(cfg)
+                written = {"user": 0, "agent": 0}
+                if agent is not None:
+                    written = learning_mod.learn_recent(
+                        getattr(agent, "history", []), store, router=agent.router)
+                return self._send(200, json.dumps({"learned": written}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
         self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
@@ -203,6 +228,31 @@ class H(BaseHTTPRequestHandler):
                 except Exception:
                     pass
             return self._send(200, json.dumps({"ok": True, "profile": cfg.to_dict()}))
+        if p.path == "/api/memory":
+            # Manage memory: action=append|edit|delete, target=agent|user.
+            from agent.memory import MemoryStore
+            store = MemoryStore(AgentConfig.load(env=dict(os.environ)))
+            action = (data.get("action") or "append").lower()
+            target = (data.get("target") or "agent").lower()
+            if target not in ("agent", "user"):
+                return self._send(400, json.dumps({"error": "target must be agent|user"}))
+            try:
+                if action == "append":
+                    note = (data.get("note") or "").strip()
+                    if not note:
+                        return self._send(400, json.dumps({"error": "note required"}))
+                    idx = store.append(note, target=target)
+                    return self._send(200, json.dumps({"ok": True, "index": idx, "target": target}))
+                if action in ("edit", "delete"):
+                    idx = int(data.get("index", -1))
+                    if action == "edit":
+                        ok = store.edit(idx, (data.get("note") or "").strip(), target=target)
+                    else:
+                        ok = store.delete(idx, target=target)
+                    return self._send(200, json.dumps({"ok": ok, "target": target, "index": idx}))
+                return self._send(400, json.dumps({"error": "action must be append|edit|delete"}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
         self._send(404, json.dumps({"error": "not found"}))
     def log_message(self, *a): pass
 
@@ -221,7 +271,6 @@ def main():
     from brain.context import ContextAssembler
     assembler = ContextAssembler()
     try:
-        from brain.store import NoteStore
         ns = NoteStore(STORE_PATH)
         assembler.add_notes([n for n in ns.all()][-20:])
     except Exception:

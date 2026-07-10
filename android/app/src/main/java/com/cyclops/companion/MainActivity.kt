@@ -69,6 +69,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.btnSettings.setOnClickListener { showSettings() }
+        binding.btnMemory.setOnClickListener { showMemory() }
         binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
 
         // transport selector (wifi / bt / cable)
@@ -92,7 +93,128 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun showSettings() {
+    private fun showMemory() {
+        val ctx = this
+        val scroll = ScrollView(this)
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 16)
+        }
+        scroll.addView(layout)
+
+        fun cardRow(text: String, target: String, index: Int): LinearLayout {
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 4, 0, 4)
+            }
+            val tv = TextView(ctx).apply {
+                text = "[$target #$index] $text"
+                textSize = 13f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            val edit = Button(ctx).apply {
+                text = "✎"; textSize = 12f; setPadding(4, 0, 4, 0)
+                setOnClickListener { editMemoryCard(target, index, text) }
+            }
+            val del = Button(ctx).apply {
+                text = "🗑"; textSize = 12f; setPadding(4, 0, 4, 0)
+                setOnClickListener {
+                    CyclopsApi.memoryEdit("delete", target, index = index,
+                        onResult = { refreshMemory(layout, scroll) },
+                        onError = { toast(it) })
+                }
+            }
+            row.addView(tv); row.addView(edit); row.addView(del)
+            return row
+        }
+
+        fun header(title: String) = TextView(ctx).apply {
+            text = title; textSize = 15f; setPadding(0, 12, 0, 4)
+        }
+
+        fun refreshMemory(root: LinearLayout, _scroll: ScrollView) {
+            root.removeAllViews()
+            CyclopsApi.memory(
+                onResult = { agentArr, userArr ->
+                    root.removeAllViews()
+                    root.addView(header("USER PROFILE (who the user is)"))
+                    for (i in 0 until userArr.length())
+                        root.addView(cardRow(userArr.getJSONObject(i).optString("text", ""), "user", i))
+                    if (userArr.length() == 0) root.addView(TextView(ctx).apply {
+                        text = "(none yet — talk to the brain, or tap Learn)"; textSize = 12f; setPadding(0, 4, 0, 4) })
+                    root.addView(header("AGENT MEMORY (world / environment)"))
+                    for (i in 0 until agentArr.length())
+                        root.addView(cardRow(agentArr.getJSONObject(i).optString("text", ""), "agent", i))
+                    if (agentArr.length() == 0) root.addView(TextView(ctx).apply {
+                        text = "(none yet)"; textSize = 12f; setPadding(0, 4, 0, 4) })
+                },
+                onError = { toast(it) })
+        }
+
+        // top action bar: Learn + Add
+        val bar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+        val learnBtn = Button(ctx).apply {
+            text = "Learn from history"; setOnClickListener {
+                CyclopsApi.learn(
+                    onResult = { u, a -> toast("Learned: $u user, $a agent facts"); refreshMemory(layout, scroll) },
+                    onError = { toast(it) })
+            }
+        }
+        val addBtn = Button(ctx).apply {
+            text = "Add"; setOnClickListener { addMemoryCard() }
+        }
+        bar.addView(learnBtn); bar.addView(addBtn)
+        layout.addView(bar)
+        refreshMemory(layout, scroll)
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.memory)
+            .setView(scroll)
+            .setPositiveButton("Close", null)
+            .show()
+    }
+
+    private fun editMemoryCard(target: String, index: Int, current: String) {
+        val ed = EditText(this).apply { setText(current); setPadding(48, 24, 48, 24) }
+        AlertDialog.Builder(this)
+            .setTitle("Edit $target #$index")
+            .setView(ed)
+            .setPositiveButton("Save") { _, _ ->
+                val txt = ed.text.toString().trim()
+                if (txt.isNotEmpty())
+                    CyclopsApi.memoryEdit("edit", target, index = index, note = txt,
+                        onResult = { toast(if (it) "updated" else "failed") },
+                        onError = { toast(it) })
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun addMemoryCard() {
+        val ed = EditText(this).apply { hint = "fact to remember"; setPadding(48, 24, 48, 24) }
+        val targ = Spinner(this).apply {
+            adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item,
+                listOf("user", "agent")).also {
+                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 24)
+            addView(ed); addView(targ)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Add memory")
+            .setView(box)
+            .setPositiveButton("Add") { _, _ ->
+                val txt = ed.text.toString().trim()
+                val t = targ.selectedItem?.toString() ?: "user"
+                if (txt.isNotEmpty())
+                    CyclopsApi.memoryEdit("append", t, note = txt,
+                        onResult = { toast(if (it) "remembered" else "failed") },
+                        onError = { toast(it) })
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
         val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
         val ctx = this
         val layout = LinearLayout(this).apply {

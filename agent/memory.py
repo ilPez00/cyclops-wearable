@@ -1,100 +1,156 @@
-"""Memory, persona and health access.
+"""Hermes-style dual memory store — agent facts + user profile.
 
-Reads the on-disk memory the user asked for: Hermes MEMORY.md/USER.md and the
-digiGio brain's persona + health when present. All paths are configurable
-(see AgentConfig) so this works whether the digigio drive is mounted or not.
-Write-back is supported for notes/reminders (memory persists to a JSONL).
+Ports the core of Hermes's memory model into the Cyclops brain:
+
+- Two durable, human-readable markdown files:
+    * MEMORY.md  -> facts about the agent/world/environment (target="agent")
+    * USER.md    -> who the user is: preferences, identity, how they work
+                    (target="user")
+- Entries are short, declarative §-delimited "cards" (one fact per card),
+  each kept under a tight char budget so they stay cheap to inject every
+  session (the same reason Hermes caps MEMORY.md entries at ~220 chars).
+- Stable indexing: cards are addressed by position (0-based) so the app and
+  the /api/memory endpoints can edit/delete a single learned fact without
+  rewriting the whole file.
+
+Cyclops keeps its OWN memory root (~/.cyclops/memory) so it never clobbers
+the user's real ~/.hermes/MEMORY.md. The store is offline-safe: every
+method swallows IO errors and returns sane empties rather than raising.
 """
 from __future__ import annotations
 
 import json
-import os
+import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+# § delimiter between cards. Reading tolerates either "\n§\n" or a leading "§ ".
+_CARD_SEP = "\n§\n"
+_CARD_RE = re.compile(r"(?m)^§\s*$")
+
+# Per-card character budget. Hermes keeps MEMORY.md cards compact for the
+# same reason — they are re-injected into the system prompt on every turn.
+MAX_CARD_CHARS = 240
+
 
 @dataclass
-class MemoryView:
-    persona: str = ""
-    health: str = ""
-    user_profile: str = ""
-    agent_memory: str = ""
-    sources: list[str] = field(default_factory=list)
+class MemoryCard:
+    text: str
+    target: str = "agent"  # "agent" | "user"
 
-    def system_block(self) -> str:
-        parts = []
-        if self.persona:
-            parts.append("PERSONA:\n" + self.persona)
-        if self.user_profile:
-            parts.append("USER PROFILE:\n" + self.user_profile)
-        if self.health:
-            parts.append("HEALTH CONTEXT:\n" + self.health)
-        if self.agent_memory:
-            parts.append("AGENT MEMORY:\n" + self.agent_memory)
-        return "\n\n".join(parts)
+    def to_dict(self) -> dict:
+        return {"text": self.text, "target": self.target}
 
 
 class MemoryStore:
     def __init__(self, config):
         self.cfg = config
+        root = getattr(config, "memory_root", "~/.cyclops/memory")
+        self.root = Path(root).expanduser()
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.agent_file = self.root / (getattr(config, "memory_file", None) or "MEMORY.md")
+        self.user_file = self.root / (getattr(config, "user_file", None) or "USER.md")
+        self.max_chars = int(getattr(config, "memory_max_chars", MAX_CARD_CHARS))
+        self._lock = threading.Lock()  # serialize reads/writes per process
 
-    def read(self) -> MemoryView:
-        view = MemoryView()
-        hermes = Path(self.cfg.hermes_home).expanduser()
-        view.user_profile = self._read(hermes / self.cfg.user_file)
-        view.agent_memory = self._read(hermes / self.cfg.memory_file)
-        if view.user_profile: view.sources.append(str(hermes / self.cfg.user_file))
-        if view.agent_memory: view.sources.append(str(hermes / self.cfg.memory_file))
+    # -- file <-> cards -----------------------------------------------------
+    def _path(self, target: str) -> Path:
+        return self.user_file if target == "user" else self.agent_file
 
-        digi = Path(self.cfg.digigio_home).expanduser()
-        view.persona = self._read(digi / "persona" / "character_sheet.md")
-        view.health = self._read(digi / "health" / "health.md")
-        if view.persona: view.sources.append(str(digi / "persona" / "character_sheet.md"))
-        if view.health: view.sources.append(str(digi / "health" / "health.md"))
-        return view
-
-    def _read(self, p: Path) -> str:
+    def _read_cards(self, path: Path) -> list[str]:
         try:
-            if p.exists():
-                return p.read_text(encoding="utf-8", errors="ignore").strip()
+            if not path.exists():
+                return []
+            text = path.read_text(encoding="utf-8", errors="ignore").strip()
+        except Exception:
+            return []
+        if not text:
+            return []
+        parts = [p.strip() for p in _CARD_RE.split(text)]
+        return [p for p in parts if p]
+
+    def _write_cards(self, path: Path, cards: list[str]) -> None:
+        # Atomic: write to temp then rename so a concurrent reader never sees
+        # a half-written file (mirrors Hermes MemoryStore._write_file).
+        cards = [c.strip() for c in cards if c and c.strip()]
+        body = _CARD_SEP.join(cards) + ("\n" if cards else "")
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        try:
+            tmp.write_text(body, encoding="utf-8")
+            tmp.replace(path)
         except Exception:
             pass
-        return ""
 
-    def append_note(self, text: str, kind: str = "note") -> str:
-        """Persist a small note/reminder to the agent memory JSONL."""
-        hermes = Path(self.cfg.hermes_home).expanduser()
-        hermes.mkdir(parents=True, exist_ok=True)
-        path = hermes / "cyclops_notes.jsonl"
-        rec = {"kind": kind, "text": text}
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec) + "\n")
-        return str(path)
+    # -- public API ---------------------------------------------------------
+    def list(self, target: str = "agent") -> list[MemoryCard]:
+        with self._lock:
+            return [MemoryCard(text=t, target=target) for t in self._read_cards(self._path(target))]
 
-    def recall(self, limit: int = 8) -> str:
-        """Return the last `limit` persisted notes as a compact context blob.
-        Offline-safe: returns '' if none/file missing."""
-        hermes = Path(self.cfg.hermes_home).expanduser()
-        path = hermes / "cyclops_notes.jsonl"
-        try:
-            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-        except Exception:
+    def read(self, target: str = "agent") -> str:
+        """Full markdown for a target (injected into the system prompt)."""
+        with self._lock:
+            cards = self._read_cards(self._path(target))
+        if not cards:
             return ""
-        recs = []
-        for ln in lines:
-            ln = ln.strip()
-            if not ln:
-                continue
-            try:
-                recs.append(json.loads(ln))
-            except Exception:
-                continue
-        if not recs:
+        return "\n§\n".join(cards)
+
+    def append(self, text: str, target: str = "agent") -> int:
+        """Append one card. Returns the new card index (or -1 on empty)."""
+        text = (text or "").strip()
+        if not text:
+            return -1
+        # Enforce the char budget so memory stays cache-cheap.
+        if len(text) > self.max_chars:
+            text = text[: self.max_chars - 1].rstrip() + "…"
+        with self._lock:
+            cards = self._read_cards(self._path(target))
+            cards.append(text)
+            self._write_cards(self._path(target), cards)
+            return len(cards) - 1
+
+    def edit(self, index: int, text: str, target: str = "agent") -> bool:
+        text = (text or "").strip()
+        if not text:
+            return False
+        if len(text) > self.max_chars:
+            text = text[: self.max_chars - 1].rstrip() + "…"
+        with self._lock:
+            cards = self._read_cards(self._path(target))
+            if not 0 <= index < len(cards):
+                return False
+            cards[index] = text
+            self._write_cards(self._path(target), cards)
+            return True
+
+    def delete(self, index: int, target: str = "agent") -> bool:
+        with self._lock:
+            cards = self._read_cards(self._path(target))
+            if not 0 <= index < len(cards):
+                return False
+            del cards[index]
+            self._write_cards(self._path(target), cards)
+            return True
+
+    def recall(self, target: str = "agent", limit: int = 8) -> str:
+        """Last `limit` cards as a compact context blob (offline-safe)."""
+        with self._lock:
+            cards = self._read_cards(self._path(target))[-limit:]
+        if not cards:
             return ""
-        tail = recs[-limit:]
-        out = []
-        for r in tail:
-            kind = r.get("kind", "note")
-            out.append(f"- ({kind}) {r.get('text', '')}")
-        return "\n".join(out)
+        return "\n".join(f"- {c}" for c in cards)
+
+    def counts(self) -> dict:
+        with self._lock:
+            return {
+                "agent": len(self._read_cards(self.agent_file)),
+                "user": len(self._read_cards(self.user_file)),
+            }
+
+
+def _as_json_payload(store: MemoryStore) -> str:
+    """Combined view for the app / api: both targets with indices."""
+    out = {"agent": [c.to_dict() for c in store.list("agent")],
+           "user": [c.to_dict() for c in store.list("user")]}
+    return json.dumps(out)

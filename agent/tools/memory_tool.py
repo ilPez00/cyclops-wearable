@@ -1,44 +1,78 @@
-"""Tool: memory — read and append to the user's long-term memory.
+"""Tool: memory — read / append / edit / delete the agent's long-term memory.
 
-Reads MEMORY.md/USER.md from the hermes home and lets the agent append notes
-(the "remember that I prefer X" capability). Writes append to a per-session
-memory file so the core memory files are never clobbered.
+Ports Hermes's memory tool semantics into Cyclops: two persistent stores
+(USER.md = who the user is, MEMORY.md = agent/world facts), addressed by a
+`target` arg. The agent can both remember ("remember I prefer X" -> append to
+USER.md) and manage what it knows (edit/delete a learned card).
+
+All writes go to the Cyclops memory root (~/.cyclops/memory) so the user's
+real ~/.hermes files are never touched.
 """
 from __future__ import annotations
-import os
 from ..loop import Tool
 from ..config import AgentConfig
 
 
 def make_memory_tool(config: AgentConfig) -> Tool:
-    home = os.path.expanduser(config.hermes_home)
-    mem_path = os.path.join(home, config.memory_file)
-    append_path = os.path.join(os.path.expanduser("~/cyclops_data"), "memory_append.md")
-
     def run(args: dict) -> str:
-        action = args.get("action", "read")
+        action = (args.get("action") or "read").lower()
+        target = (args.get("target") or "agent").lower()
+        if target not in ("agent", "user"):
+            return "error: target must be 'agent' or 'user'"
+        try:
+            from ..memory import MemoryStore
+            store = MemoryStore(config)
+        except Exception as e:
+            return f"error: memory store unavailable: {e}"
+
         if action == "read":
-            if os.path.exists(mem_path):
-                return open(mem_path, encoding="utf-8").read()[:2000]
-            return "(no memory file)"
+            cards = store.list(target)
+            if not cards:
+                return f"(no {target} memory yet)"
+            return "\n".join(f"[{i}] {c.text}" for i, c in enumerate(cards))
+
         if action == "append":
-            note = args.get("note", "")
+            note = (args.get("note") or "").strip()
             if not note:
                 return "error: note required"
-            os.makedirs(os.path.dirname(append_path), exist_ok=True)
-            with open(append_path, "a", encoding="utf-8") as f:
-                f.write(f"- {note}\n")
-            return f"remembered: {note}"
-        return "unknown memory action"
+            idx = store.append(note, target=target)
+            return f"remembered ({target} card #{idx}): {note}"
+
+        if action == "edit":
+            try:
+                idx = int(args.get("index", -1))
+            except Exception:
+                return "error: index must be an integer"
+            text = (args.get("note") or "").strip()
+            if store.edit(idx, text, target=target):
+                return f"updated {target} card #{idx}"
+            return f"error: no {target} card #{idx}"
+
+        if action == "delete":
+            try:
+                idx = int(args.get("index", -1))
+            except Exception:
+                return "error: index must be an integer"
+            if store.delete(idx, target=target):
+                return f"deleted {target} card #{idx}"
+            return f"error: no {target} card #{idx}"
+
+        return "error: unknown action (read|append|edit|delete)"
 
     return Tool(
         name="memory",
-        description="Read or append to the user's long-term memory.",
+        description=(
+            "Read or manage long-term memory. target='user' stores facts about "
+            "the user; target='agent' stores environment/world facts. "
+            "actions: read, append (note=), edit (index=,note=), delete (index=)."
+        ),
         parameters={
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["read", "append"]},
+                "action": {"type": "string", "enum": ["read", "append", "edit", "delete"]},
+                "target": {"type": "string", "enum": ["agent", "user"]},
                 "note": {"type": "string"},
+                "index": {"type": "integer"},
             },
             "required": ["action"],
         },
