@@ -84,6 +84,14 @@ object CyclopsApi {
         }
     }
 
+    /** Fetch the wearable HUD status frame (MSG_STATUS JSON). Best-effort: the
+     *  brain server proxies the device frame at /api/status; if absent, the
+     *  mirror view falls back to its local demo. */
+    fun status(onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
+        try { onResult(get(url("/api/status"))) }
+        catch (e: Exception) { onError(e.message ?: e.toString()) }
+    }
+
     fun ingest(text: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
             get(url("/api/ingest", "text" to text))

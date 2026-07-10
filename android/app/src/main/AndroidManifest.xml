@@ -29,6 +29,10 @@
             android:name=".RingActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+        <activity
+            android:name=".HudMirrorActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>

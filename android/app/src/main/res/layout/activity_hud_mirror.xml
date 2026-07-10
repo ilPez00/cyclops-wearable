@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Wearable HUD mirror"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#00E5FF" />
+
+    <com.cyclops.companion.HudMirrorView
+        android:id="@+id/hudMirror"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="12dp"
+        android:background="#0A0E12"
+        android:contentDescription="Live mirror of the wearable OLED HUD" />
+
+    <Button
+        android:id="@+id/btnHudDemo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Live" />
+</LinearLayout>
