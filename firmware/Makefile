@@ -45,6 +45,12 @@ test:
 proto:
 	$(CXX) $(CXXFLAGS) $(INC) shared/test_shared.cpp -o /tmp/cyclops_test_shared
 	/tmp/cyclops_test_shared
+	$(CXX) $(CXXFLAGS) $(INC) shared/test_ota.cpp -o /tmp/cyclops_test_ota
+	/tmp/cyclops_test_ota
+
+ota:
+	$(CXX) $(CXXFLAGS) $(INC) shared/test_ota.cpp -o /tmp/cyclops_test_ota
+	/tmp/cyclops_test_ota
 
 native: pio-check
 	pio run -e native_test
@@ -59,5 +65,5 @@ monitor: pio-check
 	pio run -e $(SCREEN) -t monitor
 
 clean:
-	rm -f /tmp/cyclops_test_hud /tmp/cyclops_test_shared
+	rm -f /tmp/cyclops_test_hud /tmp/cyclops_test_shared /tmp/cyclops_test_ota
 	pio run -e native_test -t clean 2>/dev/null || true
