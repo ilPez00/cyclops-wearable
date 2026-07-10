@@ -135,5 +135,5 @@ class LLMExtractor:
 
 # ---- stdlib HTTP session (shared) ----------------------------------------
 def _urllib_session():
-    from .http import stdlib_session
+    from .http_session import stdlib_session
     return stdlib_session()

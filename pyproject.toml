@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cyclops"
+version = "0.5.0"
+description = "Wearable AI note-taker: XIAO ESP32-S3 HUD + Python brain + Android companion"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "gio" }]
+keywords = ["wearable", "ai", "note-taker", "esp32", "hud"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: System :: Hardware",
+]
+
+# Core: zero dependencies. Optional extras for cloud/local whisper/typer TUI.
+dependencies = []
+
+[project.optional-dependencies]
+whisper = ["faster-whisper>=1.0"]
+tui = ["typer>=0.9"]
+dev = ["ruff>=0.8", "pytest>=8.0"]
+
+[project.scripts]
+cyclops-server = "app.server:main"
+
+# -- ruff: lint + format -------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    "firmware/.pio",
+    "firmware/lib",
+    "android",
+    ".gradle",
+    "~",
+    "build",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (unused imports, undefined names, redefinitions)
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear (likely bugs)
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (formatting handles this)
+    "B008",   # function call in default arg (used for dataclass fields)
+    "SIM108", # ternary instead of if/else (readability)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # module-level imports after sys.path.insert is fine in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# -- pytest --------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+# -- mypy (optional, non-blocking) ---------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+# This is a local-first project; type-checking is advisory, not mandatory.
+check_untyped_defs = false
