@@ -15,6 +15,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.view.Menu
 import android.view.MenuItem
 import com.cyclops.companion.databinding.ActivityMainBinding
+import com.cyclops.companion.core.BrainContracts
 import com.google.android.material.chip.Chip
 
 /**
@@ -175,9 +176,9 @@ class MainActivity : AppCompatActivity() {
 }
 
 class NoteAdapter : RecyclerView.Adapter<NoteAdapter.VH>() {
-    private val items = mutableListOf<CyclopsApi.Note>()
+    private val items = mutableListOf<BrainContracts.Note>()
 
-    fun setNotes(list: List<CyclopsApi.Note>) {
+    fun setNotes(list: List<BrainContracts.Note>) {
         items.clear(); items += list; notifyDataSetChanged()
     }
 
