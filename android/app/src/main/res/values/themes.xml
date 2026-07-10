@@ -1,16 +1,6 @@
 <resources>
-    <!-- Material 3 DayNight theme driven by the Cyclops dark palette. -->
     <style name="Theme.Cyclops" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/cyclops_primary</item>
-        <item name="colorOnPrimary">@color/cyclops_on_primary</item>
-        <item name="colorPrimaryContainer">@color/cyclops_primary_container</item>
-        <item name="colorSurface">@color/cyclops_surface</item>
-        <item name="colorSurfaceVariant">@color/cyclops_surface_variant</item>
-        <item name="colorOnSurface">@color/cyclops_on_surface</item>
-        <item name="colorOnSurfaceVariant">@color/cyclops_on_surface_muted</item>
-        <item name="android:colorBackground">@color/cyclops_bg</item>
-        <item name="android:statusBarColor">@color/cyclops_bg</item>
-        <item name="android:navigationBarColor">@color/cyclops_bg</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="colorPrimary">#00E5FF</item>
+        <item name="android:statusBarColor">#001015</item>
     </style>
 </resources>

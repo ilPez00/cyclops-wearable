@@ -3,8 +3,6 @@
 
     <!-- The companion talks to the Cyclops brain server over the LAN (HTTP). -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <!-- COLMI R02 ring: BLE central (scan + connect). -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -28,19 +26,9 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".SettingsActivity"
-            android:exported="false"
-            android:label="@string/settings"
-            android:screenOrientation="portrait" />
-        <activity
             android:name=".RingActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
-
-        <service
-            android:name=".CyclopsService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
     </application>
 
 </manifest>

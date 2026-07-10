@@ -38,12 +38,12 @@ class RingProtoTest {
     @Test
     fun parseRealTimeHrAndSpo2() {
         val hr = RingProto.startRealTime(RingProto.RT_HEART_RATE).clone()
-        hr[2] = 0; hr[3] = 78; hr[15] = RingProto.crc(hr)
+        hr[3] = 78; hr[15] = RingProto.crc(hr)
         val sh = RingProto.parse(hr)!!
         assertEquals(78, sh.hr); assertEquals(0, sh.spo2)
 
         val sp = RingProto.startRealTime(RingProto.RT_SPO2).clone()
-        sp[2] = 0; sp[3] = 97; sp[15] = RingProto.crc(sp)
+        sp[3] = 97; sp[15] = RingProto.crc(sp)
         val ss = RingProto.parse(sp)!!
         assertEquals(97, ss.spo2)
     }
@@ -59,15 +59,6 @@ class RingProtoTest {
         assertNull(RingProto.parse(bad))
 
         assertNull(RingProto.parse(ByteArray(15)))
-    }
-
-    @Test
-    fun rejectsRealTimeErrorByte2() {
-        // Ring reports an error in byte[2] of a real-time response -> must be ignored
-        // (audit: C++ ring_proto.h:61 / Python colmi_r02.py reject when p[2]!=0).
-        val hr = RingProto.startRealTime(RingProto.RT_HEART_RATE).clone()
-        hr[2] = 1; hr[3] = 78; hr[15] = RingProto.crc(hr)  // valid CRC, but error flag in byte[2]
-        assertNull(RingProto.parse(hr))
     }
 
     @Test

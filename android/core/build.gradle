@@ -6,7 +6,6 @@ group = 'com.cyclops'
 version = '0.1.0'
 
 dependencies {
-    implementation 'org.json:json:20240303'
     testImplementation 'org.jetbrains.kotlin:kotlin-test'
 }
 

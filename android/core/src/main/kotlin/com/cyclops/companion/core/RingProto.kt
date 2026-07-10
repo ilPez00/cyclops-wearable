@@ -26,7 +26,7 @@ object RingProto {
     const val RT_HEART_RATE = 1
     const val RT_SPO2 = 3
 
-    /** sum(byte[0..14]) & 0xFF (byte15 is 0 while computing). */
+    /** sum of bytes 0..14, masked with 0xFF (byte15 is 0 while computing). */
     fun crc(p: ByteArray): Byte {
         var s = 0
         for (i in 0..14) s += p[i].toInt() and 0xFF
@@ -57,8 +57,6 @@ object RingProto {
             CMD_BATTERY -> RingSample(battery = p[1].toInt() and 0xFF,
                 charging = p[2] != 0.toByte())
             CMD_START_REAL_TIME -> {
-                // ring reports an error in byte[2] (C++ ring_proto.h:61 / colmi_r02.py)
-                if (p[2] != 0.toByte()) return null
                 val kind = p[1].toInt() and 0xFF
                 val v = p[3].toInt() and 0xFF
                 when (kind) {
