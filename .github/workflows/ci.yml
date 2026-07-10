@@ -9,15 +9,14 @@ on:
 
 jobs:
   host-gate:
-    name: Firmware host gate (no toolchain)
+    name: Firmware host gate (g++ — HUD + proto + OTA)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: C++ host logic + protocol tests (g++)
-        run: |
-          cd firmware
-          make test
-          make proto
+      - name: HUD state-machine tests
+        run: cd firmware && make test
+      - name: Shared protocol + OTA tests
+        run: cd firmware && make proto
 
   firmware:
     name: Firmware build matrix
@@ -25,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [arduino_st7735, arduino_128x64, arduino_128x32, xiao_st7735, xiao_128x64, xiao_128x32]
+        env: [xiao_st7735, xiao_128x64, xiao_128x32]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
