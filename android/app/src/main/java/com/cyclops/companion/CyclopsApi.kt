@@ -1,5 +1,6 @@
 package com.cyclops.companion
 
+import com.cyclops.companion.core.BrainContracts
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -144,7 +145,8 @@ object CyclopsApi {
         }
     }
 
-    // Re-export the core Note so existing callers (MainActivity) keep resolving
-    // CyclopsApi.Note without changes.
-    typealias Note = BrainContracts.Note
 }
+
+// Re-export the core Note so existing callers (MainActivity) keep resolving
+// CyclopsApi.Note without changes.
+typealias Note = com.cyclops.companion.core.BrainContracts.Note
