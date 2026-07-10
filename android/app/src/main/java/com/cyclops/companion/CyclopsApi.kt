@@ -144,16 +144,18 @@ object CyclopsApi {
         }
     }
 
-    // Push a glanceable banner to the wearable HUD via /api/hud_cmd (ACT_AGENT=14).
-    // The server fulfills it locally and streams the frame to the glasses.
-    fun hud(text: String, onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
+    // Remap a button gesture on the wearable: btn 0=A / 1=B, g 1=single/2=double/3=long,
+    // act = action id (see firmware Action enum: 1..22). The brain forwards this as a
+    // DISPLAY_CMD {"kind":"bind",...} which the device applies to its BtnBindings grid.
+    fun bind(btn: Int, g: Int, act: Int,
+             onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
-            val obj = JSONObject(get(url("/api/hud_cmd", "a" to "14", "arg" to text)))
-            val action = obj.optString("action", "")
-            onResult(action)
-        } catch (e: Exception) {
-            onError(e.message ?: e.toString())
-        }
+            val arg = org.json.JSONObject().apply {
+                put("kind", "bind"); put("btn", btn); put("g", g); put("act", act)
+            }.toString()
+            get(url("/api/hud_cmd", "a" to "20", "arg" to arg))  // ACT_OK relays the cmd
+            onResult(true)
+        } catch (e: Exception) { onError(e.message ?: e.toString()) }
     }
 
     // Pull the current profile (persona, provider, per-tool overrides, ...) from the brain.

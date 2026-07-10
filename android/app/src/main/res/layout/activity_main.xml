@@ -49,6 +49,12 @@
             android:text="HUD" />
 
         <Button
+            android:id="@+id/btnRemap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Remap" />
+
+        <Button
             android:id="@+id/btnRefresh"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

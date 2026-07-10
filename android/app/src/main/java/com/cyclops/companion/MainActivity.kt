@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnMemory.setOnClickListener { showMemory() }
         binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
         binding.btnHud.setOnClickListener { startActivity(Intent(this, HudMirrorActivity::class.java)) }
+        binding.btnRemap.setOnClickListener { startActivity(Intent(this, RemapActivity::class.java)) }
 
         // transport selector (wifi / bt / cable)
         ArrayAdapter.createFromResource(
