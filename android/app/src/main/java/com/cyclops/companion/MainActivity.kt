@@ -320,23 +320,35 @@ class NoteAdapter : RecyclerView.Adapter<NoteAdapter.VH>() {
         items.clear(); items += list; notifyDataSetChanged()
     }
 
-    class VH(val tv: TextView) : RecyclerView.ViewHolder(tv)
+    class VH(view: android.view.View) : RecyclerView.ViewHolder(view) {
+        val card: com.google.android.material.card.MaterialCardView =
+            view.findViewById(R.id.cardNote)
+        val chipType: com.google.android.material.chip.Chip = view.findViewById(R.id.chipType)
+        val txt: TextView = view.findViewById(R.id.txtNoteText)
+        val badgeCandidate: TextView = view.findViewById(R.id.badgeCandidate)
+        val badgeDue: TextView = view.findViewById(R.id.badgeDue)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val tv = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_2, parent, false) as TextView
-        return VH(tv)
+        val v = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_note_card, parent, false)
+        return VH(v)
     }
 
     override fun getItemCount() = items.size
 
     override fun onBindViewHolder(holder: VH, pos: Int) {
         val n = items[pos]
-        val tag = buildString {
-            append(n.type.uppercase())
-            if (n.candidate) append(" • candidate")
-            if (n.due != null) append(" • due ${n.due}")
-        }
-        holder.tv.text = "$tag\n${n.text}"
+        holder.chipType.text = n.type.uppercase()
+        holder.txt.text = n.text
+        holder.badgeCandidate.visibility = if (n.candidate) TextView.VISIBLE else TextView.GONE
+        if (!n.due.isNullOrEmpty()) {
+            holder.badgeDue.visibility = TextView.VISIBLE
+            holder.badgeDue.text = "due ${n.due}"
+        } else holder.badgeDue.visibility = TextView.GONE
+        // accent the card stroke for candidates so they stand out
+        holder.card.strokeColor =
+            if (n.candidate) android.graphics.Color.parseColor("#FFB300")
+            else android.graphics.Color.parseColor("#1E2A33")
     }
 }
