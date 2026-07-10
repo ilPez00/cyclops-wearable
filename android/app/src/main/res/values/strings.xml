@@ -17,27 +17,6 @@
     <string name="ring_connect">Connect ring</string>
     <string name="ring_disconnect">Disconnect</string>
     <string name="ring_idle">Ring: not connected</string>
-    <string name="status_checking">Checking…</string>
-    <string name="status_connected">Connected</string>
-    <string name="status_offline">Offline</string>
-    <string name="status_error">Connection error</string>
-    <string name="candidate">candidate</string>
-    <string name="empty_title">No notes yet</string>
-    <string name="empty_body">Ingest a transcript or tap Extract to pull out tasks, reminders and decisions.</string>
-    <string name="local_model">Local model</string>
-    <string name="transport">Transport</string>
-    <string name="status_desc">Brain connection status</string>
-    <string name="wearable_connect">Connect wearable</string>
-    <string name="wearable_disconnect">Disconnect wearable</string>
-    <string name="settings_url">Brain server URL</string>
-    <string name="settings_local_endpoint">Local model endpoint (e.g. http://127.0.0.1:11434/v1)</string>
-    <string name="settings_provider">Cloud provider (openai/groq/openrouter/…)</string>
-    <string name="settings_api_key">API key (stored on device only)</string>
-    <string name="settings_persona">Persona / system note</string>
-    <string name="settings_transport">Transport</string>
-    <string name="settings_tool_overrides">Per-tool model overrides</string>
-    <string name="settings_saved">Settings saved to brain</string>
-    <string name="save">Save</string>
     <string name="ring_note">Reads HR / SpO2 / battery over BLE (NUS). No pairing. Keep the ring within ~1 m. Data stays on-device unless you forward it.</string>
     <string-array name="transports">
         <item>wifi</item>

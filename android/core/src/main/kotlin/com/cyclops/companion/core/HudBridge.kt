@@ -36,8 +36,6 @@ class HudBridge(
         const val ACT_CONFIRM_YES = 11
         const val ACT_CONFIRM_NO = 12
         const val ACT_SELECT = 13
-        const val ACT_AGENT = 14
-        const val ACT_AGENT_ABORT = 15
     }
 
     private val itTranslate = mapOf(
@@ -88,9 +86,6 @@ class HudBridge(
         ACT_SSH -> { emitText("SSH: \$ ${arg.ifEmpty { "whoami" }}"); "ssh" }
         ACT_CONFIRM_YES -> { emitText("CONFIRMED"); "confirm_yes" }
         ACT_CONFIRM_NO -> { emitText("CANCELLED"); "confirm_no" }
-        ACT_NOTES -> { store?.add(arg); emitText("NOTE: ${arg.take(120)}"); "notes" }
-        ACT_AGENT -> { emitText("AGENT: ${arg.take(120)}"); "agent" }
-        ACT_AGENT_ABORT -> { emitText("AGENT aborted"); "agent_abort" }
         else -> null
     }
 
@@ -98,15 +93,7 @@ class HudBridge(
         text.lowercase().split(" ").joinToString(" ") { itTranslate[it] ?: it }
 
     private fun emitText(text: String) {
-        // Escape JSON specials so notes containing " \ newline can't corrupt
-        // the display frame the glasses parse (premortem #2).
-        val esc = text
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\r", "\\r")
-            .replace("\n", "\\n")
-            .replace("\t", "\\t")
-        val json = """{"kind":"text","data":"$esc"}""".toByteArray()
+        val json = """{"kind":"text","data":"$text"}""".toByteArray()
         sink.write(CyclopsProto.encode(CyclopsProto.MSG_DISPLAY_CMD, json))
     }
 

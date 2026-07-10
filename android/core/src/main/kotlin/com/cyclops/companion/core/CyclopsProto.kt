@@ -4,7 +4,7 @@ package com.cyclops.companion.core
  * Cyclops v2 wire protocol — Kotlin mirror of firmware/lib/cyclops_shared/include/cyclops_shared.h
  * and brain/protocol.py. Byte-exact: same framing, same CRC16-CCITT (0xFFFF seed, false).
  *
- * Frame: AA 55 <len:u16 LE> <type:u8> <payload:len> <crc:u16 LE>
+ * Frame: AA AA <len:u16 LE> <type:u8> <payload:len> <crc:u16 LE>
  * CRC covers the 3 bytes [len_lo, len_hi, type] + payload.
  */
 object CyclopsProto {
@@ -31,6 +31,13 @@ object CyclopsProto {
     const val MSG_CONFIRM = 17
     const val MSG_PEER_STATUS = 18
     const val MSG_AUDIO_STOP = 19
+    const val MSG_TTS = 20
+
+    // OTA firmware update over BLE (mirror of firmware ota.h)
+    const val MSG_OTA_BEGIN = 21
+    const val MSG_OTA_CHUNK = 22
+    const val MSG_OTA_END = 23
+    const val MSG_OTA_ACK = 24
 
     fun crc16CcittFalse(data: ByteArray, seed: Int = 0xFFFF): Int {
         var crc = seed and 0xFFFF
@@ -47,16 +54,15 @@ object CyclopsProto {
     /** Encode a frame. Returns the full frame bytes. */
     fun encode(type: Int, payload: ByteArray): ByteArray {
         val len = payload.size
-        // C++ layout: AA 55 <len:u16 LE> <type> <payload> <crc:u16 LE>  => 7 + len bytes
-        val out = ByteArray(7 + len)
-        out[0] = MAGIC1; out[1] = MAGIC2
-        out[2] = (len and 0xFF).toByte()
-        out[3] = ((len shr 8) and 0xFF).toByte()
-        out[4] = (type and 0xFF).toByte()
-        payload.copyInto(out, 5)
-        val crc = crc16CcittFalse(out.copyOfRange(2, 5 + len))  // [len_lo,len_hi,type]+payload
-        out[5 + len] = (crc and 0xFF).toByte()
-        out[6 + len] = ((crc shr 8) and 0xFF).toByte()
+        val out = ByteArray(8 + len)
+        out[0] = MAGIC1; out[1] = MAGIC1; out[2] = MAGIC2
+        out[3] = (len and 0xFF).toByte()
+        out[4] = ((len shr 8) and 0xFF).toByte()
+        out[5] = (type and 0xFF).toByte()
+        payload.copyInto(out, 6)
+        val crc = crc16CcittFalse(out.copyOfRange(3, 6 + len))
+        out[6 + len] = (crc and 0xFF).toByte()
+        out[7 + len] = ((crc shr 8) and 0xFF).toByte()
         return out
     }
 
@@ -66,7 +72,7 @@ object CyclopsProto {
         private var len = 0
         private var got = 0
         private var type = 0
-        private val buf = ByteArray(256)
+        private val buf = ByteArray(1024)
 
         fun push(b: Int) {
             val byte = (b and 0xFF).toByte()
@@ -97,9 +103,7 @@ object CyclopsProto {
                 7 -> {
                     val crcRecv = (pendingCrcLo and 0xFF) or ((byte.toInt() and 0xFF) shl 8)
                     val exp = crc16CcittFalse(buf.copyOfRange(0, got))
-                    // Match C++: accept zero-length frames (HELLO/HEARTBEAT/ACK/PEER_STATUS);
-                    // `got >= 3` guarantees the CRC window is in-bounds.
-                    if (crcRecv == exp && got >= 3) {
+                    if (crcRecv == exp && len > 0) {
                         onFrame(type, buf.copyOfRange(3, 3 + len))
                     }
                     reset()

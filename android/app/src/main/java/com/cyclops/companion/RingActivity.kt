@@ -118,9 +118,9 @@ class RingActivity : AppCompatActivity() {
 
         @Suppress("MissingPermission")
         override fun onCharacteristicChanged(
-            g: BluetoothGatt?, ch: BluetoothGattCharacteristic?
+            g: BluetoothGatt?, ch: BluetoothGattCharacteristic?, value: ByteArray?
         ) {
-            val data = ch?.value ?: return
+            val data = value ?: ch?.value ?: return
             RingProto.parse(data)?.let { onSample(it) }
         }
     }
