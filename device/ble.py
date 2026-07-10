@@ -116,8 +116,10 @@ class BleLink:
             pass
 
     def send_cmd(self, cmd: int, arg: str = "") -> str:
+        import json
         from brain.protocol import encode
-        frame = encode(cmd, arg.encode("utf-8"))
+        payload = json.dumps({"a": cmd, "arg": arg}).encode("utf-8")
+        frame = encode(9, payload)
         self.backend.write(frame)
         return f"wrote cmd {cmd} ({len(frame)}B)"
 

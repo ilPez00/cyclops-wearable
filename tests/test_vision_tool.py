@@ -1,5 +1,6 @@
 """Offline tests for the vision tool (local Ollama path + cloud + stub)."""
 import sys, os, json
+import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
@@ -69,10 +70,7 @@ def test_vision_live_ollama_smoke():
     """Live test: if a local Ollama with a VLM is reachable, describe a tiny
     generated image for real; otherwise skip (no hardware / offline)."""
     import os, io, base64, urllib.request
-    try:
-        from PIL import Image
-    except ImportError:
-        return  # Pillow absent (CI) -> skip live vision smoke test
+    pytest.importorskip("PIL")  # skip live vision test when Pillow absent (CI)
     cfg = AgentConfig(); cfg.local_mode = True
     vlm = _probe_local_vlm(cfg.local_base_url)
     if vlm is None:

@@ -133,7 +133,7 @@ def test_ble_link_pc_to_peripheral_write():
     assert "wrote cmd 1" in out
     assert backend.written
     typ, payload = decode_frame(backend.written[-1])
-    assert typ == 1 and b"ping" in payload
+    assert typ == 9 and b"ping" in payload
 
 
 def test_device_tool_routes_ble_transport():
