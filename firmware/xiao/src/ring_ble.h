@@ -2,7 +2,7 @@
 //
 // The XIAO already runs a NimBLE *server* for the phone HUD link. NimBLE can
 // also act as a *client* (central) on the same chip, so the wearable reads the
-// ring directly — no phone needed for health metrics. This file wires the
+// ring directly — no phone needed for health metrics. This class wires the
 // 16-byte ring protocol (ring_proto.h) to NimBLE and feeds hud.set_health().
 //
 // BLE code is guarded by ARDUINO so the host (g++) build only sees the parser
@@ -11,6 +11,11 @@
 #define RING_BLE_H
 
 #include "ring_proto.h"
+
+#ifdef ARDUINO
+#include <NimBLEDevice.h>
+#include <string>
+#endif
 
 namespace cyclops {
 
@@ -22,6 +27,8 @@ public:
     bool begin(const char* name_prefix = "R02_");
 
     // Pump the BLE stack. Call from the main loop (XIAO). Host: no-op.
+    // Performs the async connect + starts real-time HR/SpO2 streaming once the
+    // ring is found.
     void update();
 
     // Latest decoded sample (HR / SpO2 / battery). Host-safe accessor.
@@ -30,8 +37,20 @@ public:
     bool connected() const { return connected_; }
 
 private:
+    // --- ARDUINO-only connection state (declared here, defined in .cpp) ---
+    static void on_ring_packet(const uint8_t* p);   // TX notify -> sample_
+    static void on_disconnect();                     // reconnect on drop
+
     RingSample sample_;
     bool connected_ = false;
+#ifdef ARDUINO
+    NimBLEClient* client_ = nullptr;
+    NimBLERemoteCharacteristic* rx_ = nullptr;
+    bool want_connect_ = false;
+    NimBLEAddress pending_addr_ = NimBLEAddress("00:00:00:00:00:00");
+    std::string prefix_ = "R02_";
+    static RingBle* self_;     // back-pointer for static NimBLE callbacks
+#endif
 };
 
 }  // namespace cyclops

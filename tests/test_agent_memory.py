@@ -1,6 +1,6 @@
 """Offline: agent memory persists + recalls across turns (T3.1).
 
-- MemoryStore.append_note -> recall round-trips last N notes.
+- MemoryStore.append -> recall round-trips last N cards.
 - Agent.run writes the Q/A to memory; a second Agent over the SAME MemoryStore
   sees the prior turn injected into its system block (real cross-session recall).
 No network/keys.
@@ -17,10 +17,11 @@ from agent.models import ChatResult
 def test_memory_recall():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(hermes_home=d)
+    cfg.memory_root = d   # isolate from shared ~/.cyclops/memory
     ms = MemoryStore(cfg)
     assert ms.recall() == ""                       # empty -> ''
     for i in range(12):
-        ms.append_note(f"note {i}", kind="turn")
+        ms.append(f"note {i}", target="agent")
     rec = ms.recall(limit=3)
     assert "note 11" in rec and "note 10" in rec and "note 9" in rec
     assert "note 0" not in rec                      # only last 3
@@ -30,6 +31,7 @@ def test_memory_recall():
 def test_agent_persists_across_runs():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(hermes_home=d, memory_recall=8)
+    cfg.memory_root = d
     reg = ToolRegistry()
     reg.register(Tool("echo", "echo", {"type": "object", "properties": {}}, lambda a: "ok"))
 
@@ -55,8 +57,9 @@ def test_agent_persists_across_runs():
 def test_persist_offline_safe_on_error():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(hermes_home=os.path.join(d, "nested", "mem"))  # writable, not yet created
+    cfg.memory_root = os.path.join(d, "nested", "mem")
     ms = MemoryStore(cfg)
-    ms.append_note("x")   # dir auto-created; must not raise
+    ms.append("x")   # dir auto-created; must not raise
     a = Agent(cfg, router=None, registry=ToolRegistry(), memory=ms)
     # run with no router -> model error path; must not raise, still returns
     res = a.run("hi")

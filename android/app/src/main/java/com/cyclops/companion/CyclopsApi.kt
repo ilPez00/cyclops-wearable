@@ -157,6 +157,48 @@ object CyclopsApi {
         }
     }
 
+    // Hermes-style memory: GET lists both targets (agent + user) with indices.
+    // Response: { "agent": [ {text,target}, ... ], "user": [ ... ] }
+    fun memory(onResult: (JSONArray, JSONArray) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/memory")))
+            val agent = obj.optJSONArray("agent") ?: JSONArray()
+            val user = obj.optJSONArray("user") ?: JSONArray()
+            onResult(agent, user)
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
+    // Manage memory: action=append|edit|delete, target=agent|user, optional index/note.
+    fun memoryEdit(action: String, target: String, index: Int = -1, note: String = "",
+                   onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val body = JSONObject().apply {
+                put("action", action)
+                put("target", target)
+                if (index >= 0) put("index", index)
+                if (note.isNotEmpty()) put("note", note)
+            }
+            val obj = JSONObject(post(url("/api/memory"), body.toString()))
+            onResult(obj.optBoolean("ok", false))
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
+    // Trigger a learning review of recent turns (the "Learn" button).
+    // Response: { "learned": { "user": n, "agent": n } }
+    fun learn(onResult: (Int, Int) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/learn")))
+            val learned = obj.optJSONObject("learned") ?: JSONObject()
+            onResult(learned.optInt("user", 0), learned.optInt("agent", 0))
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
     // Persist the profile (incl. per-tool overrides) to the brain.
     fun putSettings(json: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {

@@ -126,7 +126,16 @@ static void audio_task(void*) {
     size_t rd;
     while (capturing) {
         i2s_read((i2s_port_t)0, samples, sizeof(samples), &rd, pdMS_TO_TICKS(100));
-        if (rd > 0) send_frame(cyclops::MSG_AUDIO_CHUNK, (uint8_t*)samples, rd);
+        if (rd > 0) {
+            // Backpressure: only stream audio when a phone is actually
+            // connected to receive it. Sending into the void wastes the BLE
+            // queue and battery; drop the chunk instead. (D)
+            if (hud.bt) {
+                send_frame(cyclops::MSG_AUDIO_CHUNK, (uint8_t*)samples, rd);
+            } else {
+                cyclops::audio_dropped++;  // no consumer -> drop
+            }
+        }
     }
     vTaskDelete(NULL);
 }
@@ -237,9 +246,15 @@ void loop() {
     if (millis()-last_hb > 5000) {
         last_hb = millis();
         char s[80]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
-        Serial.printf("[hb] %s rec=%d bt=%d mode=%s\n", s, hud.recording,
-                      hud.bt, hud.mode_name(hud.top()));
+        Serial.printf("[hb] %s rec=%d bt=%d mode=%s drop=%lu\n", s, hud.recording,
+                      hud.bt, hud.mode_name(hud.top()), cyclops::audio_dropped);
     }
     hud.render(screen);
-    delay(50);
+    // Power: when the screen is off and we're not recording, the wearable is
+    // idle — skip the per-frame render and sleep longer to save juice. (C)
+    if (!hud.screen_on && !capturing) {
+        delay(250);
+    } else {
+        delay(50);
+    }
 }

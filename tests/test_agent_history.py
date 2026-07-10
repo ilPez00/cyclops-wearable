@@ -67,13 +67,13 @@ def test_history_tool_uses_agent():
 
 def test_memory_writeback():
     cfg = AgentConfig()
-    # point memory root at a temp dir to avoid touching ~/.hermes
+    # point memory root at a temp dir to avoid touching ~/.cyclops/memory
     tmp = tempfile.mkdtemp()
     cfg.hermes_home = tmp
+    cfg.memory_root = tmp
     from agent.memory import MemoryStore
     store = MemoryStore(cfg)
-    path = store.append_note("buy milk", kind="reminder")
-    assert os.path.exists(path)
-    with open(path, encoding="utf-8") as f:
-        rec = json.loads(f.readline())
-    assert rec["kind"] == "reminder" and rec["text"] == "buy milk"
+    idx = store.append("buy milk", target="agent")
+    assert idx == 0
+    # the card is persisted as readable markdown (not a JSONL line)
+    assert "buy milk" in store.read()

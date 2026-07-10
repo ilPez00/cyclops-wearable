@@ -40,7 +40,6 @@ private:
     bool ready_ = false;
     ImuSample s_;
     int heading_ = 0;   // integrated yaw (no mag on MPU-6050)
-    int last_gz_ = 0;
 };
 
 }  // namespace cyclops

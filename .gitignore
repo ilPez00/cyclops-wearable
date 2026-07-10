@@ -38,3 +38,6 @@ android/.gradle/
 android/app/build/
 android/core/build/
 *.apk
+
+# local APK build temp
+.apk-tmp/
