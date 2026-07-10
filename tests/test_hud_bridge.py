@@ -2,7 +2,7 @@ import sys, os, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.hud_bridge import HudBridge
 from brain.protocol import encode, MSG
-from brain.protocol_v2 import encode, decode, ACT_TRANSCRIBE_START, ACT_TRANSLATE, ACT_HEALTH, ACT_TELEPROMPTER, ACT_CAMERA, ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES
+from brain.protocol_v2 import encode, decode, ACT_TRANSCRIBE_START, ACT_TRANSLATE, ACT_HEALTH, ACT_TELEPROMPTER, ACT_CAMERA, ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES, ACT_PHOTO, ACT_VIDEO, ACT_VOICE_NOTE, ACT_VOICE_CMD, ACT_AGENT
 from brain.transcriber import StubTranscriber
 from brain.store import NoteStore
 
@@ -10,6 +10,13 @@ from brain.store import NoteStore
 class Cap:
     def __init__(self): self.frames=[]
     def write(self, b): self.frames.append(b)
+
+
+class SpeakSink:
+    """Sink that implements speak() + records TTS frames (the audio-out path)."""
+    def __init__(self): self.frames=[]; self.spoken=[]
+    def write(self, b): self.frames.append(b)
+    def speak(self, text): self.spoken.append(text)
 
 def test_each_action_returns_frame():
     if os.path.exists("/tmp/cyclops_hb.jsonl"): os.remove("/tmp/cyclops_hb.jsonl")
@@ -97,3 +104,37 @@ def test_bridge_uses_injected_transcriber():
     br2.dispatch(ACT_TRANSCRIBE_START)
     assert len(br2.store.all()) >= 1
     os.remove("/tmp/cyclops_inj.jsonl")
+
+def test_new_capture_actions_emit_frames():
+    cap = Cap()
+    br = HudBridge(cap, transcriber=StubTranscriber())
+    for a in (ACT_PHOTO, ACT_VIDEO):
+        c = Cap(); br.sink = c; br.dispatch(a)
+        assert len(c.frames) >= 1, "photo/video must emit a frame"
+
+def test_voice_note_stores_and_speaks():
+    if os.path.exists("/tmp/cyclops_vn.jsonl"): os.remove("/tmp/cyclops_vn.jsonl")
+    sink = SpeakSink()
+    br = HudBridge(sink, store=NoteStore("/tmp/cyclops_vn.jsonl"), transcriber=StubTranscriber())
+    res = br.dispatch(ACT_VOICE_NOTE)
+    assert res[0] == "voice_note"
+    assert len(br.store.all()) >= 1, "voice note should store a transcript"
+    assert sink.spoken and "saved" in sink.spoken[-1], "voice note should TTS an ack"
+    os.remove("/tmp/cyclops_vn.jsonl")
+
+def test_voice_cmd_is_interactive_speaks_answer():
+    # B-long: spoken question -> agent -> spoken answer (audio-out)
+    sink = SpeakSink()
+    br = HudBridge(sink, agent=_FakeAgent("The meeting is at 3pm."), transcriber=StubTranscriber())
+    res = br.dispatch(ACT_VOICE_CMD)
+    assert res[0] == "voice_cmd"
+    assert any("3pm" in s for s in sink.spoken), "answer should be spoken back (audio-out)"
+    # generic sink without speak() must still emit a TTS frame, not crash
+    cap = Cap(); br2 = HudBridge(cap, agent=_FakeAgent("ok"), transcriber=StubTranscriber())
+    br2.dispatch(ACT_VOICE_CMD)
+    assert any(MSG["TTS"] and b"ok" in f for f in cap.frames), "TTS frame emitted when no speak()"
+
+class _FakeAgent:
+    def __init__(self, ans): self.ans = ans; self.progress_cb = None
+    def run(self, prompt):
+        return type("R", (), {"text": self.ans, "steps": []})()

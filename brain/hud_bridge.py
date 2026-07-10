@@ -18,6 +18,7 @@ from .protocol_v2 import (parse_hud, build_hud, MSG_HUD_FRAME, HUD_KINDS,
                           ACT_NAV, ACT_TELEPROMPTER, ACT_CAMERA,
                           ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES,
                           ACT_CONFIRM_NO, ACT_NOTES, ACT_AGENT, ACT_AGENT_ABORT,
+                          ACT_PHOTO, ACT_VIDEO, ACT_VOICE_NOTE, ACT_VOICE_CMD,
                           build_hud_agent, MSG_RING_GESTURE)
 
 # numeric id of MSG_CMD in the firmware protocol
@@ -78,6 +79,26 @@ class HudBridge:
             self.sink.write(encode(MSG["DISPLAY_CMD"], payload))
         elif hasattr(self.sink, "render_text"):
             self.sink.render_text(json.dumps(obj))
+
+    def _emit_tts(self, text):
+        """Audio-out path: the answer is spoken by the phone (its own BT stack
+        drives the user's earbuds). Emits a TTS frame the companion relays to
+        its media/audio output. Falls back to a no-op if the sink can't speak."""
+        if not text:
+            return
+        if hasattr(self.sink, "speak"):
+            try:
+                self.sink.speak(text)
+                return
+            except Exception:
+                pass
+        # emit a TTS frame the companion app recognizes
+        if hasattr(self.sink, "write"):
+            from .protocol import MSG
+            try:
+                self.sink.write(encode(MSG["TTS"], text.encode()))
+            except Exception:
+                pass
 
     def push_hud(self, text):
         """Push a glanceable banner line to the wearable HUD (Omi/G2 style).
@@ -225,6 +246,36 @@ class HudBridge:
         if act == ACT_AGENT_ABORT:
             self._emit_text("AGENT: aborted")
             return ("agent_abort", None)
+        if act == ACT_PHOTO:
+            # B-long path: capture a frame, analyze, speak the result back (TTS).
+            line = "PHOTO: captured (stub)"
+            self._emit_text(line)
+            self._emit_tts("Photo captured.")
+            return ("photo", line)
+        if act == ACT_VIDEO:
+            line = "VIDEO: toggle (stub)"
+            self._emit_text(line)
+            self._emit_tts("Video recording toggled.")
+            return ("video", line)
+        if act == ACT_VOICE_NOTE:
+            # B-double: record a clip, transcribe, store, TTS a short ack.
+            txt = self.trans.transcribe(b"") if self.trans else "stub: voice note"
+            if self.store:
+                from .extractor import extract
+                for n in extract(txt):
+                    self.store.add(n)
+            self._emit_text("VNOTE: " + txt[:120])
+            self._emit_tts("Voice note saved.")
+            return ("voice_note", txt)
+        if act == ACT_VOICE_CMD:
+            # B-long: spoken question -> agent -> spoken answer (interactive).
+            q = self.trans.transcribe(b"") if self.trans else "stub: what time is it"
+            self._emit_text("YOU: " + q[:80])
+            res = self.dispatch(ACT_AGENT, q)
+            ans = res[1] if isinstance(res, tuple) else None
+            if ans:
+                self._emit_tts(ans.split("\n", 1)[0][:200])
+            return ("voice_cmd", ans)
         return (None, None)
 
 

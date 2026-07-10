@@ -7,7 +7,10 @@
 #include "screen.h"
 #include "screens.h"
 #include "hud.h"
+#include "gestures.h"
 #include "ring_ble.h"
+#include "sd_log.h"
+#include "imu.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -47,6 +50,9 @@ static cyclops::Hud hud;
 #ifdef ENABLE_RING
 static cyclops::RingBle ring;          // COLMI R02 BLE central (opt-in)
 #endif
+#ifdef ENABLE_IMU
+static cyclops::Imu imu(0x68, 1);      // HW-123 ITG/MPU on I2C (D6/D7), INT->D1
+#endif
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
 static NimBLECharacteristicCallbacks* note_cb = nullptr;
@@ -84,8 +90,14 @@ static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
     (void)ctx;
     char tmp[256]; if (n >= sizeof(tmp)) n = sizeof(tmp)-1;
     memcpy(tmp, p, n); tmp[n] = 0;
-    if (type == cyclops::MSG_DISPLAY_CMD || type == cyclops::MSG_NOTE) ui_apply_display(tmp);
-    else if (type == cyclops::MSG_HEALTH_SAMPLE) hud.on_health_sample(tmp);  // P2-C relay
+    if (type == cyclops::MSG_DISPLAY_CMD || type == cyclops::MSG_NOTE) {
+        ui_apply_display(tmp);
+        if (type == cyclops::MSG_NOTE) cyclops::sd_log_line("note", tmp);
+    }
+    else if (type == cyclops::MSG_HEALTH_SAMPLE) {
+        hud.on_health_sample(tmp);  // P2-C relay
+        cyclops::sd_log_line("health", tmp);
+    }
 }
 
 static void ui_apply_display(const char* json) {
@@ -141,6 +153,7 @@ static void start_capture() {
     send_frame(cyclops::MSG_AUDIO_META, meta, 8);
     xTaskCreatePinnedToCore(audio_task, "cap", 4096, NULL, 5, &cap_task, 0);
     hud.recording = true;
+    cyclops::sd_log_line("rec", "start");
 }
 
 static void stop_capture() {
@@ -150,6 +163,7 @@ static void stop_capture() {
     i2s_driver_uninstall((i2s_port_t)0);
     send_frame(cyclops::MSG_AUDIO_STOP, NULL, 0);
     hud.recording = false;
+    cyclops::sd_log_line("rec", "stop");
 }
 
 void setup() {
@@ -169,8 +183,11 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(PIN_WHEEL_A), wheel_isr, CHANGE);
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
+    hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
     hud.init();
     Serial.println("[boot] hud.init ok");
+    if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
+    else Serial.println("[boot] sd card NOT present (logging disabled)");
     NimBLEDevice::init("CyclopsXIAO");
     srv = NimBLEDevice::createServer();
     srv->setCallbacks(new SrvCb());
@@ -185,28 +202,36 @@ void setup() {
 #ifdef ENABLE_RING
     ring.begin("R02_");   // scan for + connect to the COLMI R02 (see docs/30)
 #endif
+#ifdef ENABLE_IMU
+    if (imu.begin()) Serial.println("[boot] imu ok");
+    else Serial.println("[boot] imu NOT found (0x68)");
+#endif
 }
 
-static bool last_a=true, last_b=true;
 static uint32_t last_hb=0;
+static cyclops::GestureDetector gest_a, gest_b;   // A="eye", B="ear"
 
 void loop() {
     static int prev = 0;
     if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
-    static uint32_t a_down = 0;
-    bool a = digitalRead(PIN_BTN_A), b = digitalRead(PIN_BTN_B);
-    if (!a && last_a) { a_down = millis(); hud.on_select(); }          // A short = select
-    if (a && !last_a && a_down) {                                       // A released
-        if (millis() - a_down > 600) hud.on_long_back();               // A long = back/stop
-        a_down = 0;
-    }
-    if (!b && last_b) hud.on_cancel();                                  // B short = cancel/back
-    last_a=a; last_b=b;
+    uint32_t now = millis();
+    // buttons are active-low; detector wants pressed=true
+    cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
+    cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
+    if (ga) hud.fire_gesture(0, ga);   // A: single=OK double=photo long=video
+    if (gb) hud.fire_gesture(1, gb);   // B: single=back double=voice-note long=voice-cmd
 #ifdef ENABLE_RING
     ring.update();
     if (ring.connected()) {
         const auto& s = ring.sample();
         hud.set_health(s.hr, s.spo2, s.battery, s.battery);  // ring_batt == bead_batt slot
+    }
+#endif
+#ifdef ENABLE_IMU
+    if (imu.update()) {
+        hud.nav_head = imu.sample().heading;           // tilt/nav heading
+        int tilt = imu.scroll_tilt();
+        if (tilt != 0) hud.on_wheel(tilt);             // tilt = scroll
     }
 #endif
     if (millis()-last_hb > 5000) {

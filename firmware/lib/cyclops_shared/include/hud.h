@@ -24,7 +24,19 @@ enum Action : uint8_t {
     ACT_NOTES=1, ACT_TRANSCRIBE_START=2, ACT_TRANSLATE=3, ACT_HEALTH=4,
     ACT_NAV=5, ACT_TELEPROMPTER=6, ACT_CAMERA=7, ACT_IMAGE_ANALYSIS=8,
     ACT_SSH=9, ACT_SETTINGS=10, ACT_CONFIRM_YES=11, ACT_CONFIRM_NO=12,
-    ACT_SELECT=13, ACT_AGENT=14, ACT_AGENT_ABORT=15
+    ACT_SELECT=13, ACT_AGENT=14, ACT_AGENT_ABORT=15,
+    ACT_PHOTO=16, ACT_VIDEO=17, ACT_VOICE_NOTE=18, ACT_VOICE_CMD=19,
+    ACT_OK=20, ACT_BACK=21, ACT_CONSENT_TOGGLE=22
+};
+
+// Two buttons x three gestures = the remappable binding grid. Index:
+// [button 0=A/1=B][gesture 1=single/2=double/3=long]. Defaults implement the
+// "eye" (A: ok/photo/video) + "ear" (B: back/voice-note/voice-cmd) scheme;
+// the app overrides any cell via a DISPLAY_CMD {"kind":"bind",...}.
+struct BtnBindings {
+    uint8_t a[4] = { 0, ACT_OK,   ACT_PHOTO,      ACT_VIDEO     };  // [_,single,double,long]
+    uint8_t b[4] = { 0, ACT_BACK, ACT_VOICE_NOTE, ACT_VOICE_CMD };
+    uint8_t& cell(int btn, int g) { return btn == 0 ? a[g] : b[g]; }
 };
 
 struct Hud {
@@ -72,11 +84,14 @@ struct Hud {
     int rec_secs = 0;
     uint32_t clock = 0;
     bool recording = false, screen_on = true, bt = false, consent = true;
+    bool video = false;              // video capture active (A-long)
+    BtnBindings bindings;            // remappable 2x3 button grid (app-configurable)
 
     // callbacks: send a command byte to the brain (BLE/USB). Set by main.
     void (*send_cmd)(uint8_t act, const char* arg) = nullptr;
     void (*on_transcribe_toggle)() = nullptr;  // device starts/stops mic capture
     void (*on_agent_request)(const char* prompt) = nullptr;  // host streams answer via set_agent()
+    void (*on_note)(const char* text) = nullptr;  // fired when a note line is added (SD/log sink)
     int status_json(char* out, size_t cap) const {
         return snprintf(out, cap, "{\"t\":8,\"batt\":%u,\"chg\":%d,\"rec\":%d,\"bt\":%d,\"hr\":%d}",
                         (unsigned)bead_batt, 0, recording?1:0, bt?1:0, hr);
@@ -92,6 +107,7 @@ struct Hud {
         if (note_count >= MAX_NOTES) { memmove(notes[0], notes[1], (MAX_NOTES-1)*(NCOLS+1)); note_count = MAX_NOTES-1; }
         int n = 0; while (t[n] && n < NCOLS) { notes[note_count][n] = t[n]; ++n; }
         notes[note_count][n] = 0; note_count++;
+        if (on_note) on_note(notes[note_count-1]);
     }
     void set_detail(const char* t) {
         detail_len = 0; while (t && t[detail_len] && detail_len < DETAIL-1) { detail[detail_len] = t[detail_len]; ++detail_len; }
@@ -139,6 +155,13 @@ struct Hud {
             if (strstr(k, "\"consent\"")) {
                 const char* v = strstr(k, "\"on\"");
                 set_consent(v ? atoi(v + 5) != 0 : true);
+                return;
+            }
+            if (strstr(k, "\"bind\"")) {
+                const char* pb = strstr(k, "\"btn\":");
+                const char* pg = strstr(k, "\"g\":");
+                const char* pa = strstr(k, "\"act\":");
+                if (pb && pg && pa) set_binding(atoi(pb+6), atoi(pg+4), (uint8_t)atoi(pa+6));
                 return;
             }
         }
@@ -233,6 +256,42 @@ struct Hud {
         }
     }
     void on_nod() { wake(); if (!recording && !consent) { toast("consent off", 2); return; } recording = !recording; if (recording) { rec_secs = 0; cmd(ACT_TRANSCRIBE_START); if (on_transcribe_toggle) on_transcribe_toggle(); } }   // quick capture toggle
+
+    // ---- button gestures (remappable). btn 0=A, 1=B; g 1=single/2=double/3=long ----
+    void set_binding(int btn, int g, uint8_t act) {
+        if (btn < 0 || btn > 1 || g < 1 || g > 3) return;
+        bindings.cell(btn, g) = act;
+    }
+    void fire_gesture(int btn, int g) {
+        if (btn < 0 || btn > 1 || g < 1 || g > 3) return;
+        do_action(bindings.cell(btn, g));
+    }
+    // Run one bound action. Menu/nav actions steer the HUD; capture/agent
+    // actions gate on consent and notify the brain via cmd().
+    void do_action(uint8_t act) {
+        wake();
+        switch (act) {
+            case ACT_OK:     on_select(); break;
+            case ACT_BACK:   on_cancel(); break;
+            case ACT_PHOTO:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("photo", 2); cmd(ACT_PHOTO); break;
+            case ACT_VIDEO:
+                if (!consent) { toast("consent off", 2); break; }
+                video = !video; toast(video ? "video on" : "video off", 2); cmd(ACT_VIDEO); break;
+            case ACT_VOICE_NOTE:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("voice note", 2); cmd(ACT_VOICE_NOTE);
+                if (on_transcribe_toggle) on_transcribe_toggle(); break;
+            case ACT_VOICE_CMD:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("listening", 2); set_detail(""); push(AGENT); cmd(ACT_VOICE_CMD);
+                if (on_transcribe_toggle) on_transcribe_toggle(); break;
+            case ACT_CONSENT_TOGGLE:
+                set_consent(!consent); toast(consent ? "consent on" : "consent off", 2); break;
+            default: if (act) cmd(act); break;
+        }
+    }
 
     void set_health(int h, int s, int rb, int bb) { hr = h; spo2 = s; ring_batt = rb; bead_batt = bb; }
     // Incoming MSG_HEALTH_SAMPLE (phone->wearable relay, P2-C): parse

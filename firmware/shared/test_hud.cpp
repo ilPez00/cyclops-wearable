@@ -2,6 +2,7 @@
 #include "hud.h"
 #include "screen.h"
 #include "ring_proto.h"
+#include "gestures.h"
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -315,8 +316,46 @@ int main() {
      assert(hr.hr == 80);
      assert(hr.spo2 == 96);   // unchanged (spo2=0 treated as absent)
      assert(hr.ring_batt == 88);
- }
+     }
 
-printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
+     // ---- gesture engine: single / double / long detection ----
+     {
+         // single: tap, then wait past the double window -> SINGLE fires
+         GestureDetector g;
+         assert(g.poll(false, 0)  == G_NONE);
+         assert(g.poll(true,  5)  == G_NONE);   // down
+         assert(g.poll(false, 20) == G_NONE);   // release -> pending (waiting for 2nd tap)
+         assert(g.poll(false, 321) == G_SINGLE); // double window passed -> single
+         // double: two taps within the double window
+         GestureDetector g2;
+         assert(g2.poll(true, 400)  == G_NONE);  // down
+         assert(g2.poll(false, 410) == G_NONE);  // up -> pending (last_tap=410)
+         assert(g2.poll(true, 420)  == G_NONE);  // 2nd down
+         assert(g2.poll(false, 430) == G_DOUBLE); // 2nd up within window -> double
+         // long: hold past the long threshold
+         GestureDetector g3;
+         assert(g3.poll(true, 500) == G_NONE);
+         assert(g3.poll(true, 1100) == G_LONG);   // held 600ms -> long
+         assert(g3.poll(false, 1110) == G_NONE);
+     }
+
+     // ---- button bindings: defaults + remap via DISPLAY_CMD 'bind' ----
+     {
+         int before = ncmd;
+         Hud hb; hb.send_cmd = on_cmd; hb.init();
+         // default A-double(2) = PHOTO(16)
+         hb.fire_gesture(0, 2);
+         assert(cmds[ncmd-1] == ACT_PHOTO);
+         // default B-double(2) = VOICE_NOTE(18)
+         int nbefore = ncmd; hb.fire_gesture(1, 2);
+         assert(cmds[ncmd-1] == ACT_VOICE_NOTE);
+         // remap A-long(3) from VIDEO(17) to NAV(5) via bind cmd, then fire
+         hb.apply_display_cmd("{\"kind\":\"bind\",\"btn\":0,\"g\":3,\"act\":5}");
+         hb.fire_gesture(0, 3);
+         assert(cmds[ncmd-1] == ACT_NAV);
+         (void)before; (void)nbefore;
+     }
+
+     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }
