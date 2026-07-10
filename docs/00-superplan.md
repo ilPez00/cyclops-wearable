@@ -2,7 +2,7 @@
 
 > Single source of truth for the Cyclops project: what it is, what's built,
 > what the gaps are, and the prioritized roadmap. Living document — update as
-> tracks close. Last revised: 2026-07-08.
+> tracks close. Last revised: 2026-07-10.
 
 ## 0. One-line definition
 Cyclops is a **personal AI router** that takes text / audio / images from you
@@ -71,9 +71,8 @@ three shells — no logic fork.
 - **P2-B** multi-source context fusion (`ContextAssembler`: notes + health + calendar).
 - **P2-C** phone→wearable health relay (`MSG_HEALTH_SAMPLE` → `on_health_sample`; zero = absent).
 - **P2-D** offline-safe `make flash` (`ENABLE_RING`/`SCREEN` flags) + `docs/flash-xiao.md`.
-- **Tests: 170 passed, 0 failed** (Python full suite) + firmware host gate green.
-  Code on the `cyclops` branch of `github.com/ilPez00/ayu`; `master` carries
-  >100MB legacy binaries (see §6 / T4.10).
+- **Tests: 173 passed, 0 failed** (Python full suite) + firmware host gate green.
+   Code on `main` branch of `github.com/ilPez00/cyclops-wearable`.
 
 ## 4. Tool inventory (capabilities.py — drives UI customization)
 | tool | domain | status |
@@ -157,6 +156,12 @@ three shells — no logic fork.
 - Real XIAO flash + I2S mic field test (T1.1).
 - Live Ollama llava vision test (T2.6).
 - Kotlin `:core:test` (no local gradle 8.9; CI covers it).
+
+**Pending / discovered:**
+- T5.1: `agent/learning.py` needs automated tests (daemon thread + offline-safe fallback).
+- T5.2: `hermes_home` / `digigio_home` config keys are dead — `MemoryStore` uses `memory_root`. Either remove dead keys or wire them as aliases.
+- T5.3: End-to-end BLE streaming (brain server ↔ BleTransport ↔ real wearable). Transport glue exists but unverified.
+- T5.4: OTA firmware header (`ota.h`) + tests (`test_ota.cpp`) are untracked — integrate into build&test.
 
 ## 7. How to run / verify today
 - Agent/TUI: `cd cyclops && python3 shells/tui/cyclops_tui.py` (or `CYCLOPS_LOCAL=1`).
