@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cyclops design tokens. Secondary >= 7:1 on surface (WCAG AA). -->
+    <color name="cyclops_primary">#00E5FF</color>
+    <color name="cyclops_secondary">#B3B3B3</color>
+    <color name="cyclops_surface">#0A0E12</color>
+    <color name="cyclops_surface_variant">#0A2A33</color>
+    <color name="cyclops_on_surface">#FFFFFF</color>
+    <color name="cyclops_accent">#7CFFB2</color>
+    <color name="cyclops_warning">#FFB300</color>
+    <color name="cyclops_error">#FF5252</color>
+</resources>

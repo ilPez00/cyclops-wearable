@@ -75,7 +75,7 @@
         android:text="@string/empty"
         android:visibility="gone"
         android:gravity="center"
-        android:textColor="#888" />
+        android:textColor="@color/cyclops_secondary" />
 
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/editIngest"
