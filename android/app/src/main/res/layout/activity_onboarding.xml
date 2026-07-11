@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="#0A0E12">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Welcome to Cyclops"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#00E5FF" />
+
+    <!-- page 0: the two buttons -->
+    <LinearLayout
+        android:id="@+id/page0"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Two buttons. That's it."
+            android:textSize="16sp"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="A · EYE  — look / photo / video"
+            android:textSize="15sp"
+            android:textColor="#B3B3B3" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="B · EAR  — back / voice note / voice cmd"
+            android:textSize="15sp"
+            android:textColor="#B3B3B3" />
+    </LinearLayout>
+
+    <!-- page 1: gestures -->
+    <LinearLayout
+        android:id="@+id/page1"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Each button, three ways"
+            android:textSize="16sp"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="single tap · double tap · long press"
+            android:textSize="15sp"
+            android:textColor="#B3B3B3" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Remap any of the 6 slots from the app."
+            android:textSize="15sp"
+            android:textColor="#B3B3B3" />
+    </LinearLayout>
+
+    <!-- page 2: live + done -->
+    <LinearLayout
+        android:id="@+id/page2"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Mirror &amp; memory"
+            android:textSize="16sp"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="See the live HUD, browse memories, drop the widget on your home screen."
+            android:textSize="15sp"
+            android:textColor="#B3B3B3" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnOnboardNext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Next" />
+
+</LinearLayout>

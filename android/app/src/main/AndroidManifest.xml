@@ -43,6 +43,11 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <receiver
             android:name=".HudWidgetProvider"
             android:exported="false">
