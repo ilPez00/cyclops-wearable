@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.btnSettings.setOnClickListener { showSettings() }
-        binding.btnMemory.setOnClickListener { showMemory() }
+        binding.btnMemory.setOnClickListener { startActivity(Intent(this, MemoryActivity::class.java)) }
         binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
         binding.btnHud.setOnClickListener { startActivity(Intent(this, HudMirrorActivity::class.java)) }
         binding.btnRemap.setOnClickListener { startActivity(Intent(this, RemapActivity::class.java)) }
