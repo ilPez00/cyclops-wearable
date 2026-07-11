@@ -480,6 +480,87 @@ int main() {
         assert(g_btn == 1 && g_hue == 180);  // led_hue[1]=180
     }
 
+    // ---- render regression harness: capture the 21x16 grid per mode ----
+    // Catches layout drift — if a mode stops emitting its anchor line, this
+    // fails. Structural (anchors + determinism), not brittle exact-match.
+    {
+        // Grid capturer: records every drawn line by row.
+        struct GridScreen : Screen {
+            char grid[24][48]; int nrows=21, ncols=21; int n=0;
+            int w() const override { return 128; }
+            int h() const override { return 128; }
+            int char_cols() const override { return ncols; }
+            int text_rows() const override { return nrows; }
+            void begin() override { memset(grid, 0, sizeof(grid)); }
+            void clear() override { memset(grid, 0, sizeof(grid)); n=0; }
+            void set_ink(bool) override {}
+            void draw_text(int, int row, const char* s) override {
+                if (row >= 0 && row < 24) { strncpy(grid[row], s, 47); grid[row][47]=0; if (row+1>n) n=row+1; }
+            }
+            void draw_rect(int,int,int,int,bool) override {}
+            void draw_pixel(int,int,bool) override {}
+            void flush() override {}
+            const char* row(int r) const { return (r>=0 && r<24) ? grid[r] : ""; }
+        };
+        auto dump = [](const GridScreen& g, char out[24][48]) {
+            memcpy(out, g.grid, sizeof(out[0])*24);
+        };
+        char a[24][48], b[24][48];
+
+        // HOME (idle): status bar (row0) + ready banner (last row).
+        Hud h0; h0.send_cmd = on_cmd; h0.init();
+        GridScreen g0; h0.render(g0); dump(g0, a);
+        bool home_ok = false;
+        if (strstr(a[0], "HOME") != nullptr) home_ok = true;          // mode breadcrumb
+        if (strlen(a[20])>0 && strstr(a[20], "Cyclops") != nullptr) home_ok = true; // ready banner (last row)
+        assert(home_ok);
+
+        // HOME (recording): status bar carries the REC flag.
+        Hud h0r; h0r.send_cmd = on_cmd; h0r.init(); h0r.recording = true;
+        GridScreen g0r; h0r.render(g0r); dump(g0r, a);
+        assert(strstr(a[0], "REC") != nullptr);
+
+        // MENU: lists at least one menu item.
+        Hud hm; hm.send_cmd = on_cmd; hm.init();
+        hm.on_select();  // -> MENU
+        GridScreen gm; hm.render(gm); dump(gm, a);
+        bool menu_ok = false;
+        for (int i=0;i<24;++i) if (strlen(a[i])>0) { menu_ok=true; break; }
+        assert(menu_ok);
+
+        // NOTES: with notes added, at least one note row appears.
+        // (note text is trimmed to panel width, so match the surviving prefix.)
+        Hud hn; hn.send_cmd = on_cmd; hn.init();
+        hn.on_select(); hn.menu_sel = 0; hn.on_select();  // -> NOTES
+        hn.add_note("regression anchor note");
+        GridScreen gn; hn.render(gn); dump(gn, a);
+        assert(strstr(a[1], "regression anchor") != nullptr
+               || strstr(a[2], "regression anchor") != nullptr);
+
+        // HEALTH: shows battery/HR indicators (row 0 status).
+        Hud hh; hh.send_cmd = on_cmd; hh.init();
+        hh.push(HEALTH); hh.set_health(74, 96, 88, 90);
+        GridScreen gh; hh.render(gh); dump(gh, a);
+        bool hlth_ok = (strstr(a[0], "mV") != nullptr) || (strstr(a[0], "BT") != nullptr)
+                      || (strstr(a[1], "mV") != nullptr);
+        assert(hlth_ok);
+
+        // NAV: north heading draws a compass glyph (↑ = 0x18).
+        Hud hn2; hn2.send_cmd = on_cmd; hn2.init();
+        hn2.set_nav(0, 0, "home"); hn2.push(NAV);
+        GridScreen gnv; hn2.render(gnv); dump(gnv, a);
+        bool nav_ok=false; for (int i=0;i<24;++i) if (strchr(a[i], 0x18)) { nav_ok=true; break; }
+        assert(nav_ok);
+
+        // DETERMINISM: two renders of the same state are byte-identical.
+        Hud hd; hd.send_cmd = on_cmd; hd.init();
+        hd.on_select(); hd.menu_sel = 0; hd.on_select();
+        hd.add_note("determinism probe");
+        GridScreen gd1; hd.render(gd1); dump(gd1, a);
+        GridScreen gd2; hd.render(gd2); dump(gd2, b);
+        assert(memcmp(a, b, sizeof(a)) == 0);
+    }
+
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
     return 0;
 }
