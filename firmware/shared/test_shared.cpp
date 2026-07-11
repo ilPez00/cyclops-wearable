@@ -21,6 +21,14 @@ int main() {
     frames=0; uint8_t bad[128]; memcpy(bad,buf,k); bad[6]^=0xFF;
     for (size_t i=0;i<k;++i) dec.push(bad[i]);
     assert(frames==0); printf("PASS shared crc reject\n");
+    // oversized declared length must not wedge the decoder forever
+    frames=0;
+    const uint8_t big_hdr[5] = {0xAA, 0x55, 0x2C, 0x01, MSG_PEER_HELLO}; // len=300 > buf capacity
+    for (size_t i=0;i<sizeof(big_hdr);++i) dec.push(big_hdr[i]);
+    for (int i=0;i<400;++i) dec.push(0x00); // junk payload bytes
+    for (size_t i=0;i<k;++i) dec.push(buf[i]); // then a valid frame
+    assert(frames==1); assert(ltype==MSG_PEER_HELLO);
+    printf("PASS shared oversized-frame recovery\n");
     UiState ui; ui.init();
     ui.add_note("Buy milk"); ui.add_note("Call mom"); ui.add_note("Ship v2");
     assert(ui.note_count==3);

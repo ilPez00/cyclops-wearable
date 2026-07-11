@@ -87,6 +87,8 @@ struct Hud {
     int led_hue[2] = {0, 200};        // per-button LED hue (0..360) for the paired LED
     Mode prev_mode = HOME;    // last-rendered mode, for transition wipe
     int trans_frame = 0;        // transition wipe frame counter (0..3)
+    int low_frame = 0;        // low-battery flash counter (member: template statics diverge per screen type)
+    int rec_pulse = 0;        // REC indicator pulse counter (member for the same reason)
     uint32_t clock = 0;
     bool recording = false, screen_on = true, bt = false, consent = true;
     bool charging = false;            // bead/ring battery charging state
@@ -377,7 +379,7 @@ struct Hud {
     // side by side. Flash a '!' when either is critically low (<20%). charging
     // adds a '+' suffix. Monochrome-safe (no emoji).
     template<typename S>
-    static void drawBatteryIcon(S& scr, int x, int y, int ring_level, int bead_level, bool charging) {
+    static void drawBatteryIcon(S& scr, int x, int y, int ring_level, int bead_level, bool charging, int frame) {
         int bl = bead_level > 0 ? bead_level : ring_level;   // effective level
         int rl = ring_level > 0 ? ring_level : bead_level;
         // bead (main): 14x7 body
@@ -391,9 +393,8 @@ struct Hud {
         int rw = (int)(8 * clamp(rl, 0, 100) / 100.f);
         if (rw > 0) scr.fill_rect(x + 21, y + 2, rw, 3, true);
         // critical low-battery flash
-        static int low_frame = 0; ++low_frame;
         bool crit = (bl > 0 && bl < 20) || (rl > 0 && rl < 20);
-        if (crit && (low_frame % 8) < 4) scr.draw_text(x + 33, y, "!");
+        if (crit && (frame % 8) < 4) scr.draw_text(x + 33, y, "!");
         if (charging) scr.draw_text(x + 33, y, "+");
     }
 
@@ -494,7 +495,7 @@ struct Hud {
                 trim(st, cols); scr.draw_text(0, rows-1, st);
             }
         } else if (m == TRANSCRIBE) {
-            static int rec_pulse = 0; ++rec_pulse;
+            ++rec_pulse;
             const char* blk = (rec_pulse % 16) < 8 ? "\xE2\x96\x88" : "\xE2\x96\x91"; // █ / ░
             char ln[32]; snprintf(ln, sizeof(ln), "REC %d:%02d%s", rec_secs/60, rec_secs%60, blk);
             scr.draw_text(0, body, ln); body++;
@@ -510,7 +511,7 @@ struct Hud {
                 int cx = scr.w() / 2;
                 drawGauge(scr, cx - 18, body + 18, 14, hr > 0 ? (hr * 100 / 200) : 0);
                 drawGauge(scr, cx + 18, body + 18, 14, spo2);
-                drawBatteryIcon(scr, 2, scr.h() - 10, ring_batt, bead_batt, charging);
+                drawBatteryIcon(scr, 2, scr.h() - 10, ring_batt, bead_batt, charging, ++low_frame);
             }
         } else if (m == NAV) {
             char ln[32]; snprintf(ln, sizeof(ln), "%s %dm", nav_arrow(nav_head), nav_dist); scr.draw_text(0,body,ln);
@@ -527,7 +528,7 @@ struct Hud {
         }
         // transient toast overlay (last row) wins over body content
         if (toast_ttl > 0) {
-            char ln[TOAST]; snprintf(ln, sizeof(ln), "* %s", toast_msg);
+            char ln[TOAST + 2]; snprintf(ln, sizeof(ln), "* %s", toast_msg); // "* " + 47-char max msg + nul = 50
             trim(ln, cols); scr.draw_text(0, rows-1, ln);
         }
         scr.flush();

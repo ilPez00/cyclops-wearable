@@ -63,7 +63,8 @@ public:
             case M2: st_ = (b == 0x55) ? L1 : (b == 0xAA ? M2 : M1); break;
             case L1: len_ = b; st_ = L2; break;
             case L2: len_ = (uint16_t)(len_ | ((uint16_t)b << 8)); got_ = 0; st_ = T; break;
-            case T:  type_ = b; buf_[0] = (uint8_t)(len_ & 0xFF); buf_[1] = (uint8_t)(len_ >> 8); buf_[2] = type_; got_ = 3; st_ = (len_ ? P : CR1); break;
+            case T:  if (len_ > sizeof(buf_) - 3) { reset(); break; } // reject frames larger than buffer: decoder would never drain them
+                     type_ = b; buf_[0] = (uint8_t)(len_ & 0xFF); buf_[1] = (uint8_t)(len_ >> 8); buf_[2] = type_; got_ = 3; st_ = (len_ ? P : CR1); break;
             case P:
                 if (got_ < sizeof(buf_)) buf_[got_++] = b;
                 if (got_ - 3 >= len_) st_ = CR1;
