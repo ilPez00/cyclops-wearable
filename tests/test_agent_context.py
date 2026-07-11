@@ -3,6 +3,7 @@
 Verifies the live ContextAssembler is injected into the agent's system block
 and exposed via the `context` tool, without needing a live model/router.
 """
+
 import json
 import os
 import sys
@@ -39,7 +40,8 @@ def test_agent_without_context_is_fine():
 
 def test_context_tool_registered_and_reports():
     asm = ContextAssembler().set_health(
-        HealthAggregator().from_colmi(hr=68, spo2=97, battery=80, ts=1))
+        HealthAggregator().from_colmi(hr=68, spo2=97, battery=80, ts=1)
+    )
     reg = build_registry(AgentConfig(), context_assembler=asm)
     assert "context" in reg.names()
     out = reg.run("context", {"action": "show"})

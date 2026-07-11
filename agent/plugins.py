@@ -8,6 +8,7 @@ but degrades gracefully to an offline stub (no network required).
 No remote code execution: "install" only drops a *validated manifest* into the
 plugin dir; the host loads behavior from manifests it already trusts.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,8 +49,18 @@ class PluginManifest:
 
     @classmethod
     def from_dict(cls, d: dict, source: str = "") -> "PluginManifest":
-        known = {k: d.get(k, "") for k in
-                 ("name", "version", "kind", "description", "author", "entry", "source")}
+        known = {
+            k: d.get(k, "")
+            for k in (
+                "name",
+                "version",
+                "kind",
+                "description",
+                "author",
+                "entry",
+                "source",
+            )
+        }
         known["capabilities"] = d.get("capabilities", []) or []
         known["source"] = source or d.get("source", "")
         return cls(**known)
@@ -88,7 +99,9 @@ class PluginRegistry:
     def install(self, manifest: PluginManifest) -> str:
         """Drop a validated manifest into the registry dir. Returns its path."""
         if manifest.validate():
-            raise ValueError("refuse to install invalid plugin: " + "; ".join(manifest.validate()))
+            raise ValueError(
+                "refuse to install invalid plugin: " + "; ".join(manifest.validate())
+            )
         path = os.path.join(self.plugin_dir, f"{manifest.name}.plugin.json")
         with open(path, "w", encoding="utf-8") as f:
             f.write(manifest.to_json())

@@ -1,4 +1,5 @@
 """Tools: web search + fetch (injectable transport, offline-safe)."""
+
 from __future__ import annotations
 
 import json
@@ -53,17 +54,20 @@ def make_web_tool(config=None, session=None) -> Tool:
 
 def _enc(s: str) -> str:
     import urllib.parse as p
+
     return p.quote(s)
 
 
 def _snippet(html: str, n: int) -> str:
     import re
+
     titles = re.findall(r"result__a[^>]*>(.*?)</a>", html)
     return " | ".join(t.replace("<.*?>", "") for t in titles)[:n] or html[:n]
 
 
 def _to_text(html: str) -> str:
     import re
+
     html = re.sub(r"<(script|style).*?</\1>", " ", html, flags=re.S | re.I)
     html = re.sub(r"<[^>]+>", " ", html)
     return re.sub(r"\s+", " ", html).strip()

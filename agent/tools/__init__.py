@@ -4,6 +4,7 @@ Mirrors Hermes: tools are discovered and registered centrally. The session arg
 is an injectable HTTP transport used by device/brain/vision tools for offline
 tests. `disable` lets the UI/TUI customize which tools are active.
 """
+
 from __future__ import annotations
 
 from ..config import AgentConfig
@@ -30,9 +31,14 @@ from .web import make_web_tool
 from .whatsapp import make_whatsapp_tool
 
 
-def build_registry(config: AgentConfig, session=None, confirm=None,
-                   disable: set[str] | None = None, agent=None,
-                   context_assembler=None) -> ToolRegistry:
+def build_registry(
+    config: AgentConfig,
+    session=None,
+    confirm=None,
+    disable: set[str] | None = None,
+    agent=None,
+    context_assembler=None,
+) -> ToolRegistry:
     disable = disable or set()
     reg = ToolRegistry()
     factories = {

@@ -1,4 +1,5 @@
 """Offline tests for the vision tool (local Ollama path + cloud + stub)."""
+
 import json
 import os
 import sys
@@ -10,12 +11,17 @@ from agent.tools.vision import make_vision_tool
 
 
 class Resp:
-    def __init__(self, d): self._d = d
-    def json(self): return self._d
+    def __init__(self, d):
+        self._d = d
+
+    def json(self):
+        return self._d
 
 
 class Session:
-    def __init__(self): self.last = None
+    def __init__(self):
+        self.last = None
+
     def post(self, url, data=None, headers=None, timeout=30):
         self.last = (url, json.loads(data), headers)
         return Resp({"choices": [{"message": {"content": "a red apple on a table"}}]})
@@ -29,7 +35,9 @@ def test_offline_stub():
 
 
 def test_local_ollama_path():
-    cfg = AgentConfig(); cfg.local_mode = True; cfg.local_base_url = "http://localhost:11434/v1"
+    cfg = AgentConfig()
+    cfg.local_mode = True
+    cfg.local_base_url = "http://localhost:11434/v1"
     s = Session()
     tool = make_vision_tool(cfg, session=s)
     out = tool.run({"image": "data:image/png;base64,AAAA", "prompt": "describe"})
@@ -41,8 +49,10 @@ def test_local_ollama_path():
 
 
 def test_cloud_path_uses_provider():
-    cfg = AgentConfig(); cfg.local_mode = False
-    cfg.api_key = "sk-test"; cfg.base_url = "https://api.openai.com/v1"
+    cfg = AgentConfig()
+    cfg.local_mode = False
+    cfg.api_key = "sk-test"
+    cfg.base_url = "https://api.openai.com/v1"
     s = Session()
     tool = make_vision_tool(cfg, session=s)
     out = tool.run({"image": "http://x/a.jpg"})
@@ -51,11 +61,11 @@ def test_cloud_path_uses_provider():
     assert url == "https://api.openai.com/v1/chat/completions"
 
 
-
 def _probe_local_vlm(base_url):
     """Return a usable VLM model name if a local Ollama serves one, else None."""
     import json as _json
     import urllib.request
+
     try:
         with urllib.request.urlopen(base_url.rstrip("/") + "/models", timeout=3) as r:
             models = _json.loads(r.read()).get("data", [])
@@ -76,12 +86,14 @@ def test_vision_live_ollama_smoke():
     import io
     import os
     import urllib.request
+
     try:
         import PIL  # skip live vision test when Pillow absent (CI)
     except ImportError:
         print("SKIP test_vision_live_ollama_smoke (Pillow absent)")
         return
-    cfg = AgentConfig(); cfg.local_mode = True
+    cfg = AgentConfig()
+    cfg.local_mode = True
     vlm = _probe_local_vlm(cfg.local_base_url)
     if vlm is None:
         # no local VLM reachable -> offline skip (counts as pass)
@@ -92,7 +104,11 @@ def test_vision_live_ollama_smoke():
     b64 = base64.b64encode(buf.getvalue()).decode()
     s = Session()
     tool = make_vision_tool(cfg, session=s)
-    out = tool.run({"image": f"data:image/png;base64,{b64}",
-                    "prompt": "What color is this image? One word."})
+    out = tool.run(
+        {
+            "image": f"data:image/png;base64,{b64}",
+            "prompt": "What color is this image? One word.",
+        }
+    )
     assert vlm in s.last[1]["model"]
     assert len(out) > 0 and "error" not in out.lower()

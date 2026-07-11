@@ -1,4 +1,5 @@
 """Tests for F5 — companion app API + factory pipeline wiring (offline)."""
+
 import json
 import os
 import sys
@@ -15,7 +16,9 @@ from http.server import ThreadingHTTPServer
 
 # load app/server.py as a module WITHOUT running main()
 REPO = os.path.dirname(os.path.dirname(__file__))
-spec = importlib.util.spec_from_file_location("appserver", os.path.join(REPO, "app", "server.py"))
+spec = importlib.util.spec_from_file_location(
+    "appserver", os.path.join(REPO, "app", "server.py")
+)
 appserver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(appserver)
 
@@ -45,8 +48,10 @@ def test_api_notes_and_ingest():
             assert st == 200 and isinstance(body, list)
             # ingest via query
             urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/api/ingest?text=" + urllib.parse.quote(
-                    "Remind me to call Marco by friday"), timeout=5).read()
+                f"http://127.0.0.1:{port}/api/ingest?text="
+                + urllib.parse.quote("Remind me to call Marco by friday"),
+                timeout=5,
+            ).read()
             st, body = _get(port, "/api/notes")
             assert any(n["type"] == "reminder" for n in body), body
         finally:
@@ -58,8 +63,13 @@ def test_api_extract_returns_candidates_gracefully():
         store = os.path.join(d, "notes.jsonl")
         srv, port = _start(store)
         try:
-            st, body = _get(port, "/api/extract?text=" + urllib.parse.quote(
-                "We decided to launch on monday. Idea: add a vibration alert."))
+            st, body = _get(
+                port,
+                "/api/extract?text="
+                + urllib.parse.quote(
+                    "We decided to launch on monday. Idea: add a vibration alert."
+                ),
+            )
             assert st == 200 and isinstance(body, list)
             types = {n["type"] for n in body}
             assert "decision" in types and "idea" in types, body

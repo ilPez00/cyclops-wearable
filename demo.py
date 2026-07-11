@@ -3,6 +3,7 @@ extracts smart notes and pushes them to the screen + store + dashboard.
 
 Run:  python3 demo.py
 """
+
 from __future__ import annotations
 
 import os
@@ -17,21 +18,29 @@ from device.simulator import DeviceSim
 
 TMP = "/tmp/cyclops_demo.jsonl"
 
+
 class FakeSerial:
-    def __init__(self): self.frames = []
-    def write(self, b): self.frames.append(b)
+    def __init__(self):
+        self.frames = []
+
+    def write(self, b):
+        self.frames.append(b)
+
 
 def main():
-    if os.path.exists(TMP): os.remove(TMP)
+    if os.path.exists(TMP):
+        os.remove(TMP)
     store = NoteStore(TMP)
     serial = FakeSerial()
-    screen = LocalScreenSink(serial)   # XIAO HUD
-    glasses = G2GlassesSink(serial)    # G2 variant
+    screen = LocalScreenSink(serial)  # XIAO HUD
+    glasses = G2GlassesSink(serial)  # G2 variant
     captured = []
+
     def on_note(n):
         captured.append(n)
-        screen.render(n)      # -> device display frame
-        glasses.render(n)     # -> G2 HUD frame
+        screen.render(n)  # -> device display frame
+        glasses.render(n)  # -> G2 HUD frame
+
     dev = DeviceSim()
     p = Pipeline(store, transcriber=StubTranscriber(), on_note=on_note)
 
@@ -47,18 +56,25 @@ def main():
         notes = p.process_text(s)
         for n in notes:
             dev.add_note(f"{n.type}: {n.text}")
-        for line in dev.screen(): print("  HUD |", line)
+        for line in dev.screen():
+            print("  HUD |", line)
 
     # simulate input events
     print("\n[INPUT] scroll down twice, then btn_a (record)")
-    dev.wheel(1); dev.wheel(1); dev.btn_a()
-    for line in dev.screen(): print("  HUD |", line)
+    dev.wheel(1)
+    dev.wheel(1)
+    dev.btn_a()
+    for line in dev.screen():
+        print("  HUD |", line)
 
-    print(f"\n=== Stored {len(store.all())} notes; frames to device: {len(serial.frames)} ===")
+    print(
+        f"\n=== Stored {len(store.all())} notes; frames to device: {len(serial.frames)} ==="
+    )
     md = store.dump_markdown("/tmp/cyclops_demo.md")
     print("Markdown export:")
     print(md)
     print("\nDemo OK.")
+
 
 if __name__ == "__main__":
     main()

@@ -7,6 +7,7 @@ progress_cb per tool call, and asserts the sink received:
   - the final "AGENT: <banner>" line
 No network/keys/device involved.
 """
+
 import json
 import os
 import sys
@@ -22,9 +23,12 @@ from brain.protocol_v2 import parse_hud
 class FakeSink:
     def __init__(self):
         self.texts = []
-        self.frames = []      # parsed v2 HUD frames (K...)
-        self.raw = []         # raw DISPLAY_CMD bytes written
-    def render_text(self, t): self.texts.append(t)
+        self.frames = []  # parsed v2 HUD frames (K...)
+        self.raw = []  # raw DISPLAY_CMD bytes written
+
+    def render_text(self, t):
+        self.texts.append(t)
+
     def write(self, b):
         self.raw.append(bytes(b))
         if b[:1] == b"K":
@@ -34,20 +38,33 @@ class FakeSink:
 def test_live_agent_streaming():
     # registry with two tools so the agent runs >1 iteration
     reg = ToolRegistry()
-    reg.register(Tool("device", "device", {"type": "object", "properties": {}}, lambda a: "ok"))
-    reg.register(Tool("web", "web", {"type": "object", "properties": {}}, lambda a: "ok"))
+    reg.register(
+        Tool("device", "device", {"type": "object", "properties": {}}, lambda a: "ok")
+    )
+    reg.register(
+        Tool("web", "web", {"type": "object", "properties": {}}, lambda a: "ok")
+    )
 
     # FakeRouter: always returns a tool_call first, then final text
     class FakeRouter:
-        def __init__(self): self.n = 0
+        def __init__(self):
+            self.n = 0
+
         def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
             from agent.models import ChatResult
+
             if self.n == 0:
                 self.n += 1
-                return ChatResult(text="", tool_calls=[{"function": {"name": "device", "arguments": "{}"}}])
+                return ChatResult(
+                    text="",
+                    tool_calls=[{"function": {"name": "device", "arguments": "{}"}}],
+                )
             if self.n == 1:
                 self.n += 1
-                return ChatResult(text="", tool_calls=[{"function": {"name": "web", "arguments": "{}"}}])
+                return ChatResult(
+                    text="",
+                    tool_calls=[{"function": {"name": "web", "arguments": "{}"}}],
+                )
             return ChatResult(text="Final answer here")
 
     agent = Agent(AgentConfig(), router=FakeRouter(), registry=reg)
@@ -64,10 +81,12 @@ def test_live_agent_streaming():
 
     # intermediate progress + step DISPLAY_CMD frames emitted
     import json as _json
+
     def _json_of(raw):
         i = raw.find(b"{")
         j = raw.rfind(b"}")
-        return _json.loads(raw[i:j+1]) if i >= 0 and j >= i else {}
+        return _json.loads(raw[i : j + 1]) if i >= 0 and j >= i else {}
+
     prog = [f for f in sink.raw if b"progress" in f]
     step = [f for f in sink.raw if b"step" in f]
     assert prog, f"no progress DISPLAY_CMD: {[r[:40] for r in sink.raw]}"
@@ -78,7 +97,10 @@ def test_live_agent_streaming():
 
     # final banner present
     assert any(t.startswith("AGENT: ") for t in sink.texts), sink.texts
-    print("OK live streaming: %d step lines, %d progress frames" % (len(step_lines), len(prog)))
+    print(
+        "OK live streaming: %d step lines, %d progress frames"
+        % (len(step_lines), len(prog))
+    )
 
 
 def test_stub_no_streaming_on_error():

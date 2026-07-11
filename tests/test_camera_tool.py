@@ -3,6 +3,7 @@
 Uses FakeCamera (no hardware) and an injectable HTTP session so the whole
 capture -> base64 -> vision path is exercised without a real camera/network.
 """
+
 import base64
 import os
 import sys
@@ -15,6 +16,7 @@ from device.camera import FakeCamera, OpenGlassCamera
 
 def test_camera_registered_in_registry():
     from agent.tools import build_registry
+
     reg = build_registry(AgentConfig())
     assert "camera" in reg.names()
     print("OK camera tool registered")
@@ -23,7 +25,9 @@ def test_camera_registered_in_registry():
 def test_fake_camera_capture_no_analyze():
     cfg = AgentConfig()
     cam = FakeCamera(b"\xff\xd8JPEGDATA\xff\xd9")
-    tool = make_camera_tool(cfg, session=None, source=cam)  # offline: returns bytes info
+    tool = make_camera_tool(
+        cfg, session=None, source=cam
+    )  # offline: returns bytes info
     out = tool.run({})
     assert "captured frame" in out and "JPEGDATA" not in out  # base64, not raw
     assert "12 bytes" in out  # len(b'\xff\xd8JPEGDATA\xff\xd9') == 12
@@ -40,8 +44,11 @@ def test_fake_camera_analyze_offline_stub():
 
 
 class FakeResp:
-    def __init__(self, payload): self._p = payload
-    def json(self): return self._p
+    def __init__(self, payload):
+        self._p = payload
+
+    def json(self):
+        return self._p
 
 
 def test_fake_camera_analyze_with_vision_session():
@@ -50,7 +57,9 @@ def test_fake_camera_analyze_with_vision_session():
 
     class S:
         def post(self, url, data=None, headers=None, timeout=None):
-            return FakeResp({"choices": [{"message": {"content": "a red apple on a table"}}]})
+            return FakeResp(
+                {"choices": [{"message": {"content": "a red apple on a table"}}]}
+            )
 
     tool = make_camera_tool(cfg, session=S(), source=cam)
     out = tool.run({"analyze": True, "prompt": "describe"})

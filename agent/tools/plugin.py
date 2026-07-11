@@ -3,6 +3,7 @@
 Offline-safe: sync falls back to a graceful 'offline' status when no network.
 No remote code execution — install only drops validated manifests.
 """
+
 from __future__ import annotations
 
 import os
@@ -12,9 +13,12 @@ from ..loop import Tool
 from ..plugins import PluginRegistry, sync_index
 
 
-def make_plugin_tool(config: AgentConfig, plugin_dir: str = None,
-                      index_url: str = None) -> Tool:
-    plugin_dir = plugin_dir or os.path.join(os.path.expanduser(config.config_dir), "plugins")
+def make_plugin_tool(
+    config: AgentConfig, plugin_dir: str = None, index_url: str = None
+) -> Tool:
+    plugin_dir = plugin_dir or os.path.join(
+        os.path.expanduser(config.config_dir), "plugins"
+    )
     index_url = index_url or getattr(config, "plugin_index_url", None)
 
     def run(args: dict) -> str:
@@ -24,8 +28,9 @@ def make_plugin_tool(config: AgentConfig, plugin_dir: str = None,
             items = reg.list()
             if not items:
                 return "no plugins installed (run: plugin sync)"
-            return "\n".join(f"- {m.name} v{m.version} [{m.kind}] {m.description}"
-                             for m in items)
+            return "\n".join(
+                f"- {m.name} v{m.version} [{m.kind}] {m.description}" for m in items
+            )
         if action == "show":
             name = args.get("name")
             m = reg.get(name) if name else None

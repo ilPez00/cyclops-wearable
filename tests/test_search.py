@@ -1,4 +1,5 @@
 """Offline tests for semantic/keyword note search (T3.1)."""
+
 import json
 import os
 import sys
@@ -13,9 +14,13 @@ from brain.store import NoteStore
 def _store():
     path = tempfile.mktemp(suffix=".jsonl")
     st = NoteStore(path)
-    texts = ["buy milk tomorrow", "call marco about the g2 glasses",
-              "ship the firmware by friday", "the battery lasts six hours",
-              "meeting notes: roadmap and priorities"]
+    texts = [
+        "buy milk tomorrow",
+        "call marco about the g2 glasses",
+        "ship the firmware by friday",
+        "the battery lasts six hours",
+        "meeting notes: roadmap and priorities",
+    ]
     for i, t in enumerate(texts):
         st.add(Note(id=f"n{i}", type="task" if "by" in t else "note", text=t))
     return st, path

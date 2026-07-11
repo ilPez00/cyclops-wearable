@@ -17,6 +17,7 @@ digiGio ``duck`` package is required — an adapter object with the methods
 ``get_persona() -> str`` and ``retrieve(query) -> list[str]`` is the only
 contract, so it works against the real brain or a test double.
 """
+
 from __future__ import annotations
 
 import json
@@ -35,14 +36,22 @@ class BridgeContext:
     ts: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict:
-        return {"persona": self.persona, "rag_chunks": self.rag_chunks,
-                "recent_turns": self.recent_turns, "source": self.source,
-                "ts": self.ts}
+        return {
+            "persona": self.persona,
+            "rag_chunks": self.rag_chunks,
+            "recent_turns": self.recent_turns,
+            "source": self.source,
+            "ts": self.ts,
+        }
 
 
 class DigigioBridge:
-    def __init__(self, adapter=None, context_path: str | None = None,
-                 on_push: Callable[[dict], None] | None = None):
+    def __init__(
+        self,
+        adapter=None,
+        context_path: str | None = None,
+        on_push: Callable[[dict], None] | None = None,
+    ):
         """
         adapter: object exposing get_persona() -> str and retrieve(q) -> list[str]
                  (the digiGio Brain satisfies this). May be None for offline use.
@@ -111,6 +120,7 @@ class DigigioAdapter:
     Imported lazily so this module stays importable even when the digigio
     package is not on the path (it lives on a separate drive).
     """
+
     def __init__(self, brain):
         self.brain = brain
 

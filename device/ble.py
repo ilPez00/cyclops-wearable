@@ -10,16 +10,15 @@ The actual radio is pluggable behind :class:`BleBackend` so the *pairing,
 subscribe, dispatch and write* logic is fully testable offline with
 :class:`FakeBleBackend` (no bluez / no hardware required).
 """
+
 from __future__ import annotations
 
 import json
 import os
 
 # Shared with firmware/xiao (NimBLE UUIDs) and Android CyclopsService.
-SRVC_UUID = os.environ.get("CYCLOPS_BLE_SRVC",
-                           "4fafc201-1fb5-459e-8fcc-c5c9c331914b")
-NOTE_UUID = os.environ.get("CYCLOPS_BLE_NOTE",
-                           "beb5483e-36e1-4688-b7f5-ea07361b26a8")
+SRVC_UUID = os.environ.get("CYCLOPS_BLE_SRVC", "4fafc201-1fb5-459e-8fcc-c5c9c331914b")
+NOTE_UUID = os.environ.get("CYCLOPS_BLE_NOTE", "beb5483e-36e1-4688-b7f5-ea07361b26a8")
 DEVICE_NAME = os.environ.get("CYCLOPS_BLE_NAME", "CyclopsXIAO")
 
 
@@ -30,10 +29,13 @@ class BleBackend:
     characteristic, and calls ``on_bytes(chunk)`` for every notification. Writes
     go back as raw bytes on the same characteristic.
     """
+
     def connect(self, on_bytes, timeout=20):
         raise NotImplementedError
+
     def write(self, data: bytes):
         raise NotImplementedError
+
     def disconnect(self):
         pass
 
@@ -41,6 +43,7 @@ class BleBackend:
 class FakeBleBackend(BleBackend):
     """In-memory backend: you push bytes in, it delivers them to the link's
     ``on_bytes`` callback; writes are captured in ``written`` for assertions."""
+
     def __init__(self):
         self.on_bytes = None
         self.connected = False
@@ -76,8 +79,14 @@ class BleLink:
     codebases (no plain-JSON divergence).
     """
 
-    def __init__(self, bridge, backend: "BleBackend | None" = None,
-                 srvc=SRVC_UUID, note=NOTE_UUID, timeout=20):
+    def __init__(
+        self,
+        bridge,
+        backend: "BleBackend | None" = None,
+        srvc=SRVC_UUID,
+        note=NOTE_UUID,
+        timeout=20,
+    ):
         self.bridge = bridge
         self.backend = backend or FakeBleBackend()
         self.srvc = srvc
@@ -86,6 +95,7 @@ class BleLink:
         self.paired = False
         self.connected = False
         from brain.protocol import Decoder
+
         self._decoder = Decoder(self._on_frame)
 
     def connect(self):
@@ -120,6 +130,7 @@ class BleLink:
         import json
 
         from brain.protocol import encode
+
         payload = json.dumps({"a": cmd, "arg": arg}).encode("utf-8")
         frame = encode(9, payload)
         self.backend.write(frame)
@@ -145,12 +156,17 @@ class BleTransport:
 
     name = "ble"
 
-    def __init__(self, bridge=None, backend=None, srvc="", note="", name="",
-                 timeout=20):
+    def __init__(
+        self, bridge=None, backend=None, srvc="", note="", name="", timeout=20
+    ):
         self.bridge = bridge
-        self.link = BleLink(bridge=bridge, backend=backend,
-                            srvc=srvc or SRVC_UUID, note=note or NOTE_UUID,
-                            timeout=timeout)
+        self.link = BleLink(
+            bridge=bridge,
+            backend=backend,
+            srvc=srvc or SRVC_UUID,
+            note=note or NOTE_UUID,
+            timeout=timeout,
+        )
         self.device_name = name or DEVICE_NAME
 
     def connect(self):
@@ -164,12 +180,22 @@ class BleTransport:
         return self.link.send_cmd(14, text)
 
     def request(self, path: str) -> dict:
-        return {"ok": True, "transport": "ble",
-                "note": "streaming link; use wifi for REST"}
+        return {
+            "ok": True,
+            "transport": "ble",
+            "note": "streaming link; use wifi for REST",
+        }
 
     def close(self):
         self.link.close()
 
 
-__all__ = ["BleBackend", "FakeBleBackend", "BleLink", "BleTransport",
-           "SRVC_UUID", "NOTE_UUID", "DEVICE_NAME"]
+__all__ = [
+    "BleBackend",
+    "FakeBleBackend",
+    "BleLink",
+    "BleTransport",
+    "SRVC_UUID",
+    "NOTE_UUID",
+    "DEVICE_NAME",
+]

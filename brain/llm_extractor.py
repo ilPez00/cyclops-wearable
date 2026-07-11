@@ -12,6 +12,7 @@ Both :func:`extract` (rule) and :class:`LLMExtractor.extract` return
 ``list[Note]``; the ``Note`` gains two optional fields (``confidence``,
 ``candidate``) that the store and display layers ignore gracefully.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ from .extractor import NOTE_TYPES, Note, _resolve_due
 
 class LLMClientError(RuntimeError):
     """Raised when no LLM provider is configured or the endpoint is missing."""
+
 
 SYSTEM_PROMPT = """You are a meeting-memory extractor for a wearable AI note-taker.
 Given a transcript segment, extract structured items. For each item return JSON:
@@ -47,23 +49,33 @@ class LLMClient:
     config (mistral, groq, deepinfra, together, openrouter, ...). The transport
     is injectable for offline testing.
     """
+
     def __init__(self, keys=None, provider: str = "groq", session=None):
         from .aikeys import AiKeys
+
         self.keys = keys or AiKeys()
         self.provider = provider
         self.session = session or _urllib_session()
 
-    def complete(self, messages: list[dict], model: str = "llama-3.3-70b-versatile",
-                 temperature: float = 0.0) -> str:
+    def complete(
+        self,
+        messages: list[dict],
+        model: str = "llama-3.3-70b-versatile",
+        temperature: float = 0.0,
+    ) -> str:
         prov = self.keys.provider(self.provider)
         if not prov["key"] and not prov["endpoint"]:
             raise LLMClientError(f"no LLM configured for provider {self.provider}")
         endpoint = prov["endpoint"] or "https://api.openai.com/v1"
         url = endpoint.rstrip("/") + "/chat/completions"
-        headers = {"Authorization": f"Bearer {prov['key']}",
-                   "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {prov['key']}",
+            "Content-Type": "application/json",
+        }
         payload = {"model": model, "messages": messages, "temperature": temperature}
-        resp = self.session.post(url, data=json.dumps(payload).encode(), headers=headers, timeout=30)
+        resp = self.session.post(
+            url, data=json.dumps(payload).encode(), headers=headers, timeout=30
+        )
         data = resp.json()
         try:
             return data["choices"][0]["message"]["content"]
@@ -78,12 +90,17 @@ class LLMExtractor:
     to the rule-based extractor so the pipeline keeps producing notes.
     """
 
-    def __init__(self, keys=None, provider: str = "groq",
-                 client: "LLMClient | None" = None,
-                 fallback: Callable[[str], list[Note]] | None = None,
-                 model: str = "llama-3.3-70b-versatile"):
+    def __init__(
+        self,
+        keys=None,
+        provider: str = "groq",
+        client: "LLMClient | None" = None,
+        fallback: Callable[[str], list[Note]] | None = None,
+        model: str = "llama-3.3-70b-versatile",
+    ):
         from .aikeys import AiKeys
         from .extractor import extract as _rule_extract
+
         self.keys = keys or AiKeys()
         self.provider = provider
         self.client = client or LLMClient(keys=self.keys, provider=provider)
@@ -95,12 +112,18 @@ class LLMExtractor:
         if not text or not text.strip():
             return []
         try:
-            if not (self.keys.get_key(self.provider) or self.keys.get_endpoint(self.provider)):
+            if not (
+                self.keys.get_key(self.provider)
+                or self.keys.get_endpoint(self.provider)
+            ):
                 return self._fallback(text)
             raw = self.client.complete(
-                [{"role": "system", "content": SYSTEM_PROMPT},
-                 {"role": "user", "content": text}],
-                model=self.model)
+                [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+                model=self.model,
+            )
             return self._parse(raw, text)
         except Exception:
             # never let extraction break the pipeline (premortem #5 + #10)
@@ -126,14 +149,23 @@ class LLMExtractor:
             due = it.get("due") or _resolve_due(it.get("text", ""))
             conf = float(it.get("confidence", 0.5))
             nid = ts.replace(":", "").replace("-", "").replace(".", "") + f"L{i}"
-            notes.append(Note(
-                id=nid, type=t, text=str(it.get("text", "")).strip() or text[:80],
-                created=ts, due=due, source="llm",
-                confidence=round(conf, 2), candidate=True))
+            notes.append(
+                Note(
+                    id=nid,
+                    type=t,
+                    text=str(it.get("text", "")).strip() or text[:80],
+                    created=ts,
+                    due=due,
+                    source="llm",
+                    confidence=round(conf, 2),
+                    candidate=True,
+                )
+            )
         return notes
 
 
 # ---- stdlib HTTP session (shared) ----------------------------------------
 def _urllib_session():
     from .http_session import stdlib_session
+
     return stdlib_session()

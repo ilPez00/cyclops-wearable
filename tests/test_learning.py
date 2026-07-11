@@ -6,6 +6,7 @@
 - async_ok=True spawns daemon thread and returns {} immediately.
 No network/keys.
 """
+
 import json
 import os
 import sys
@@ -19,6 +20,7 @@ from agent.learning import _extract_json, learn_from_turn, learn_recent
 from agent.memory import MemoryStore
 
 # -- _extract_json tests ------------------------------------------------
+
 
 def test_extract_plain_json():
     obj = _extract_json('{"user":["likes coffee"],"agent":[]}')
@@ -40,7 +42,7 @@ def test_extract_with_language_tag():
 def test_extract_returns_none_on_bad_input():
     assert _extract_json("") is None
     assert _extract_json("not json") is None
-    assert _extract_json("{}") == {}          # valid but empty
+    assert _extract_json("{}") == {}  # valid but empty
 
 
 def test_extract_ignores_trailing_text():
@@ -55,13 +57,14 @@ def test_extract_non_dict_json():
 
 # -- offline-safe tests ------------------------------------------------
 
+
 def test_learn_from_turn_offline_safe_no_router():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(memory_root=d)
     store = MemoryStore(cfg)
     result = learn_from_turn("hi", "hello", store, router=None)
-    assert result == {}          # no-op
-    assert store.read() == ""    # nothing written
+    assert result == {}  # no-op
+    assert store.read() == ""  # nothing written
 
 
 def test_learn_from_turn_async_returns_immediately():
@@ -69,13 +72,15 @@ def test_learn_from_turn_async_returns_immediately():
     cfg = AgentConfig(memory_root=d)
     store = MemoryStore(cfg)
     result = learn_from_turn("hi", "hello", store, router=None, async_ok=True)
-    assert result == {}          # immediate return even with async_ok
+    assert result == {}  # immediate return even with async_ok
 
 
 # -- synchronous path with fake router ---------------------------------
 
+
 class FakeRouter:
     """Returns a canned JSON response for learning review."""
+
     def __init__(self, json_reply):
         self.json_reply = json_reply
         self.last_prompt = None
@@ -89,9 +94,12 @@ def test_learn_from_turn_sync_stores_facts():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(memory_root=d)
     store = MemoryStore(cfg)
-    router = FakeRouter('{"user":["user prefers Python"],"agent":["environment is test"]}')
-    result = learn_from_turn("I like Python", "Great choice", store, router=router,
-                             async_ok=False)
+    router = FakeRouter(
+        '{"user":["user prefers Python"],"agent":["environment is test"]}'
+    )
+    result = learn_from_turn(
+        "I like Python", "Great choice", store, router=router, async_ok=False
+    )
     assert result == {"user": 1, "agent": 1}
     assert "prefers Python" in store.read("user")
     assert "environment is test" in store.read("agent")
@@ -116,6 +124,7 @@ def test_learn_from_turn_handles_non_json_reply():
 
 
 # -- learn_recent tests ------------------------------------------------
+
 
 def test_learn_recent_empty_on_no_router():
     d = tempfile.mkdtemp()
@@ -144,8 +153,10 @@ def test_learn_recent_limits_turns():
     cfg = AgentConfig(memory_root=d)
     store = MemoryStore(cfg)
     router = FakeRouter('{"user":["fact"],"agent":[]}')
-    history = [{"role": "user" if i % 2 == 0 else "assistant",
-                "content": f"turn {i}"} for i in range(10)]
+    history = [
+        {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i}"}
+        for i in range(10)
+    ]
     learn_recent(history, store, router=router, limit=2)
     # limit=2 means at most 2 pairs = 4 messages
     assert router.last_prompt is not None

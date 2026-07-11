@@ -5,6 +5,7 @@ shell command, streams stdout/stderr, returns trimmed output. This is the
 "control terminal sessions" feature. On Android it targets an attached device
 via ADB; on desktop it runs locally or over SSH.
 """
+
 from __future__ import annotations
 
 import shlex
@@ -15,7 +16,9 @@ from ..config import AgentConfig
 from ..loop import Tool
 
 
-def make_terminal_tool(config: AgentConfig, confirm: Callable[[str], bool] | None = None) -> Tool:
+def make_terminal_tool(
+    config: AgentConfig, confirm: Callable[[str], bool] | None = None
+) -> Tool:
     def run(args: dict) -> str:
         cmd = args.get("command", "")
         if not cmd:
@@ -25,8 +28,13 @@ def make_terminal_tool(config: AgentConfig, confirm: Callable[[str], bool] | Non
             if not ok:
                 return "cancelled: terminal_confirm required"
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                                  timeout=args.get("timeout", 30))
+            proc = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=args.get("timeout", 30),
+            )
             out = (proc.stdout or "") + (proc.stderr or "")
             return out[:4000] or f"(exit {proc.returncode}, no output)"
         except subprocess.TimeoutExpired:

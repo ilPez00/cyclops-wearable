@@ -4,6 +4,7 @@ Covers the gesture protocol (encode/parse), the firmware dispatch (host gate
 has its own block), and the Python bridge routing a RING_GESTURE frame:
 nav gestures forward to the sink, `nod` triggers transcription.
 """
+
 import os
 import sys
 
@@ -32,9 +33,15 @@ def test_gesture_protocol_roundtrip():
 
 def test_bridge_forwards_nav_gesture():
     class Cap:
-        def __init__(self): self.frames = []
-        def write(self, b): self.frames.append(b)
-        def render_text(self, t): pass
+        def __init__(self):
+            self.frames = []
+
+        def write(self, b):
+            self.frames.append(b)
+
+        def render_text(self, t):
+            pass
+
     br = HudBridge(Cap())
     name = br.handle_gesture(build_ring_gesture("select"))
     assert name == "select"
@@ -46,13 +53,21 @@ def test_bridge_forwards_nav_gesture():
 
 def test_bridge_nod_triggers_transcribe():
     class Cap:
-        def __init__(self): self.frames = []
-        def write(self, b): self.frames.append(b)
-        def render_text(self, t): pass
+        def __init__(self):
+            self.frames = []
+
+        def write(self, b):
+            self.frames.append(b)
+
+        def render_text(self, t):
+            pass
+
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber
+
     store = NoteStore("/tmp/cyclops_gesture.jsonl")
-    if os.path.exists("/tmp/cyclops_gesture.jsonl"): os.remove("/tmp/cyclops_gesture.jsonl")
+    if os.path.exists("/tmp/cyclops_gesture.jsonl"):
+        os.remove("/tmp/cyclops_gesture.jsonl")
     br = HudBridge(Cap(), store=store, transcriber=StubTranscriber())
     br.handle_gesture(build_ring_gesture("nod"))
     assert br.last_gesture == "nod"
@@ -62,9 +77,15 @@ def test_bridge_nod_triggers_transcribe():
 
 def test_frame_receiver_routes_gesture():
     class Cap:
-        def __init__(self): self.frames = []
-        def write(self, b): self.frames.append(b)
-        def render_text(self, t): pass
+        def __init__(self):
+            self.frames = []
+
+        def write(self, b):
+            self.frames.append(b)
+
+        def render_text(self, t):
+            pass
+
     br = HudBridge(Cap())
     fr = FrameReceiver(br)
     # build a RING_GESTURE v2 frame and stream it byte-by-byte

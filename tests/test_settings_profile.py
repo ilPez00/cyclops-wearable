@@ -6,6 +6,7 @@
 - Brain server /api/settings GET/POST merges + persists a profile (uses stdlib
   BaseHTTPRequestHandler via a live ThreadingHTTPServer on a free port).
 """
+
 import json
 import os
 import sys
@@ -21,9 +22,14 @@ from agent.models import ChatResult, ModelRouter
 def test_profile_roundtrip():
     d = tempfile.mkdtemp()
     p = os.path.join(d, "profile.json")
-    cfg = AgentConfig(system_note="be terse", provider="groq",
-                      tool_overrides={"vision": {"provider": "openai", "model": "gpt-4o"},
-                                      "web_search": {"model": "sonar"}})
+    cfg = AgentConfig(
+        system_note="be terse",
+        provider="groq",
+        tool_overrides={
+            "vision": {"provider": "openai", "model": "gpt-4o"},
+            "web_search": {"model": "sonar"},
+        },
+    )
     cfg.save(p)
     cfg2 = AgentConfig.load_json(p)
     assert cfg2.system_note == "be terse"
@@ -35,17 +41,33 @@ def test_profile_roundtrip():
 
 def test_router_per_tool_override():
     class FakeSession:
-        def __init__(s): s.calls = []
+        def __init__(s):
+            s.calls = []
+
         def post(s, url, data=None, headers=None, timeout=0):
             s.calls.append((url, data, headers))
+
             class R:
-                def json(self): return {"choices":[{"message":{"content":"ok","tool_calls":[]}}]}
+                def json(self):
+                    return {
+                        "choices": [{"message": {"content": "ok", "tool_calls": []}}]
+                    }
+
             return R()
+
     sess = FakeSession()
-    cfg = AgentConfig(provider="groq", api_key="sk-base",
-                      tool_overrides={"vision": {"provider": "openai", "model": "gpt-4o",
-                                                 "endpoint": "https://api.openai.com/v1",
-                                                 "key": "sk-vision"}})
+    cfg = AgentConfig(
+        provider="groq",
+        api_key="sk-base",
+        tool_overrides={
+            "vision": {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "endpoint": "https://api.openai.com/v1",
+                "key": "sk-vision",
+            }
+        },
+    )
     r = ModelRouter(cfg, session=sess)
     # a vision tool call should hit openai endpoint with the vision key + model
     r.chat([{"role": "user", "content": "x"}], tool="vision")
@@ -66,23 +88,43 @@ def test_server_settings_endpoint():
     from http.server import ThreadingHTTPServer
 
     import app.server as srv  # main() is guarded, safe to import
-    d = tempfile.mkdtemp(); prof = os.path.join(d, "profile.json")
+
+    d = tempfile.mkdtemp()
+    prof = os.path.join(d, "profile.json")
     srv.PROFILE_PATH = prof
-    srv.pipeline = None; srv.agent = None; srv.bridge = None
+    srv.pipeline = None
+    srv.agent = None
+    srv.bridge = None
     import socket
-    with socket.socket() as s: s.bind(("127.0.0.1", 0)); free = s.getsockname()[1]
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        free = s.getsockname()[1]
     httpd = ThreadingHTTPServer(("127.0.0.1", free), srv.H)
-    t = threading.Thread(target=httpd.serve_forever, daemon=True); t.start()
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
     try:
         import urllib.request
-        body = json.dumps({"system_note": "p", "provider": "groq",
-                           "tool_overrides": {"vision": {"model": "gpt-4o"}}}).encode()
-        req = urllib.request.Request(f"http://127.0.0.1:{free}/api/settings", data=body,
-                                     headers={"Content-Type": "application/json"}, method="POST")
+
+        body = json.dumps(
+            {
+                "system_note": "p",
+                "provider": "groq",
+                "tool_overrides": {"vision": {"model": "gpt-4o"}},
+            }
+        ).encode()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{free}/api/settings",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
         resp = json.loads(urllib.request.urlopen(req).read())
         assert resp["ok"] is True
         assert resp["profile"]["system_note"] == "p"
-        got = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{free}/api/settings").read())
+        got = json.loads(
+            urllib.request.urlopen(f"http://127.0.0.1:{free}/api/settings").read()
+        )
         assert got["provider"] == "groq"
         assert got["tool_overrides"]["vision"]["model"] == "gpt-4o"
     finally:

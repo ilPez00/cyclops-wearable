@@ -1,4 +1,5 @@
 """Tests for LLMExtractor (F3) — offline via injected fake LLM client."""
+
 import json
 import os
 import sys
@@ -12,19 +13,28 @@ from brain.llm_extractor import LLMClient, LLMExtractor
 
 
 class FakeResp:
-    def __init__(self, payload): self._p = payload
-    def json(self): return self._p
+    def __init__(self, payload):
+        self._p = payload
+
+    def json(self):
+        return self._p
 
 
 class FakeSession:
-    def __init__(self, payload): self._p = payload; self.last = None
+    def __init__(self, payload):
+        self._p = payload
+        self.last = None
+
     def post(self, url, data=None, headers=None, timeout=30, files=None):
         self.last = {"url": url, "data": data, "headers": headers}
         return FakeResp(self._p)
 
 
 class FakeLLMClient:
-    def __init__(self, reply): self.reply = reply; self.calls = 0
+    def __init__(self, reply):
+        self.reply = reply
+        self.calls = 0
+
     def complete(self, messages, model=None, temperature=0.0):
         self.calls += 1
         return self.reply
@@ -32,15 +42,28 @@ class FakeLLMClient:
 
 def _keys(tmp_dir, body="groq:gsk_x\ngroq_endpoint:https://api.groq.com/openai/v1\n"):
     p = os.path.join(tmp_dir, "ai_api.txt")
-    with open(p, "w") as f: f.write(body)
+    with open(p, "w") as f:
+        f.write(body)
     return AiKeys(ai_api_txt=p, env_paths=[])
 
 
 def test_llm_emits_candidate_notes_with_confidence():
-    reply = json.dumps([
-        {"type": "reminder", "text": "send the invoice to Marco", "due": "2026-07-13", "confidence": 0.9},
-        {"type": "decision", "text": "ship the MVP", "due": None, "confidence": 0.8},
-    ])
+    reply = json.dumps(
+        [
+            {
+                "type": "reminder",
+                "text": "send the invoice to Marco",
+                "due": "2026-07-13",
+                "confidence": 0.9,
+            },
+            {
+                "type": "decision",
+                "text": "ship the MVP",
+                "due": None,
+                "confidence": 0.8,
+            },
+        ]
+    )
     with tempfile.TemporaryDirectory() as d:
         ex = LLMExtractor(keys=_keys(d), client=FakeLLMClient(reply))
         notes = ex.extract("we should send the invoice to Marco and ship the MVP")
@@ -72,7 +95,9 @@ def test_fallback_on_bad_json():
 
 def test_fallback_on_llm_exception():
     class BoomClient:
-        def complete(self, *a, **k): raise RuntimeError("network down")
+        def complete(self, *a, **k):
+            raise RuntimeError("network down")
+
     with tempfile.TemporaryDirectory() as d:
         ex = LLMExtractor(keys=_keys(d), client=BoomClient())
         notes = ex.extract("Idea: add a vibration alert")

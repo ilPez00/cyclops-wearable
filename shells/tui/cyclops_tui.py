@@ -13,6 +13,7 @@ Usage:
   python3 shells/tui/cyclops_tui.py
   CYCLOPS_LOCAL=1 python3 shells/tui/cyclops_tui.py   # force local model
 """
+
 from __future__ import annotations
 
 import os
@@ -33,8 +34,10 @@ def run_repl():
     """Fallback REPL when textual is unavailable."""
     agent = build_agent()
     print("Cyclops TUI (REPL mode). Type 'exit' to quit.")
-    print(f"model={agent.cfg.model} provider={agent.cfg.provider} "
-          f"local={agent.cfg.local_mode}\n")
+    print(
+        f"model={agent.cfg.model} provider={agent.cfg.provider} "
+        f"local={agent.cfg.local_mode}\n"
+    )
     while True:
         try:
             text = input("you> ").strip()
@@ -80,7 +83,15 @@ def main():
             super().__init__()
             self.agent = build_agent()
             # capability toggles (offline tools always available; device/web need transport)
-            self.disabled = {"device", "brain", "vision", "web", "hud", "notify", "capture"}
+            self.disabled = {
+                "device",
+                "brain",
+                "vision",
+                "web",
+                "hud",
+                "notify",
+                "capture",
+            }
 
         def compose(self) -> ComposeResult:
             yield Header()
@@ -90,19 +101,28 @@ def main():
                 with Horizontal():
                     yield Input(placeholder="message / attach image url…", id="inp")
                     yield Switch(value=self.agent.cfg.local_mode, id="local")
-                    yield Select([("wifi", "wifi"), ("bt", "bt"), ("cable", "cable")],
-                                 value=self.agent.cfg.device_transport, id="transport", allow_blank=False)
+                    yield Select(
+                        [("wifi", "wifi"), ("bt", "bt"), ("cable", "cable")],
+                        value=self.agent.cfg.device_transport,
+                        id="transport",
+                        allow_blank=False,
+                    )
                 with ScrollableContainer(id="caps"):
                     for name in sorted(self.agent.registry.names()):
-                        yield Checkbox(name, value=name not in self.disabled, id=f"cap_{name}")
+                        yield Checkbox(
+                            name, value=name not in self.disabled, id=f"cap_{name}"
+                        )
             yield Footer()
 
         def on_mount(self) -> None:
             self.query_one("#log").write(
                 f"[Cyclops] model={self.agent.cfg.model} "
                 f"provider={self.agent.cfg.provider} "
-                f"local={self.agent.cfg.local_mode}")
-            self.query_one("#log").write(f"[tools] {len(self.agent.registry)} available")
+                f"local={self.agent.cfg.local_mode}"
+            )
+            self.query_one("#log").write(
+                f"[tools] {len(self.agent.registry)} available"
+            )
 
         def on_input_submitted(self, ev) -> None:
             text = ev.value.strip()
@@ -136,7 +156,9 @@ def main():
                 else:
                     self.disabled.add(name)
                 # rebuild registry with new disabled set
-                self.agent.registry = build_registry(self.agent.cfg, disable=self.disabled)
+                self.agent.registry = build_registry(
+                    self.agent.cfg, disable=self.disabled
+                )
 
     CyclopsTUI().run()
 

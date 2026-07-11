@@ -12,6 +12,7 @@ This is the anti-D1/D5 control: the HUD state machine lives in C firmware and
 can't run here, but its *wire contract* can — so the UX is verifiable on any
 laptop. See docs/31-repremortem-competition.md.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,6 +22,7 @@ try:
     from brain.protocol_v2 import HUD_KINDS, parse_hud
 except Exception:  # allow running from repo root or shells/ without package
     import os
+
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from brain.protocol_v2 import HUD_KINDS, parse_hud
 
@@ -35,9 +37,9 @@ _KIND_NAMES = {i: n for i, n in enumerate(HUD_KINDS)} if HUD_KINDS else {}
 #   128x128 = 21x16 (ST7735 RGB565 TFT — the default XIAO S3 Sense target)
 #   g2      = 18x4  (EvenRealities G2 4x18 green microLED)
 PROFILES = {
-    "legacy":  (21, 4),
+    "legacy": (21, 4),
     "128x128": (21, 16),
-    "g2":      (18, 4),
+    "g2": (18, 4),
 }
 
 
@@ -95,9 +97,12 @@ class HudSim:
         return out[:3]
 
     def set_health(self, hr=None, spo2=None, batt=None):
-        if hr is not None: self.hr = hr
-        if spo2 is not None: self.spo2 = spo2
-        if batt is not None: self.batt = batt
+        if hr is not None:
+            self.hr = hr
+        if spo2 is not None:
+            self.spo2 = spo2
+        if batt is not None:
+            self.batt = batt
 
     def set_rec(self, on: bool):
         self.rec = on
@@ -110,9 +115,12 @@ class HudSim:
         grid = []
         # status bar (row 0)
         flags = []
-        if self.hr is not None: flags.append(f"HR{self.hr}")
-        if self.spo2 is not None: flags.append(f"S{self.spo2}%")
-        if self.batt is not None: flags.append(f"B{self.batt}%")
+        if self.hr is not None:
+            flags.append(f"HR{self.hr}")
+        if self.spo2 is not None:
+            flags.append(f"S{self.spo2}%")
+        if self.batt is not None:
+            flags.append(f"B{self.batt}%")
         status = f"[{self.mode}] " + " ".join(flags)
         if self.rec:
             status += " REC"
@@ -136,8 +144,10 @@ class HudSim:
     def to_g2(self) -> list[bytes]:
         """Render this HUD model as EvenRealities G2 BLE packets (P0-C)."""
         from device.g2_layout import render_to_g2
-        return render_to_g2(self.mode, self.lines, self.progress,
-                            self.hr, self.spo2, self.batt)
+
+        return render_to_g2(
+            self.mode, self.lines, self.progress, self.hr, self.spo2, self.batt
+        )
 
     def __str__(self):
         return "\n".join(self.render())
@@ -147,9 +157,14 @@ def demo(profile: str = "legacy"):
     sim = HudSim(profile=profile)
     # 1) agent answer arrives as a HUD_FRAME (Omi/G2 style)
     from brain.protocol_v2 import build_hud
-    sim.feed_hud_frame(build_hud(HUD_KINDS.index("agent"),
-                                 [f"Meet Bob at 3pm"[:sim.cols],
-                                  f"bring the cable"[:sim.cols]], more=False))
+
+    sim.feed_hud_frame(
+        build_hud(
+            HUD_KINDS.index("agent"),
+            [f"Meet Bob at 3pm"[: sim.cols], f"bring the cable"[: sim.cols]],
+            more=False,
+        )
+    )
     sim.set_health(hr=72, spo2=97, batt=80)
     print(f"--- after agent frame ({sim.profile} {sim.cols}x{sim.rows}) ---")
     print(sim)
@@ -171,4 +186,5 @@ def demo_128x128():
 
 if __name__ == "__main__":
     import sys
+
     demo(profile=sys.argv[1] if len(sys.argv) > 1 else "legacy")

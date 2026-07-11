@@ -3,6 +3,7 @@
 Uses FakeOmiSource (no BLE/opus) + StubTranscriber so the full
 Omi -> PCM16 -> transcribe -> phrase path is exercised without hardware.
 """
+
 import os
 import sys
 
@@ -25,6 +26,7 @@ def test_omi_ingest_fake_source_produces_phrase():
 
 def test_omi_tool_registered():
     from agent.tools import build_registry
+
     reg = build_registry(AgentConfig())
     assert "omi" in reg.names()
     print("OK omi tool registered")

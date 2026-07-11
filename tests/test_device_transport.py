@@ -1,4 +1,5 @@
 """Offline tests for device transports + the device tool routing."""
+
 import json
 import os
 import sys
@@ -30,6 +31,7 @@ def test_fake_transport():
 
 def test_bt_serial_file():
     import tempfile
+
     p = tempfile.mktemp(suffix=".log")
     bt = BluetoothTransport(serial_file=p)
     out = bt.push_hud("hello glasses")
@@ -78,6 +80,7 @@ def test_device_tool_capture_sends_camera_cmd():
     tool.run({"action": "capture", "media": "photo"})
     assert f.cmds[-1] == (7, "photo")
 
+
 def test_serial_reader_closes_loop_into_bridge():
     import tempfile
 
@@ -87,8 +90,11 @@ def test_serial_reader_closes_loop_into_bridge():
     from device.transport import SerialFrameReader
 
     class Cap:
-        def __init__(self): self.frames = []
-        def write(self, b): self.frames.append(b)
+        def __init__(self):
+            self.frames = []
+
+        def write(self, b):
+            self.frames.append(b)
 
     cap = Cap()
     sp = tempfile.mktemp(suffix=".jsonl")
@@ -99,8 +105,10 @@ def test_serial_reader_closes_loop_into_bridge():
     # fragment the stream across chunks to prove buffering works
     reader.feed('{"a":1}\n{"a":2,"arg":"c')
     assert len(store.all()) == 0  # only the first complete line consumed
-    reader.feed('iao note"}\n')      # completes the 2nd frame
-    assert len(store.all()) >= 1  # transcribe action stored a note from the streamed frame
+    reader.feed('iao note"}\n')  # completes the 2nd frame
+    assert (
+        len(store.all()) >= 1
+    )  # transcribe action stored a note from the streamed frame
     assert cap.frames  # display frame emitted back
     os.remove(sp)
 
@@ -115,8 +123,11 @@ def test_ble_link_pair_subscribe_dispatch():
     from brain.transcriber import StubTranscriber
 
     class Cap:
-        def __init__(self): self.frames = []
-        def write(self, b): self.frames.append(b)
+        def __init__(self):
+            self.frames = []
+
+        def write(self, b):
+            self.frames.append(b)
 
     sp = tempfile.mktemp(suffix=".jsonl")
     store = NoteStore(sp)
@@ -125,7 +136,9 @@ def test_ble_link_pair_subscribe_dispatch():
     link = BleLink(br, backend=backend)
     link.connect()
     assert link.paired and link.connected
-    frame = encode(9, json.dumps({"a": 2, "arg": "Remind me to call mom by friday"}).encode())
+    frame = encode(
+        9, json.dumps({"a": 2, "arg": "Remind me to call mom by friday"}).encode()
+    )
     backend.push(frame)
     assert any(n.type == "reminder" for n in store.all())
     os.remove(sp)
@@ -162,8 +175,11 @@ def test_device_tool_routes_ble_transport():
     from device.transport import build_transport
 
     class Cap:
-        def __init__(self): self.frames = []
-        def write(self, b): self.frames.append(b)
+        def __init__(self):
+            self.frames = []
+
+        def write(self, b):
+            self.frames.append(b)
 
     sp = tempfile.mktemp(suffix=".jsonl")
     store = NoteStore(sp)

@@ -4,6 +4,7 @@ Privacy: starting capture requires Consent Mode ON (Omi audio is a recording).
 When no BLE/opus stack or session is present, the tool returns an offline stub
 and the ingest pipeline is fully testable with a FakeOmiSource.
 """
+
 from __future__ import annotations
 
 from device.omi import FakeOmiSource, OmiIngest
@@ -23,6 +24,7 @@ def make_omi_tool(config: AgentConfig, transcriber=None) -> Tool:
                 return "error: consent OFF — Omi audio capture refused (enable via consent tool)"
             # offline / no real stack -> simulate ingest with a fake source
             from brain.transcriber import StubTranscriber
+
             tr = transcriber or StubTranscriber()
             captured = []
             src = FakeOmiSource(chunks=3, samples_per_chunk=160)
@@ -34,12 +36,15 @@ def make_omi_tool(config: AgentConfig, transcriber=None) -> Tool:
         if action == "stop":
             return "omi: stopped"
         return "usage: omi action=start|stop|status"
+
     return Tool(
         name="omi",
         description="Capture audio from the Omi pendant and transcribe it via the brain.",
         parameters={
             "type": "object",
-            "properties": {"action": {"type": "string", "description": "start|stop|status"}},
+            "properties": {
+                "action": {"type": "string", "description": "start|stop|status"}
+            },
             "required": [],
         },
         run=run,

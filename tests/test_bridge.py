@@ -1,4 +1,5 @@
 """Tests for F6 — digiGio bridge (offline, no digigio package needed)."""
+
 import json
 import os
 import sys
@@ -13,10 +14,16 @@ from brain.extractor import Note
 class FakeDigigio:
     def __init__(self):
         self.persona = "digiGio, warm philosophy companion"
-        self._rag = ["MVP = the wearable we decided to ship next week",
-                     "Marco teaches the monday lecture"]
-    def get_persona(self): return self.persona
-    def retrieve(self, q): return self._rag
+        self._rag = [
+            "MVP = the wearable we decided to ship next week",
+            "Marco teaches the monday lecture",
+        ]
+
+    def get_persona(self):
+        return self.persona
+
+    def retrieve(self, q):
+        return self._rag
 
 
 def test_pull_context_from_adapter():
@@ -55,9 +62,12 @@ def test_push_notes_persists_and_callback():
 def test_adapter_shim_wraps_brain():
     class MiniBrain:
         persona_text = "x"
+
         class wiki:
             @staticmethod
-            def retrieve(q): return ["chunk-a"]
+            def retrieve(q):
+                return ["chunk-a"]
+
     a = DigigioAdapter(MiniBrain())
     assert a.get_persona() == "x"
     assert a.retrieve("q") == ["chunk-a"]

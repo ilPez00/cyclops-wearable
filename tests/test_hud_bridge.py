@@ -27,18 +27,30 @@ from brain.transcriber import StubTranscriber
 
 
 class Cap:
-    def __init__(self): self.frames=[]
-    def write(self, b): self.frames.append(b)
+    def __init__(self):
+        self.frames = []
+
+    def write(self, b):
+        self.frames.append(b)
 
 
 class SpeakSink:
     """Sink that implements speak() + records TTS frames (the audio-out path)."""
-    def __init__(self): self.frames=[]; self.spoken=[]
-    def write(self, b): self.frames.append(b)
-    def speak(self, text): self.spoken.append(text)
+
+    def __init__(self):
+        self.frames = []
+        self.spoken = []
+
+    def write(self, b):
+        self.frames.append(b)
+
+    def speak(self, text):
+        self.spoken.append(text)
+
 
 def test_each_action_returns_frame():
-    if os.path.exists("/tmp/cyclops_hb.jsonl"): os.remove("/tmp/cyclops_hb.jsonl")
+    if os.path.exists("/tmp/cyclops_hb.jsonl"):
+        os.remove("/tmp/cyclops_hb.jsonl")
     store = NoteStore("/tmp/cyclops_hb.jsonl")
     cap = Cap()
     br = HudBridge(cap, store=store, transcriber=StubTranscriber())
@@ -47,17 +59,26 @@ def test_each_action_returns_frame():
     assert len(store.all()) >= 1
     assert any(b"TRANSCRIBE" in f or b"DISPLAY_CMD" in f for f in cap.frames)
     # translate
-    cap2 = Cap(); br.sink = cap2; br.dispatch(ACT_TRANSLATE, "ciao riunione")
+    cap2 = Cap()
+    br.sink = cap2
+    br.dispatch(ACT_TRANSLATE, "ciao riunione")
     assert any(b"TR:" in f for f in cap2.frames)
     # health
-    cap3 = Cap(); br.sink = cap3; br.dispatch(ACT_HEALTH)
+    cap3 = Cap()
+    br.sink = cap3
+    br.dispatch(ACT_HEALTH)
     # teleprompter -> hud frame
-    cap4 = Cap(); br.sink = cap4; br.dispatch(ACT_TELEPROMPTER)
+    cap4 = Cap()
+    br.sink = cap4
+    br.dispatch(ACT_TELEPROMPTER)
     assert len(cap4.frames) >= 1
     # camera / image / ssh / confirm
     for a in (ACT_CAMERA, ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES):
-        c = Cap(); br.sink = c; br.dispatch(a)
+        c = Cap()
+        br.sink = c
+        br.dispatch(a)
         assert len(c.frames) >= 1
+
 
 def test_cmd_roundtrip_parse():
     # firmware emits MSG_CMD; bridge parses it back
@@ -70,11 +91,13 @@ def test_cmd_roundtrip_parse():
     res = br.handle_cmd(pl)
     assert res[0] == "translate"
 
+
 def test_frame_receiver_end_to_end():
     # simulate the firmware emitting a v2 MSG_CMD frame over a byte stream
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
     from brain.protocol import MSG
     from brain.protocol_v2 import encode
+
     cap = Cap()
     br = HudBridge(cap)
     # firmware builds the same frame the MCU would: MSG_CMD with translate action
@@ -82,78 +105,147 @@ def test_frame_receiver_end_to_end():
     frame = encode(MSG_CMD, payload)
     rcv = FrameReceiver(br)
     rcv.feed(frame)
-    assert any(b"TR:" in f for f in cap.frames), "bridge should have emitted a translate frame"
+    assert any(b"TR:" in f for f in cap.frames), (
+        "bridge should have emitted a translate frame"
+    )
+
+
+def test_frame_receiver_rejects_bad_crc():
+    # a corrupted payload byte must not reach the bridge (mirrors firmware CRC gate)
+    from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
+    from brain.protocol_v2 import encode
+
+    cap = Cap()
+    br = HudBridge(cap)
+    payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
+    frame = bytearray(encode(MSG_CMD, payload))
+    frame[-1] ^= 0xFF  # corrupt the CRC itself; payload stays valid JSON
+    rcv = FrameReceiver(br)
+    rcv.feed(bytes(frame))
+    assert not any(b"TR:" in f for f in cap.frames), (
+        "corrupted frame must be dropped, not dispatched"
+    )
+
+
+def test_frame_receiver_recovers_from_oversized_frame():
+    # a declared length beyond buffer capacity must be rejected, and the
+    # receiver must resync on the next valid frame (mirrors firmware decoder)
+    from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
+    from brain.protocol_v2 import encode
+
+    cap = Cap()
+    br = HudBridge(cap)
+    rcv = FrameReceiver(br)
+    # header declaring a 2000-byte payload, then junk
+    rcv.feed(bytes([0xAA, 0x55, 0xD0, 0x07, MSG_CMD]))
+    rcv.feed(b"\x00" * 100)
+    # then a valid frame — it must still dispatch
+    payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
+    rcv.feed(encode(MSG_CMD, payload))
+    assert any(b"TR:" in f for f in cap.frames), (
+        "receiver must recover after an oversized frame"
+    )
+
 
 def test_audio_capture_roundtrip():
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
     from brain.protocol import MSG, encode
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber
-    if os.path.exists("/tmp/cyclops_audio.jsonl"): os.remove("/tmp/cyclops_audio.jsonl")
+
+    if os.path.exists("/tmp/cyclops_audio.jsonl"):
+        os.remove("/tmp/cyclops_audio.jsonl")
     cap = Cap()
     store = NoteStore("/tmp/cyclops_audio.jsonl")
     br = HudBridge(cap, store=store, transcriber=StubTranscriber())
     rcv = FrameReceiver(br)
     # device announces 16-bit/16k then streams 100 bytes of fake PCM, then stops
-    meta = bytes([16,0, 16000&255, (16000>>8)&255, 1,0,0,0])
+    meta = bytes([16, 0, 16000 & 255, (16000 >> 8) & 255, 1, 0, 0, 0])
     rcv.feed(encode(MSG["AUDIO_META"], meta))
-    rcv.feed(encode(MSG["AUDIO_CHUNK"], b"\x00\x01"*50))
+    rcv.feed(encode(MSG["AUDIO_CHUNK"], b"\x00\x01" * 50))
     rcv.feed(encode(MSG["AUDIO_STOP"], b""))
     assert len(store.all()) >= 1, "transcribe on STOP should store a note"
     assert any(b"TRANSCRIBE" in f for f in cap.frames)
     os.remove("/tmp/cyclops_audio.jsonl")
 
+
 def test_auto_transcriber_returns_transcriber():
     from brain.transcriber import StubTranscriber, Transcriber, get_transcriber
+
     # auto must never raise and must return a usable Transcriber
     t = get_transcriber("auto")
     assert isinstance(t, Transcriber)
     # explicit stub stays stub (deterministic, used in tests)
     assert isinstance(get_transcriber("stub"), StubTranscriber)
 
+
 def test_bridge_uses_injected_transcriber():
     cap = Cap()
     from brain.transcriber import StubTranscriber
+
     br = HudBridge(cap, transcriber=StubTranscriber())
     assert br.trans is not None
     # dispatch transcribe stores a note and emits a frame
-    if os.path.exists("/tmp/cyclops_inj.jsonl"): os.remove("/tmp/cyclops_inj.jsonl")
+    if os.path.exists("/tmp/cyclops_inj.jsonl"):
+        os.remove("/tmp/cyclops_inj.jsonl")
     from brain.store import NoteStore
-    br2 = HudBridge(cap, store=NoteStore("/tmp/cyclops_inj.jsonl"), transcriber=StubTranscriber())
+
+    br2 = HudBridge(
+        cap, store=NoteStore("/tmp/cyclops_inj.jsonl"), transcriber=StubTranscriber()
+    )
     br2.dispatch(ACT_TRANSCRIBE_START)
     assert len(br2.store.all()) >= 1
     os.remove("/tmp/cyclops_inj.jsonl")
+
 
 def test_new_capture_actions_emit_frames():
     cap = Cap()
     br = HudBridge(cap, transcriber=StubTranscriber())
     for a in (ACT_PHOTO, ACT_VIDEO):
-        c = Cap(); br.sink = c; br.dispatch(a)
+        c = Cap()
+        br.sink = c
+        br.dispatch(a)
         assert len(c.frames) >= 1, "photo/video must emit a frame"
 
+
 def test_voice_note_stores_and_speaks():
-    if os.path.exists("/tmp/cyclops_vn.jsonl"): os.remove("/tmp/cyclops_vn.jsonl")
+    if os.path.exists("/tmp/cyclops_vn.jsonl"):
+        os.remove("/tmp/cyclops_vn.jsonl")
     sink = SpeakSink()
-    br = HudBridge(sink, store=NoteStore("/tmp/cyclops_vn.jsonl"), transcriber=StubTranscriber())
+    br = HudBridge(
+        sink, store=NoteStore("/tmp/cyclops_vn.jsonl"), transcriber=StubTranscriber()
+    )
     res = br.dispatch(ACT_VOICE_NOTE)
     assert res[0] == "voice_note"
     assert len(br.store.all()) >= 1, "voice note should store a transcript"
     assert sink.spoken and "saved" in sink.spoken[-1], "voice note should TTS an ack"
     os.remove("/tmp/cyclops_vn.jsonl")
 
+
 def test_voice_cmd_is_interactive_speaks_answer():
     # B-long: spoken question -> agent -> spoken answer (audio-out)
     sink = SpeakSink()
-    br = HudBridge(sink, agent=_FakeAgent("The meeting is at 3pm."), transcriber=StubTranscriber())
+    br = HudBridge(
+        sink, agent=_FakeAgent("The meeting is at 3pm."), transcriber=StubTranscriber()
+    )
     res = br.dispatch(ACT_VOICE_CMD)
     assert res[0] == "voice_cmd"
-    assert any("3pm" in s for s in sink.spoken), "answer should be spoken back (audio-out)"
+    assert any("3pm" in s for s in sink.spoken), (
+        "answer should be spoken back (audio-out)"
+    )
     # generic sink without speak() must still emit a TTS frame, not crash
-    cap = Cap(); br2 = HudBridge(cap, agent=_FakeAgent("ok"), transcriber=StubTranscriber())
+    cap = Cap()
+    br2 = HudBridge(cap, agent=_FakeAgent("ok"), transcriber=StubTranscriber())
     br2.dispatch(ACT_VOICE_CMD)
-    assert any(MSG["TTS"] and b"ok" in f for f in cap.frames), "TTS frame emitted when no speak()"
+    assert any(MSG["TTS"] and b"ok" in f for f in cap.frames), (
+        "TTS frame emitted when no speak()"
+    )
+
 
 class _FakeAgent:
-    def __init__(self, ans): self.ans = ans; self.progress_cb = None
+    def __init__(self, ans):
+        self.ans = ans
+        self.progress_cb = None
+
     def run(self, prompt):
         return type("R", (), {"text": self.ans, "steps": []})()

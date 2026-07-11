@@ -3,6 +3,7 @@
 Verifies manifest validation, registry discovery, install, and offline-safe
 sync — no network needed.
 """
+
 import json
 import os
 import sys
@@ -13,8 +14,13 @@ from agent.plugins import PluginManifest, PluginRegistry, sync_index
 
 
 def test_manifest_validation():
-    good = PluginManifest(name="hud-clock", version="1.0", kind="hud",
-                          description="clock layout", author="g")
+    good = PluginManifest(
+        name="hud-clock",
+        version="1.0",
+        kind="hud",
+        description="clock layout",
+        author="g",
+    )
     assert good.validate() == []
     bad = PluginManifest(name="", version="", kind="bogus", description="")
     problems = bad.validate()
@@ -27,8 +33,13 @@ def test_registry_discovers_and_installs():
     d = tempfile.mkdtemp()
     reg = PluginRegistry(d)
     assert reg.list() == []
-    m = PluginManifest(name="g2-weather", version="0.2", kind="hud",
-                       description="weather on G2", capabilities=["display"])
+    m = PluginManifest(
+        name="g2-weather",
+        version="0.2",
+        kind="hud",
+        description="weather on G2",
+        capabilities=["display"],
+    )
     path = reg.install(m)
     assert os.path.exists(path)
     reg.scan()
@@ -64,6 +75,7 @@ def reg_list_empty(d):
 def test_plugin_tool_offline():
     from agent.config import AgentConfig
     from agent.tools.plugin import make_plugin_tool
+
     d = tempfile.mkdtemp()
     cfg = AgentConfig(config_dir=d, plugin_index_url="http://127.0.0.1:9/idx.json")
     tool = make_plugin_tool(cfg, plugin_dir=d, index_url=cfg.plugin_index_url)
@@ -75,8 +87,15 @@ def test_plugin_tool_offline():
     assert "offline" in out
     # install via registry, then list shows it
     reg = PluginRegistry(d)
-    reg.install(PluginManifest(name="hud-timer", version="1.1", kind="hud",
-                               description="countdown", capabilities=["display"]))
+    reg.install(
+        PluginManifest(
+            name="hud-timer",
+            version="1.1",
+            kind="hud",
+            description="countdown",
+            capabilities=["display"],
+        )
+    )
     out = tool.run({"action": "list"})
     assert "hud-timer" in out
     print("OK plugin tool list/sync offline + install visible")

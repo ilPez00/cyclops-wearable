@@ -5,6 +5,7 @@ companion must refuse to start recording or capture a photo. The tool toggles
 the flag (persisted via config) and reports status; capture/camera tools read
 the same flag and decline when off.
 """
+
 from __future__ import annotations
 
 from ..config import AgentConfig
@@ -23,6 +24,7 @@ def make_consent_tool(config: AgentConfig) -> Tool:
         if action in ("status", "get"):
             return f"consent: {'ON' if config.consent_mode else 'OFF'}"
         return "usage: consent action=on|off|status"
+
     return Tool(
         name="consent",
         description="Toggle or check Consent Mode (privacy gate for capture/recording).",

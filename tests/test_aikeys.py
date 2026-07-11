@@ -1,4 +1,5 @@
 """Tests for brain.aikeys — fully offline (no real secrets, no network)."""
+
 import os
 import sys
 import tempfile
@@ -15,11 +16,13 @@ groq_endpoint:https://api.groq.com/openai/v1
 deepgram_endpoint:https://api.deepgram.com/v1
 """
 
+
 def _make(tmp, body=SAMPLE):
     p = os.path.join(tmp, "ai_api.txt")
     with open(p, "w") as f:
         f.write(body)
     return p
+
 
 def test_parses_keys_and_endpoints():
     with tempfile.TemporaryDirectory() as d:
@@ -30,10 +33,12 @@ def test_parses_keys_and_endpoints():
         assert k.get_endpoint("groq") == "https://api.groq.com/openai/v1"
         assert k.get_endpoint("deepgram") == "https://api.deepgram.com/v1"
 
+
 def test_missing_file_is_empty():
     k = AiKeys(ai_api_txt="/nonexistent/path/ai_api.txt", env_paths=[])
     assert k.get_key("gemini") is None
     assert k.available() == []
+
 
 def test_provider_descriptor():
     with tempfile.TemporaryDirectory() as d:
@@ -48,6 +53,7 @@ def test_provider_descriptor():
         assert dd["endpoint"] == "https://api.deepgram.com/v1"
         assert dd["key"] is None
 
+
 def test_env_key_loading():
     with tempfile.TemporaryDirectory() as d:
         ep = os.path.join(d, ".env")
@@ -55,6 +61,7 @@ def test_env_key_loading():
             f.write('GROQ_API_KEY="gsk_test123"\n')
         k = AiKeys(ai_api_txt="/nope/ai_api.txt", env_paths=[ep])
         assert k.get_key("groq_api_key") == "gsk_test123"
+
 
 def test_has_and_available():
     with tempfile.TemporaryDirectory() as d:

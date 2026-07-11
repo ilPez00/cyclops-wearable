@@ -1,4 +1,5 @@
 """Tools: talk to the Cyclops brain server (notes / extract / chat)."""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +17,7 @@ def make_brain_tool(config: AgentConfig, session=None) -> Tool:
         if session is not None:
             return session.post(base() + path, data=b"", headers={}, timeout=10).json()
         import urllib.request
+
         with urllib.request.urlopen(base() + path, timeout=10) as r:
             return json.loads(r.read())
 
@@ -28,10 +30,12 @@ def make_brain_tool(config: AgentConfig, session=None) -> Tool:
         if action == "extract":
             txt = args.get("text", "")
             import urllib.parse
+
             return json.dumps(get("/api/extract?text=" + urllib.parse.quote(txt))[:20])
         if action == "chat":
             txt = args.get("text", "")
             import urllib.parse
+
             return json.dumps(get("/api/chat?text=" + urllib.parse.quote(txt)))
         return "unknown brain action"
 

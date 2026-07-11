@@ -5,6 +5,7 @@
 - HudSim surfaces a REC / consent-off indicator
 - firmware consent gate verified separately via `make test` (10/10)
 """
+
 import os
 import sys
 
@@ -38,6 +39,7 @@ def test_capture_blocked_without_consent():
     # hud/notify are NOT gated
     make_capture_tool(cfg, session=None)  # reuse but action differs
     from agent.tools.wearable import make_hud_tool
+
     ht = make_hud_tool(cfg, session=None)
     assert "offline" in ht.run({"text": "hi"})  # hud still works
     print("OK capture refused when consent off; hud unaffected")

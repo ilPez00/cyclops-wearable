@@ -1,4 +1,5 @@
 """Offline: P1-D unified health frame — fuse COLMI R02 + Omi + G2/R1."""
+
 import os
 import sys
 
@@ -10,12 +11,12 @@ from device.health_fuse import HealthAggregator, Reading
 def test_multi_source_fusion():
     agg = HealthAggregator()
     agg.from_colmi(hr=72, spo2=97, battery=80, ts=100)
-    agg.from_omi(hr=75, ts=200)          # newer HR wins
+    agg.from_omi(hr=75, ts=200)  # newer HR wins
     agg.from_g2(spo2=98, battery=55, ts=300)  # newer SpO2 wins
     snap = agg.snapshot()
     assert snap["hr"] == 75, snap
     assert snap["spo2"] == 98, snap
-    assert snap["batt"] == 80          # ring drives fused batt
+    assert snap["batt"] == 80  # ring drives fused batt
     assert snap["batteries"] == {"ring": 80, "g2": 55}
     print("OK multi-source fusion (newest field wins, ring batt)")
 
@@ -55,6 +56,7 @@ def test_health_tool_vitals():
 
     from agent.config import AgentConfig
     from agent.tools.health import make_health_tool
+
     agg = HealthAggregator().from_colmi(hr=70, spo2=96, battery=88, ts=1)
     t = make_health_tool(AgentConfig(), aggregator=agg)
     snap = json.loads(t.run({"action": "vitals"}))

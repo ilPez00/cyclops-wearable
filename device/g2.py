@@ -12,38 +12,44 @@ G2 BLE (per the open G1/G2 reverse-engineering; override via env if yours differ
   char (write) fee3dd11-...   (CYCLOPS_G2_CHAR)
 Text packets: a leading 0x01 control byte + UTF-8 payload (<= G2_MAX_PAYLOAD).
 """
+
 from __future__ import annotations
 
 import os
 
-G2_SRVC = os.environ.get("CYCLOPS_G2_SRVC",
-                         "fee3cccc-9c78-4d5e-8247-1b3a6c0e1f2a")
-G2_CHAR = os.environ.get("CYCLOPS_G2_CHAR",
-                         "fee3dd11-9c78-4d5e-8247-1b3a6c0e1f2b")
+G2_SRVC = os.environ.get("CYCLOPS_G2_SRVC", "fee3cccc-9c78-4d5e-8247-1b3a6c0e1f2a")
+G2_CHAR = os.environ.get("CYCLOPS_G2_CHAR", "fee3dd11-9c78-4d5e-8247-1b3a6c0e1f2b")
 G2_MAX_PAYLOAD = int(os.environ.get("CYCLOPS_G2_MAX", "18"))
 G2_TX_CONTROL = 0x01  # start-of-text marker the G2 firmware expects
 
 
 class G2Backend:
     """Radio abstraction for the G2. Implement with `bleak` for real hardware."""
+
     def connect(self, timeout=20):
         raise NotImplementedError
+
     def write(self, data: bytes):
         raise NotImplementedError
+
     def disconnect(self):
         pass
 
 
 class FakeG2Backend(G2Backend):
     """In-memory G2 radio. Records every packet the bridge would send."""
+
     def __init__(self):
         self.connected = False
         self.packets = []
+
     def connect(self, timeout=20):
         self.connected = True
+
     def write(self, data: bytes):
         assert self.connected, "write before connect"
         self.packets.append(bytes(data))
+
     def disconnect(self):
         self.connected = False
 
@@ -79,8 +85,9 @@ class G2Transport(G2Backend if False else object):
 
     name = "g2"
 
-    def __init__(self, backend: G2Backend | None = None,
-                 srvc: str = G2_SRVC, char: str = G2_CHAR):
+    def __init__(
+        self, backend: G2Backend | None = None, srvc: str = G2_SRVC, char: str = G2_CHAR
+    ):
         self.backend = backend
         self.srvc = srvc
         self.char = char
@@ -117,8 +124,9 @@ class G2HudSink:
     glanceable banner; binary display frames are decoded best-effort.
     """
 
-    def __init__(self, transport: G2Transport | None = None,
-                 backend: G2Backend | None = None):
+    def __init__(
+        self, transport: G2Transport | None = None, backend: G2Backend | None = None
+    ):
         self.transport = transport or G2Transport(backend=backend)
         self.last = []
 
@@ -135,14 +143,18 @@ class G2HudSink:
         try:
             from brain.protocol import decode_frame
             from brain.protocol_v2 import parse_hud
+
             d = decode_frame(frame)
             if d:
                 typ, payload = d
                 if typ in (14,):  # HUD_FRAME
                     hud = parse_hud(payload)
-                    banner = " ".join(hud.get("lines", [])) or payload.decode(errors="replace")
+                    banner = " ".join(hud.get("lines", [])) or payload.decode(
+                        errors="replace"
+                    )
                 else:
                     import json
+
                     obj = json.loads(payload.decode(errors="replace"))
                     banner = obj.get("data") or obj.get("text") or str(obj)
             else:
@@ -158,7 +170,10 @@ class G2HudSink:
 def _default_backend(srvc, char):
     try:
         from ._bleak_backend import G2BleakBackend
+
         return G2BleakBackend(srvc, char)
     except Exception:
-        raise RuntimeError("no BLE backend for G2: install `bleak` + a BT adapter, "
-                           "or inject a FakeG2Backend for tests")
+        raise RuntimeError(
+            "no BLE backend for G2: install `bleak` + a BT adapter, "
+            "or inject a FakeG2Backend for tests"
+        )

@@ -1,4 +1,5 @@
 """Offline tests for the expanded tool set + capability registry."""
+
 import json
 import os
 import sys
@@ -32,7 +33,9 @@ def test_calendar_add_list():
     cfg = AgentConfig()
     reg = build_registry(cfg, disable={"terminal"})
     reg.register(make_calendar_tool(cfg))
-    out = reg.run("calendar", {"action": "add", "title": "call mom", "when": "tomorrow"})
+    out = reg.run(
+        "calendar", {"action": "add", "title": "call mom", "when": "tomorrow"}
+    )
     assert "added" in out and "call mom" in out
     out2 = reg.run("calendar", {"action": "list"})
     assert "call mom" in out2
@@ -83,24 +86,54 @@ def test_capabilities_describe():
 def test_agent_multi_tool_routing():
     """Fake router that asks for calendar then answers — full offline loop."""
     cfg = AgentConfig()
-    reg = build_registry(cfg, disable={"terminal", "device", "brain", "vision",
-                                       "web", "clipboard", "health", "hud",
-                                       "notify", "capture", "screen",
-                                       "whatsapp_export", "media_ingest", "fs"})
+    reg = build_registry(
+        cfg,
+        disable={
+            "terminal",
+            "device",
+            "brain",
+            "vision",
+            "web",
+            "clipboard",
+            "health",
+            "hud",
+            "notify",
+            "capture",
+            "screen",
+            "whatsapp_export",
+            "media_ingest",
+            "fs",
+        },
+    )
 
     class FakeRouter:
-        def __init__(self): self.n = 0
+        def __init__(self):
+            self.n = 0
+
         def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
             self.n += 1
             if self.n == 1:
-                return ChatResult(text="", tool_calls=[{
-                    "function": {"name": "calendar",
-                                 "arguments": json.dumps({"action": "add",
-                                                          "title": "standup",
-                                                          "when": "tomorrow"})}}])
+                return ChatResult(
+                    text="",
+                    tool_calls=[
+                        {
+                            "function": {
+                                "name": "calendar",
+                                "arguments": json.dumps(
+                                    {
+                                        "action": "add",
+                                        "title": "standup",
+                                        "when": "tomorrow",
+                                    }
+                                ),
+                            }
+                        }
+                    ],
+                )
             return ChatResult(text="Reminder set for tomorrow.")
 
     from agent.loop import Agent
+
     a = Agent(cfg, router=FakeRouter(), registry=reg)
     res = a.run("remind me of standup tomorrow")
     assert res.tool_calls == 1

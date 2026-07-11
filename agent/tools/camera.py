@@ -5,6 +5,7 @@ Pipeline:  capture JPEG  ->  base64  ->  vision(prompt)
 The camera source is injectable (FakeCamera for tests, OpenGlassCamera/
 PhoneCamera for real hardware). Offline stub returns what would happen.
 """
+
 from __future__ import annotations
 
 import base64
@@ -29,8 +30,9 @@ def _default_source(config: AgentConfig, session) -> CameraSource:
     return OpenGlassCamera(host, port, session)  # openglass / xiao-sense
 
 
-def make_camera_tool(config: AgentConfig, session=None,
-                     source: Optional[CameraSource] = None) -> Tool:
+def make_camera_tool(
+    config: AgentConfig, session=None, source: Optional[CameraSource] = None
+) -> Tool:
     offline = session is None
     sess = session or _urllib_session()
     src = source or _default_source(config, session)
@@ -48,27 +50,43 @@ def make_camera_tool(config: AgentConfig, session=None,
             base = prov["endpoint"] or "https://api.openai.com/v1"
             model = config.vision_model or prov.get("model") or "gpt-4o-mini"
         import json
+
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
-            ]}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                        },
+                    ],
+                }
+            ],
             "max_tokens": 400,
         }
         try:
             body = json.dumps(payload).encode()
-            resp = sess.post(base.rstrip("/") + "/chat/completions", data=body,
-                             headers={"Content-Type": "application/json",
-                                      "Authorization": f"Bearer {config.api_key or ''}"},
-                             timeout=40)
+            resp = sess.post(
+                base.rstrip("/") + "/chat/completions",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {config.api_key or ''}",
+                },
+                timeout=40,
+            )
             return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
             return f"error: vision failed ({e})"
 
     def run(args: dict) -> str:
         if not config.consent_mode:
-            return "error: consent OFF — camera capture refused (enable via consent tool)"
+            return (
+                "error: consent OFF — camera capture refused (enable via consent tool)"
+            )
         analyze = bool(args.get("analyze", False))
         prompt = args.get("prompt", "Describe this image concisely.")
         frame = src.capture()
@@ -85,7 +103,10 @@ def make_camera_tool(config: AgentConfig, session=None,
         parameters={
             "type": "object",
             "properties": {
-                "analyze": {"type": "boolean", "description": "run vision on the frame"},
+                "analyze": {
+                    "type": "boolean",
+                    "description": "run vision on the frame",
+                },
                 "prompt": {"type": "string", "description": "what to look for"},
             },
             "required": [],

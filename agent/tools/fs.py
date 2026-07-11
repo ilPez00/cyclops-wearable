@@ -1,4 +1,5 @@
 """Tools: safe file read/write (file_safety-style guard)."""
+
 from __future__ import annotations
 
 import os
@@ -9,8 +10,10 @@ from ..loop import Tool
 
 
 def make_fs_tool(config: AgentConfig) -> Tool:
-    allowed_roots = [os.path.expanduser("~/cyclops_data"),
-                     os.path.expanduser("~/Documents")]
+    allowed_roots = [
+        os.path.expanduser("~/cyclops_data"),
+        os.path.expanduser("~/Documents"),
+    ]
 
     def run(args: dict) -> str:
         action = args.get("action", "read")

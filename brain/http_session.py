@@ -8,6 +8,7 @@ transport implementation to maintain. The session supports:
 
 No third-party dependency.
 """
+
 from __future__ import annotations
 
 import json as _json
@@ -34,14 +35,20 @@ class Session:
             for k, v in files.items():
                 if isinstance(v, tuple):
                     fname, fdata, ctype = v
-                    parts.append(f"--{boundary}\r\n".encode()
-                                 + f'Content-Disposition: form-data; name="{k}"; filename="{fname}"\r\n'.encode()
-                                 + f"Content-Type: {ctype}\r\n\r\n".encode()
-                                 + fdata + b"\r\n")
+                    parts.append(
+                        f"--{boundary}\r\n".encode()
+                        + f'Content-Disposition: form-data; name="{k}"; filename="{fname}"\r\n'.encode()
+                        + f"Content-Type: {ctype}\r\n\r\n".encode()
+                        + fdata
+                        + b"\r\n"
+                    )
                 else:
-                    parts.append(f"--{boundary}\r\n".encode()
-                                 + f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode()
-                                 + v.encode() + b"\r\n")
+                    parts.append(
+                        f"--{boundary}\r\n".encode()
+                        + f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode()
+                        + v.encode()
+                        + b"\r\n"
+                    )
             body = b"".join(parts) + f"--{boundary}--\r\n".encode()
             h = dict(headers or {})
             h["Content-Type"] = f"multipart/form-data; boundary={boundary}"

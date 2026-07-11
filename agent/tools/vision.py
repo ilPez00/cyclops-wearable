@@ -3,6 +3,7 @@
 Local: Ollama (llava/llava-phi3) OpenAI-compatible /v1/chat/completions.
 Cloud: any OpenAI-compatible vision endpoint. HTTP layer injectable for tests.
 """
+
 from __future__ import annotations
 
 import base64
@@ -18,7 +19,7 @@ def make_vision_tool(config: AgentConfig, session=None) -> Tool:
     sess = session or _urllib_session()
 
     def run(args: dict) -> str:
-        image = args.get("image", "")           # url or data: base64
+        image = args.get("image", "")  # url or data: base64
         prompt = args.get("prompt", "Describe this image concisely.")
         if not image:
             return "error: image required"
@@ -39,18 +40,28 @@ def make_vision_tool(config: AgentConfig, session=None) -> Tool:
             img_url = f"data:image/jpeg;base64,{image}"
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": img_url}},
-            ]}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": img_url}},
+                    ],
+                }
+            ],
             "max_tokens": 400,
         }
         try:
             body = json.dumps(payload).encode()
-            resp = sess.post(base.rstrip("/") + "/chat/completions", data=body,
-                             headers={"Content-Type": "application/json",
-                                      "Authorization": f"Bearer {config.api_key or ''}"},
-                             timeout=40)
+            resp = sess.post(
+                base.rstrip("/") + "/chat/completions",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {config.api_key or ''}",
+                },
+                timeout=40,
+            )
             data = resp.json()
             return data["choices"][0]["message"]["content"].strip()
         except Exception as e:

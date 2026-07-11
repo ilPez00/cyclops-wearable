@@ -9,6 +9,7 @@ The transport is injectable so the agent loop can be tested offline with a
 FakeTransport. In production the server passes a real WifiTransport (or the
 phone passes a BluetoothTransport), and `device_transport` picks the default.
 """
+
 from __future__ import annotations
 
 import json
@@ -19,15 +20,22 @@ from ..config import AgentConfig
 from ..loop import Tool
 
 # make device/ importable both as a package and from repo root
-sys.path.insert(0, os_path := __import__("os").path.dirname(
-    __import__("os").path.dirname(__import__("os").path.abspath(__file__))))
+sys.path.insert(
+    0,
+    os_path := __import__("os").path.dirname(
+        __import__("os").path.dirname(__import__("os").path.abspath(__file__))
+    ),
+)
 from device.transport import FakeTransport, Transport, build_transport  # noqa: E402
 
 
-def make_device_tool(config: AgentConfig, session=None, transport: Optional[Transport] = None) -> Tool:
+def make_device_tool(
+    config: AgentConfig, session=None, transport: Optional[Transport] = None
+) -> Tool:
     # resolve the active transport once
     active: Transport = transport or build_transport(
-        config.device_transport, config=config, session=session)
+        config.device_transport, config=config, session=session
+    )
 
     def run(args: dict) -> str:
         action = args.get("action", "status")
@@ -63,7 +71,10 @@ def make_device_tool(config: AgentConfig, session=None, transport: Optional[Tran
         parameters={
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["status", "notes", "hud", "capture", "notify"]},
+                "action": {
+                    "type": "string",
+                    "enum": ["status", "notes", "hud", "capture", "notify"],
+                },
                 "transport": {"type": "string", "enum": ["wifi", "bt", "cable"]},
                 "text": {"type": "string"},
                 "media": {"type": "string"},

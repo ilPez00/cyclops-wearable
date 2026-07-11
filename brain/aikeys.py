@@ -19,6 +19,7 @@ Usage:
     k.get_endpoint("groq")             # -> url or None
     k.provider("groq")                 # -> {"key":..,"endpoint":..,"api_key":..}
 """
+
 from __future__ import annotations
 
 import os
@@ -31,9 +32,15 @@ DEFAULT_ENV_PATHS = ("~/.env", "/home/gio/.env", "/home/gio/ai_api.txt")
 
 
 class AiKeys:
-    def __init__(self, ai_api_txt: str | None = None, env_paths: Iterable[str] | None = None):
-        self.ai_api_txt = ai_api_txt or os.environ.get("CYCLOPS_AI_API_TXT", DEFAULT_AI_API_TXT)
-        self.env_paths = list(env_paths) if env_paths is not None else list(DEFAULT_ENV_PATHS)
+    def __init__(
+        self, ai_api_txt: str | None = None, env_paths: Iterable[str] | None = None
+    ):
+        self.ai_api_txt = ai_api_txt or os.environ.get(
+            "CYCLOPS_AI_API_TXT", DEFAULT_AI_API_TXT
+        )
+        self.env_paths = (
+            list(env_paths) if env_paths is not None else list(DEFAULT_ENV_PATHS)
+        )
         # map name -> list[str] for keys, name -> endpoint str for endpoints
         self._keys: dict[str, list[str]] = {}
         self._endpoints: dict[str, str] = {}
@@ -113,4 +120,7 @@ class AiKeys:
 
     def as_dict(self) -> dict:
         # never expose secret values outside the process; tests assert shape
-        return {n: ("<set>" if self.has(n) else None) for n in sorted(set(self._keys) | set(self._endpoints))}
+        return {
+            n: ("<set>" if self.has(n) else None)
+            for n in sorted(set(self._keys) | set(self._endpoints))
+        }

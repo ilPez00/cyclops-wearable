@@ -1,4 +1,5 @@
 """Offline: COLMI R02 packet protocol (mirror of firmware/ring_proto.h)."""
+
 import os
 import struct
 import sys
@@ -45,11 +46,16 @@ def test_make_packet_battery():
 
 def test_parse_battery():
     p = bytearray(16)
-    p[0] = CMD_BATTERY; p[1] = 64; p[2] = 0
+    p[0] = CMD_BATTERY
+    p[1] = 64
+    p[2] = 0
     _finalize(p)
     b = parse_battery(bytes(p))
     assert b.level == 64 and b.charging is False
-    p2 = bytearray(16); p2[0] = CMD_BATTERY; p2[1] = 80; p2[2] = 1
+    p2 = bytearray(16)
+    p2[0] = CMD_BATTERY
+    p2[1] = 80
+    p2[2] = 1
     _finalize(p2)
     b2 = parse_battery(bytes(p2))
     assert b2.charging is True
@@ -57,12 +63,20 @@ def test_parse_battery():
 
 
 def test_parse_realtime_hr_spo2():
-    hr = bytearray(16); hr[0] = CMD_START_REAL_TIME; hr[1] = RT_HEART_RATE; hr[2] = 0; hr[3] = 78
+    hr = bytearray(16)
+    hr[0] = CMD_START_REAL_TIME
+    hr[1] = RT_HEART_RATE
+    hr[2] = 0
+    hr[3] = 78
     _finalize(hr)
     kind, val = parse_real_time(bytes(hr))
     assert kind == RT_HEART_RATE and val == 78
 
-    sp = bytearray(16); sp[0] = CMD_START_REAL_TIME; sp[1] = RT_SPO2; sp[2] = 0; sp[3] = 97
+    sp = bytearray(16)
+    sp[0] = CMD_START_REAL_TIME
+    sp[1] = RT_SPO2
+    sp[2] = 0
+    sp[3] = 97
     _finalize(sp)
     kind2, val2 = parse_real_time(bytes(sp))
     assert kind2 == RT_SPO2 and val2 == 97
@@ -71,18 +85,25 @@ def test_parse_realtime_hr_spo2():
 
 def test_error_handling():
     # error bit in byte[0]
-    e = bytearray(16); e[0] = 0x80 | CMD_BATTERY
+    e = bytearray(16)
+    e[0] = 0x80 | CMD_BATTERY
     _finalize(e)
     assert is_error(bytes(e))
     # error code in byte[2] of real-time
-    er = bytearray(16); er[0] = CMD_START_REAL_TIME; er[1] = RT_HEART_RATE; er[2] = 5
+    er = bytearray(16)
+    er[0] = CMD_START_REAL_TIME
+    er[1] = RT_HEART_RATE
+    er[2] = 5
     _finalize(er)
     try:
-        parse_real_time(bytes(er)); assert False, "should raise"
+        parse_real_time(bytes(er))
+        assert False, "should raise"
     except ValueError:
         pass
     # bad checksum
-    bad = bytearray(16); bad[0] = CMD_BATTERY; bad[1] = 50
+    bad = bytearray(16)
+    bad[0] = CMD_BATTERY
+    bad[1] = 50
     bad[15] = (checksum(bad) ^ 0xFF) & 255
     assert checksum(bad) != bad[15]
     print("OK error-bit + error-code + bad-checksum rejected")

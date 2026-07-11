@@ -4,6 +4,7 @@ Looks under digigio_home for health.jsonl / vitals / steps / sleep exports.
 Returns a condensed summary so the agent can answer "how did I sleep" or log
 a workout. Privacy-first: only reads, never uploads raw data outside the loop.
 """
+
 from __future__ import annotations
 
 import glob
@@ -22,11 +23,14 @@ def make_health_tool(config: AgentConfig, aggregator=None) -> Tool:
         if action == "vitals":
             # unified live vitals fused from ring/omi/g2 (P1-D)
             from device.health_fuse import HealthAggregator
+
             agg = aggregator or HealthAggregator()
             return json.dumps(agg.snapshot())
         if action == "summary":
             lines = []
-            for f in glob.glob(os.path.join(root, "**", "health*.jsonl"), recursive=True)[:3]:
+            for f in glob.glob(
+                os.path.join(root, "**", "health*.jsonl"), recursive=True
+            )[:3]:
                 try:
                     for ln in open(f, encoding="utf-8"):
                         d = json.loads(ln)
@@ -36,15 +40,26 @@ def make_health_tool(config: AgentConfig, aggregator=None) -> Tool:
             # also scan a flat vitals file
             vf = os.path.join(root, "health", "vitals.json")
             if os.path.exists(vf):
-                try: lines.append(open(vf, encoding="utf-8").read()[:800])
-                except Exception: pass
+                try:
+                    lines.append(open(vf, encoding="utf-8").read()[:800])
+                except Exception:
+                    pass
             return "\n".join(lines[-15:]) or "no health data available"
         if action == "log":
             path = os.path.join(root, "health", "log.jsonl")
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"note": args.get("note", ""),
-                                    "ts": __import__("datetime").datetime.now().isoformat(timespec="seconds")}) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "note": args.get("note", ""),
+                            "ts": __import__("datetime")
+                            .datetime.now()
+                            .isoformat(timespec="seconds"),
+                        }
+                    )
+                    + "\n"
+                )
             return f"logged health note: {args.get('note', '')}"
         return "unknown health action"
 

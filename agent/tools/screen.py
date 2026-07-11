@@ -4,6 +4,7 @@ Uses the terminal tool to run a platform screenshot command, then optionally
 describes it with the vision tool. On headless/offline it returns a stub. This
 is the "see what's on my screen" capability for desktop control.
 """
+
 from __future__ import annotations
 
 import os
@@ -32,7 +33,9 @@ def make_screen_tool(config: AgentConfig, vision=None) -> Tool:
         if not path:
             return "offline: no screenshot backend (scrot/import) available"
         if args.get("describe") and vision:
-            return vision.run({"image": path, "prompt": "Describe this screen briefly."})
+            return vision.run(
+                {"image": path, "prompt": "Describe this screen briefly."}
+            )
         return f"screenshot saved: {path}"
 
     return Tool(

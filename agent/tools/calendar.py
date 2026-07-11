@@ -4,6 +4,7 @@ Stores JSONL under ~/cyclops_data/calendar.jsonl. Supports add/list/delete
 and natural-ish date parsing (today/tomorrow/+N days). The agent uses this to
 create reminders captured from speech ("remind me to call mom tomorrow").
 """
+
 from __future__ import annotations
 
 import json
@@ -36,10 +37,12 @@ def make_calendar_tool(config: AgentConfig) -> Tool:
     def run(args: dict) -> str:
         action = args.get("action", "list")
         if action == "add":
-            entry = {"when": _parse_when(args.get("when")),
-                     "title": args.get("title", ""),
-                     "kind": args.get("kind", "reminder"),
-                     "created": datetime.now().isoformat(timespec="seconds")}
+            entry = {
+                "when": _parse_when(args.get("when")),
+                "title": args.get("title", ""),
+                "kind": args.get("kind", "reminder"),
+                "created": datetime.now().isoformat(timespec="seconds"),
+            }
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
             return f"added {entry['kind']} on {entry['when']}: {entry['title']}"
@@ -57,7 +60,8 @@ def make_calendar_tool(config: AgentConfig) -> Tool:
             keep, removed = [], 0
             for line in open(path, encoding="utf-8"):
                 if args.get("title", "") in line:
-                    removed += 1; continue
+                    removed += 1
+                    continue
                 keep.append(line)
             open(path, "w", encoding="utf-8").writelines(keep)
             return f"deleted {removed} matching entry"

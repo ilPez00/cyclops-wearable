@@ -10,6 +10,7 @@ existing field if it is newer (higher ts). Battery is tracked per-source (each
 device has its own battery) and the ring's battery drives the HEALTH_SAMPLE
 `batt` field by convention.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -18,6 +19,7 @@ from dataclasses import dataclass, field
 @dataclass
 class Reading:
     """A single reading from one source. Unset fields stay None."""
+
     source: str
     ts: int = 0
     hr: int | None = None
@@ -29,12 +31,13 @@ class Reading:
 @dataclass
 class HealthAggregator:
     """Merge readings from multiple wearables into one fused sample."""
+
     hr: int | None = None
     spo2: int | None = None
     sleep_stage: int | None = None
-    _ts: dict = field(default_factory=dict)          # field -> newest ts seen
-    batteries: dict = field(default_factory=dict)    # source -> batt %
-    battery_source: str = "ring"                     # drives fused `batt`
+    _ts: dict = field(default_factory=dict)  # field -> newest ts seen
+    batteries: dict = field(default_factory=dict)  # source -> batt %
+    battery_source: str = "ring"  # drives fused `batt`
 
     def update(self, r: Reading) -> None:
         # 0 means "not reported this frame" (mirrors the wearable decoder),
@@ -65,16 +68,23 @@ class HealthAggregator:
     @property
     def batt(self) -> int:
         """Battery for the HEALTH_SAMPLE (ring by convention; 0 if unknown)."""
-        return self.batteries.get(self.battery_source,
-                                  next(iter(self.batteries.values()), 0))
+        return self.batteries.get(
+            self.battery_source, next(iter(self.batteries.values()), 0)
+        )
 
     def to_frame(self, ts: int = 0) -> bytes:
         """Emit the canonical HEALTH_SAMPLE payload (protocol_v2.build_health)."""
         from brain.protocol_v2 import build_health
-        return build_health(ts, self.hr or 0, self.spo2 or 0,
-                            self.sleep_stage or 0, self.batt)
+
+        return build_health(
+            ts, self.hr or 0, self.spo2 or 0, self.sleep_stage or 0, self.batt
+        )
 
     def snapshot(self) -> dict:
-        return {"hr": self.hr, "spo2": self.spo2,
-                "sleep_stage": self.sleep_stage, "batt": self.batt,
-                "batteries": dict(self.batteries)}
+        return {
+            "hr": self.hr,
+            "spo2": self.spo2,
+            "sleep_stage": self.sleep_stage,
+            "batt": self.batt,
+            "batteries": dict(self.batteries),
+        }

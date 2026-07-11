@@ -22,6 +22,7 @@ packet builder work fully offline. The BLE link uses `bleak` only when a
 RingClient is actually constructed, so the brain/companion can read the ring
 from a phone or laptop, and the firmware mirrors the same protocol over NimBLE.
 """
+
 from __future__ import annotations
 
 import struct
@@ -36,8 +37,8 @@ DEVICE_INFO_UUID = "0000180A-0000-1000-8000-00805F9B34FB"
 
 # --- command tags -----------------------------------------------------------
 CMD_BATTERY = 3
-CMD_READ_HEART_RATE = 21          # 0x15 daily HR log (multi-packet)
-CMD_REAL_TIME_HEART_RATE = 30     # legacy continue-packet alias
+CMD_READ_HEART_RATE = 21  # 0x15 daily HR log (multi-packet)
+CMD_REAL_TIME_HEART_RATE = 30  # legacy continue-packet alias
 CMD_START_REAL_TIME = 105
 CMD_STOP_REAL_TIME = 106
 
@@ -78,6 +79,7 @@ def is_error(packet: bytes) -> bool:
 @dataclass
 class RingSample:
     """Last decoded live reading from the ring."""
+
     hr: int = 0
     spo2: int = 0
     battery: int = 0
@@ -138,6 +140,7 @@ class RingClient:
 
     async def connect(self):
         from bleak import BleakClient  # imported only when actually connecting
+
         self._client = BleakClient(self.address)
         await self._client.connect()
         await self._client.start_notify(UART_TX_CHAR_UUID, self._on_tx)
@@ -167,17 +170,22 @@ class RingClient:
 
     async def read_battery(self) -> BatteryInfo:
         await self._client.write_gatt_char(
-            UART_RX_CHAR_UUID, battery_packet(), response=False)
+            UART_RX_CHAR_UUID, battery_packet(), response=False
+        )
         # response arrives via _on_tx; brief yield so the notification lands
         import asyncio
+
         await asyncio.sleep(0.4)
         return BatteryInfo(level=self.last.battery, charging=self.last.charging)
 
     async def stream_real_time(self, kind: int = RT_HEART_RATE, seconds: int = 12):
         await self._client.write_gatt_char(
-            UART_RX_CHAR_UUID, start_real_time_packet(kind), response=False)
+            UART_RX_CHAR_UUID, start_real_time_packet(kind), response=False
+        )
         import asyncio
+
         await asyncio.sleep(seconds)
         await self._client.write_gatt_char(
-            UART_RX_CHAR_UUID, stop_real_time_packet(kind), response=False)
+            UART_RX_CHAR_UUID, stop_real_time_packet(kind), response=False
+        )
         return self.last

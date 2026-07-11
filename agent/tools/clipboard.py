@@ -3,6 +3,7 @@
 On Linux uses xclip/wl-paste; elsewhere returns a stored value so the agent
 still works headless. Never crashes if no clipboard backend exists.
 """
+
 from __future__ import annotations
 
 import os
@@ -19,8 +20,12 @@ def make_clipboard_tool(config: AgentConfig) -> Tool:
     def _get() -> str:
         if shutil.which("xclip"):
             try:
-                return subprocess.run(["xclip", "-o", "-selection", "clipboard"],
-                                      capture_output=True, text=True, timeout=5).stdout.strip()
+                return subprocess.run(
+                    ["xclip", "-o", "-selection", "clipboard"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout.strip()
             except Exception:
                 pass
         if os.path.exists(_STORE):
@@ -32,8 +37,13 @@ def make_clipboard_tool(config: AgentConfig) -> Tool:
         open(_STORE, "w", encoding="utf-8").write(text)
         if shutil.which("xclip"):
             try:
-                subprocess.run(["xclip", "-selection", "clipboard"], input=text,
-                               capture_output=True, text=True, timeout=5)
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=text,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
             except Exception:
                 pass
         return f"clipboard set ({len(text)} chars)"

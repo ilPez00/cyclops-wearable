@@ -21,6 +21,7 @@ MEMORY.md/USER.md split):
     * "user" facts  -> USER.md  (who the user is, preferences, how they work)
     * "agent" facts -> MEMORY.md (environment, durable world/agent facts)
 """
+
 from __future__ import annotations
 
 import json
@@ -68,15 +69,18 @@ def _extract_json(text: str) -> Optional[dict]:
     return obj
 
 
-def _review(user_text: str, assistant_text: str, store: MemoryStore,
-            router) -> dict:
+def _review(user_text: str, assistant_text: str, store: MemoryStore, router) -> dict:
     """Synchronous review. Returns a summary of what was written."""
     written = {"user": 0, "agent": 0}
     try:
         reply = router.complete(
-            [{"role": "system", "content": _REVIEW_PROMPT},
-             {"role": "user", "content":
-                 f"USER: {user_text}\n\nASSISTANT: {assistant_text}"}],
+            [
+                {"role": "system", "content": _REVIEW_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"USER: {user_text}\n\nASSISTANT: {assistant_text}",
+                },
+            ],
             # learning is a small, cheap call — no tools, short output
             max_tokens=400,
         )
@@ -86,7 +90,7 @@ def _review(user_text: str, assistant_text: str, store: MemoryStore,
         if not data:
             return written
         for target in ("user", "agent"):
-            for fact in (data.get(target) or []):
+            for fact in data.get(target) or []:
                 if isinstance(fact, str) and fact.strip():
                     if store.append(fact.strip(), target=target) >= 0:
                         written[target] += 1
@@ -96,8 +100,13 @@ def _review(user_text: str, assistant_text: str, store: MemoryStore,
     return written
 
 
-def learn_from_turn(user_text: str, assistant_text: str, store: MemoryStore,
-                    router=None, async_ok: bool = True) -> dict:
+def learn_from_turn(
+    user_text: str,
+    assistant_text: str,
+    store: MemoryStore,
+    router=None,
+    async_ok: bool = True,
+) -> dict:
     """Review a completed turn and persist any learned facts.
 
     Args:
@@ -124,14 +133,15 @@ def learn_from_turn(user_text: str, assistant_text: str, store: MemoryStore,
     return {}
 
 
-def learn_recent(history: list[dict], store: MemoryStore, router=None,
-                 limit: int = 6) -> dict:
+def learn_recent(
+    history: list[dict], store: MemoryStore, router=None, limit: int = 6
+) -> dict:
     """Re-review the last `limit` turns (used by the app's "Learn" button)."""
     written = {"user": 0, "agent": 0}
     if router is None or not history:
         return written
     turns = [m for m in history if m.get("role") in ("user", "assistant")]
-    turns = turns[-limit * 2:]
+    turns = turns[-limit * 2 :]
     # pair up user/assistant
     for i in range(0, len(turns) - 1, 2):
         u = turns[i]

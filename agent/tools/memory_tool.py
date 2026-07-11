@@ -8,6 +8,7 @@ USER.md) and manage what it knows (edit/delete a learned card).
 All writes go to the Cyclops memory root (~/.cyclops/memory) so the user's
 real ~/.hermes files are never touched.
 """
+
 from __future__ import annotations
 
 from ..config import AgentConfig
@@ -22,6 +23,7 @@ def make_memory_tool(config: AgentConfig) -> Tool:
             return "error: target must be 'agent' or 'user'"
         try:
             from ..memory import MemoryStore
+
             store = MemoryStore(config)
         except Exception as e:
             return f"error: memory store unavailable: {e}"
@@ -70,7 +72,10 @@ def make_memory_tool(config: AgentConfig) -> Tool:
         parameters={
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["read", "append", "edit", "delete"]},
+                "action": {
+                    "type": "string",
+                    "enum": ["read", "append", "edit", "delete"],
+                },
                 "target": {"type": "string", "enum": ["agent", "user"]},
                 "note": {"type": "string"},
                 "index": {"type": "integer"},

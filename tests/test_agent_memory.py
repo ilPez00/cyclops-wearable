@@ -5,6 +5,7 @@
   sees the prior turn injected into its system block (real cross-session recall).
 No network/keys.
 """
+
 import os
 import sys
 import tempfile
@@ -21,12 +22,12 @@ def test_memory_recall():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(memory_root=d)
     ms = MemoryStore(cfg)
-    assert ms.recall() == ""                       # empty -> ''
+    assert ms.recall() == ""  # empty -> ''
     for i in range(12):
         ms.append(f"note {i}", target="agent")
     rec = ms.recall(limit=3)
     assert "note 11" in rec and "note 10" in rec and "note 9" in rec
-    assert "note 0" not in rec                      # only last 3
+    assert "note 0" not in rec  # only last 3
     print("OK memory recall round-trips")
 
 
@@ -34,14 +35,18 @@ def test_agent_persists_across_runs():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(memory_root=d, memory_recall=8)
     reg = ToolRegistry()
-    reg.register(Tool("echo", "echo", {"type": "object", "properties": {}}, lambda a: "ok"))
+    reg.register(
+        Tool("echo", "echo", {"type": "object", "properties": {}}, lambda a: "ok")
+    )
 
     # first agent run
     class R1:
         def chat(self, m, tools=None, temperature=0.4, **_kwargs):
             return ChatResult(text="Paris is the capital of France.")
+
     a1 = Agent(cfg, router=R1(), registry=reg, memory=MemoryStore(cfg))
     a1.run("what is the capital of France?")
+
     # a second, fresh agent over the SAME memory store
     class R2:
         def chat(self, m, tools=None, temperature=0.4, **_kwargs):
@@ -49,6 +54,7 @@ def test_agent_persists_across_runs():
             sysblk = m[0]["content"]
             R2.saw = "capital of France" in sysblk
             return ChatResult(text="I recall we discussed France earlier.")
+
     a2 = Agent(cfg, router=R2(), registry=reg, memory=MemoryStore(cfg))
     a2.run("remind me what we talked about")
     assert getattr(R2, "saw", False), "prior turn not injected into system block"
@@ -59,7 +65,7 @@ def test_persist_offline_safe_on_error():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(memory_root=os.path.join(d, "nested", "mem"))
     ms = MemoryStore(cfg)
-    ms.append("x")   # dir auto-created; must not raise
+    ms.append("x")  # dir auto-created; must not raise
     a = Agent(cfg, router=None, registry=ToolRegistry(), memory=ms)
     # run with no router -> model error path; must not raise, still returns
     res = a.run("hi")

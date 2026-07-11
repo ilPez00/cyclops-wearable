@@ -1,4 +1,5 @@
 """Persistent note store: JSONL + markdown export. No external deps."""
+
 from __future__ import annotations
 
 import json
@@ -17,13 +18,17 @@ class NoteStore:
         self._load()
 
     def _load(self):
-        if not os.path.exists(self.path): return
+        if not os.path.exists(self.path):
+            return
         with open(self.path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line: continue
-                try: self.notes.append(Note(**json.loads(line)))
-                except Exception: pass
+                if not line:
+                    continue
+                try:
+                    self.notes.append(Note(**json.loads(line)))
+                except Exception:
+                    pass
 
     def add(self, note: Note) -> Note:
         self.notes.append(note)
@@ -32,10 +37,12 @@ class NoteStore:
         return note
 
     def add_many(self, notes: list[Note]) -> list[Note]:
-        for n in notes: self.add(n)
+        for n in notes:
+            self.add(n)
         return notes
 
-    def all(self) -> list[Note]: return list(self.notes)
+    def all(self) -> list[Note]:
+        return list(self.notes)
 
     def by_type(self, t: str) -> list[Note]:
         return [n for n in self.notes if n.type == t]
@@ -53,13 +60,16 @@ class NoteStore:
             text = n.text.lower()
             if embedder is not None:
                 import math
-                a = embedder(q); b = embedder(text)
+
+                a = embedder(q)
+                b = embedder(text)
                 if not a or not b:
                     score = float(len(toks & set(text.split())))
                 else:
-                    dot = sum(x*y for x, y in zip(a, b))
-                    na = math.sqrt(sum(x*x for x in a)); nb = math.sqrt(sum(y*y for y in b))
-                    score = dot/(na*nb + 1e-9)
+                    dot = sum(x * y for x, y in zip(a, b))
+                    na = math.sqrt(sum(x * x for x in a))
+                    nb = math.sqrt(sum(y * y for y in b))
+                    score = dot / (na * nb + 1e-9)
             else:
                 score = float(len(toks & set(text.split())))
             if score > 0:
@@ -74,16 +84,19 @@ class NoteStore:
             sections.setdefault(n.type, []).append(n)
         lines = ["# Cyclops Notes", ""]
         for t in NOTE_TYPES:
-            lines.append("## Summaries" if t=="summary" else f"## {t.capitalize()}s")
-            if not sections[t]: lines.append("_none_")
+            lines.append("## Summaries" if t == "summary" else f"## {t.capitalize()}s")
+            if not sections[t]:
+                lines.append("_none_")
             for n in sections[t]:
                 due = f" (due {n.due})" if n.due else ""
                 lines.append(f"- {n.text}{due}  _{n.created}_")
             lines.append("")
         txt = "\n".join(lines)
-        with open(out, "w", encoding="utf-8") as f: f.write(txt)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(txt)
         return txt
 
     def clear(self):
         self.notes = []
-        if os.path.exists(self.path): os.remove(self.path)
+        if os.path.exists(self.path):
+            os.remove(self.path)

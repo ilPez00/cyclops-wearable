@@ -11,6 +11,7 @@ str` and `request(path) -> dict`, so the agent's `device` tool and the HUD
 bridge can target the wearable over *any* link. A `FakeTransport` lets tests
 exercise the full routing with zero hardware/network.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,6 +21,7 @@ from typing import Optional
 
 class Transport:
     """Uniform link to the wearable."""
+
     name = "base"
 
     def send_cmd(self, act: int, arg: str = "") -> str:
@@ -37,11 +39,12 @@ class Transport:
 
 class FakeTransport(Transport):
     """In-memory transport for offline tests / headless."""
+
     name = "fake"
 
     def __init__(self):
-        self.cmds = []          # (act, arg)
-        self.huds = []          # text pushed
+        self.cmds = []  # (act, arg)
+        self.huds = []  # text pushed
         self._notes = []
 
     def send_cmd(self, act: int, arg: str = "") -> str:
@@ -54,8 +57,10 @@ class FakeTransport(Transport):
 
     def request(self, path: str) -> dict:
         if path.startswith("/api/notes"):
-            return [{"id": str(i), "type": "summary", "text": t}
-                    for i, t in enumerate(self._notes)]
+            return [
+                {"id": str(i), "type": "summary", "text": t}
+                for i, t in enumerate(self._notes)
+            ]
         return {"ok": True, "path": path}
 
     def add_note(self, t: str):
@@ -64,6 +69,7 @@ class FakeTransport(Transport):
 
 class WifiTransport(Transport):
     """HTTP to the brain server. Real on the LAN; offline-safe when no session."""
+
     name = "wifi"
 
     def __init__(self, host: str, port: int, session=None):
@@ -76,6 +82,7 @@ class WifiTransport(Transport):
             resp = self.session.get(url, timeout=10)
             return resp.json() if hasattr(resp, "json") else {}
         import urllib.request
+
         with urllib.request.urlopen(url, timeout=10) as r:
             return json.loads(r.read())
 
@@ -83,12 +90,15 @@ class WifiTransport(Transport):
         url = self.base + path
         body = json.dumps(payload).encode()
         if self.session is not None:
-            resp = self.session.post(url, data=body,
-                                     headers={"Content-Type": "application/json"}, timeout=10)
+            resp = self.session.post(
+                url, data=body, headers={"Content-Type": "application/json"}, timeout=10
+            )
             return resp.json() if hasattr(resp, "json") else {}
         import urllib.request
-        req = urllib.request.Request(url, data=body,
-                                     headers={"Content-Type": "application/json"}, method="POST")
+
+        req = urllib.request.Request(
+            url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+        )
         with urllib.request.urlopen(req, timeout=10) as r:
             return json.loads(r.read())
 
@@ -108,6 +118,7 @@ class WifiTransport(Transport):
 class BluetoothTransport(Transport):
     """RFCOMM serial to the wearable. Real when a rfcomm/serial device exists;
     otherwise operates on a captured serial file (so logic is testable)."""
+
     name = "bt"
 
     def __init__(self, mac: str = "", tty: str = "", serial_file: str = ""):
@@ -123,7 +134,8 @@ class BluetoothTransport(Transport):
     def _write_frame(self, act: int, arg: str) -> str:
         line = json.dumps({"a": act, "arg": arg}) + "\n"
         if self._fh is not None:
-            self._fh.write(line); self._fh.flush()
+            self._fh.write(line)
+            self._fh.flush()
             return f"bt: wrote frame to {'file' if self.serial_file else 'tty'}"
         # No link available: report (does not crash headless)
         return f"bt: no link (mac={self.mac or '?'}); queued {line.strip()}"
@@ -136,16 +148,22 @@ class BluetoothTransport(Transport):
 
     def request(self, path: str) -> dict:
         # BT is a serial push link; reads would stream back frames. Best-effort.
-        return {"ok": True, "transport": "bt", "note": "streaming link; use wifi for REST"}
+        return {
+            "ok": True,
+            "transport": "bt",
+            "note": "streaming link; use wifi for REST",
+        }
 
     def close(self):
         if self._fh is not None:
-            self._fh.close(); self._fh = None
+            self._fh.close()
+            self._fh = None
 
 
 class CableTransport(Transport):
     """ADB/serial forward to a TTY (e.g. `adb forward tcp:8080 tcp:8080` or a
     real /dev/ttyUSBn). Real when `adb` exists; stub otherwise."""
+
     name = "cable"
 
     def __init__(self, tty: str = "", adb: bool = False):
@@ -158,13 +176,18 @@ class CableTransport(Transport):
     def _write(self, act: int, arg: str) -> str:
         line = json.dumps({"a": act, "arg": arg}) + "\n"
         if self._fh is not None:
-            self._fh.write(line); self._fh.flush()
+            self._fh.write(line)
+            self._fh.flush()
             return "cable: wrote frame to tty"
         if self.adb:
             import subprocess
+
             try:
-                subprocess.run(["adb", "shell", "echo", line.strip()],
-                               capture_output=True, timeout=10)
+                subprocess.run(
+                    ["adb", "shell", "echo", line.strip()],
+                    capture_output=True,
+                    timeout=10,
+                )
                 return "cable: adb forwarded"
             except Exception as e:
                 return f"cable: adb failed {e}"
@@ -181,7 +204,8 @@ class CableTransport(Transport):
 
     def close(self):
         if self._fh is not None:
-            self._fh.close(); self._fh = None
+            self._fh.close()
+            self._fh = None
 
 
 class SerialFrameReader:
@@ -193,6 +217,7 @@ class SerialFrameReader:
 
     Offline-testable: feed it a StringIO of captured frames.
     """
+
     def __init__(self, bridge):
         self.bridge = bridge
         self._buf = ""
@@ -206,6 +231,7 @@ class SerialFrameReader:
                 continue
             try:
                 import json as _j
+
                 d = _j.loads(line)
             except Exception:
                 continue
@@ -224,16 +250,24 @@ def build_transport(kind: str, config=None, session=None, **kw) -> Transport:
             raise ValueError("wifi transport needs a config")
         return WifiTransport(config.device_host, config.device_port, session=session)
     if kind == "bt":
-        return BluetoothTransport(mac=kw.get("mac", ""), serial_file=kw.get("serial_file", ""))
+        return BluetoothTransport(
+            mac=kw.get("mac", ""), serial_file=kw.get("serial_file", "")
+        )
     if kind == "ble":
         from .ble import BleTransport
-        return BleTransport(bridge=kw.get("bridge"), backend=kw.get("backend"),
-                            srvc=kw.get("srvc", ""), note=kw.get("note", ""),
-                            name=kw.get("name", ""))
+
+        return BleTransport(
+            bridge=kw.get("bridge"),
+            backend=kw.get("backend"),
+            srvc=kw.get("srvc", ""),
+            note=kw.get("note", ""),
+            name=kw.get("name", ""),
+        )
     if kind == "cable":
         return CableTransport(tty=kw.get("tty", ""), adb=kw.get("adb", False))
     if kind == "g2":
         from .g2 import G2Transport
+
         return G2Transport(backend=kw.get("backend"))
     if kind == "fake":
         return FakeTransport()

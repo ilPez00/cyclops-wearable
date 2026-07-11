@@ -1,4 +1,5 @@
 """Offline: P2-B multi-source context fusion (notes + health + calendar)."""
+
 import json
 import os
 import sys
@@ -11,8 +12,9 @@ from device.health_fuse import HealthAggregator
 
 
 def test_fuse_notes_health_calendar():
-    notes = extract("Remind me to send the invoice by friday. "
-                    "We decided to ship the MVP next week.")
+    notes = extract(
+        "Remind me to send the invoice by friday. We decided to ship the MVP next week."
+    )
     agg = HealthAggregator().from_colmi(hr=72, spo2=98, battery=85, ts=1)
     cal_path = tempfile.mktemp(suffix=".jsonl")
     with open(cal_path, "w", encoding="utf-8") as f:

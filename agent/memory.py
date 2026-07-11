@@ -17,6 +17,7 @@ Cyclops keeps its OWN memory root (~/.cyclops/memory) so it never clobbers
 the user's real ~/.hermes/MEMORY.md. The store is offline-safe: every
 method swallows IO errors and returns sane empties rather than raising.
 """
+
 from __future__ import annotations
 
 import json
@@ -50,7 +51,9 @@ class MemoryStore:
         root = getattr(config, "memory_root", "~/.cyclops/memory")
         self.root = Path(root).expanduser()
         self.root.mkdir(parents=True, exist_ok=True)
-        self.agent_file = self.root / (getattr(config, "memory_file", None) or "MEMORY.md")
+        self.agent_file = self.root / (
+            getattr(config, "memory_file", None) or "MEMORY.md"
+        )
         self.user_file = self.root / (getattr(config, "user_file", None) or "USER.md")
         self.max_chars = int(getattr(config, "memory_max_chars", MAX_CARD_CHARS))
         self._lock = threading.Lock()  # serialize reads/writes per process
@@ -86,7 +89,10 @@ class MemoryStore:
     # -- public API ---------------------------------------------------------
     def list(self, target: str = "agent") -> list[MemoryCard]:
         with self._lock:
-            return [MemoryCard(text=t, target=target) for t in self._read_cards(self._path(target))]
+            return [
+                MemoryCard(text=t, target=target)
+                for t in self._read_cards(self._path(target))
+            ]
 
     def read(self, target: str = "agent") -> str:
         """Full markdown for a target (injected into the system prompt)."""
@@ -151,6 +157,8 @@ class MemoryStore:
 
 def _as_json_payload(store: MemoryStore) -> str:
     """Combined view for the app / api: both targets with indices."""
-    out = {"agent": [c.to_dict() for c in store.list("agent")],
-           "user": [c.to_dict() for c in store.list("user")]}
+    out = {
+        "agent": [c.to_dict() for c in store.list("agent")],
+        "user": [c.to_dict() for c in store.list("user")],
+    }
     return json.dumps(out)

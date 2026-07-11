@@ -5,6 +5,7 @@ returns tool_calls execute them and feed results back, repeat until the model
 returns final text or the iteration budget is exhausted. The model and tools
 are injectable so the whole loop is testable offline.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,8 +23,8 @@ from .skills import Skills
 class Tool:
     name: str
     description: str
-    parameters: dict                 # JSON-schema-ish
-    run: Callable[[dict], str]      # args -> string result
+    parameters: dict  # JSON-schema-ish
+    run: Callable[[dict], str]  # args -> string result
 
     def schema(self) -> dict:
         return {
@@ -67,15 +68,21 @@ class ToolRegistry:
 @dataclass
 class TurnResult:
     text: str
-    steps: list[dict] = field(default_factory=list)   # audit trail
+    steps: list[dict] = field(default_factory=list)  # audit trail
     tool_calls: int = 0
 
 
 class Agent:
-    def __init__(self, config: AgentConfig, router: Optional[ModelRouter] = None,
-                 registry: Optional[ToolRegistry] = None, skills: Optional[Skills] = None,
-                 memory: Optional[MemoryStore] = None, max_iter: int = 0,
-                 context=None):
+    def __init__(
+        self,
+        config: AgentConfig,
+        router: Optional[ModelRouter] = None,
+        registry: Optional[ToolRegistry] = None,
+        skills: Optional[Skills] = None,
+        memory: Optional[MemoryStore] = None,
+        max_iter: int = 0,
+        context=None,
+    ):
         self.cfg = config
         self.router = router or ModelRouter(config)
         self.registry = registry or ToolRegistry()
@@ -83,10 +90,12 @@ class Agent:
         self.memory = memory or MemoryStore(config)
         self.max_iter = max_iter or config.max_tool_iter
         self.context = context  # brain.context.ContextAssembler (live fused context)
-        self.history: list[dict] = []   # prior turns (role/content), in-session memory
+        self.history: list[dict] = []  # prior turns (role/content), in-session memory
         # optional live progress callback: cb(tool_name, progress_pct) per iteration
         self.progress_cb: Optional[Callable[[Optional[str], int], None]] = None
-        self._last_tool: Optional[str] = None   # last invoked tool (for per-tool model override)
+        self._last_tool: Optional[str] = (
+            None  # last invoked tool (for per-tool model override)
+        )
 
     def reset(self):
         """Clear in-session conversation history."""
@@ -103,8 +112,12 @@ class Agent:
         return "\n".join(lines)
 
     # -- public -------------------------------------------------------------
-    def run(self, user_text: str, images: list[str] | None = None,
-            audio_transcript: str | None = None) -> TurnResult:
+    def run(
+        self,
+        user_text: str,
+        images: list[str] | None = None,
+        audio_transcript: str | None = None,
+    ) -> TurnResult:
         sys_block = self._system_block()
         messages = [{"role": "system", "content": sys_block}]
         # replay in-session history so the model has conversational context
@@ -114,11 +127,14 @@ class Agent:
 
         result = TurnResult(text="")
         if self.progress_cb:
-            self.progress_cb(None, 0)   # thinking…
+            self.progress_cb(None, 0)  # thinking…
         for _ in range(self.max_iter):
             try:
-                resp = self.router.chat(messages, tools=self.registry.schemas() or None,
-                                        tool=self._last_tool)
+                resp = self.router.chat(
+                    messages,
+                    tools=self.registry.schemas() or None,
+                    tool=self._last_tool,
+                )
             except Exception as e:
                 result.text = f"[model error] {e}"
                 self._remember("user", content)
@@ -127,24 +143,38 @@ class Agent:
                     self.progress_cb(None, 100)
                 return result
             if resp.tool_calls:
-                messages.append({"role": "assistant", "content": resp.text or "",
-                                 "tool_calls": resp.tool_calls})
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": resp.text or "",
+                        "tool_calls": resp.tool_calls,
+                    }
+                )
                 for tc in resp.tool_calls:
                     fn = tc.get("function", {})
                     name = fn.get("name", "")
                     try:
-                        args = json.loads(fn.get("argument", fn.get("arguments", "{}")) or "{}")
+                        args = json.loads(
+                            fn.get("argument", fn.get("arguments", "{}")) or "{}"
+                        )
                     except Exception:
                         args = {}
                     out = self.registry.run(name, args)
-                    self._last_tool = name   # feed into next model call for per-tool override
+                    self._last_tool = (
+                        name  # feed into next model call for per-tool override
+                    )
                     result.tool_calls += 1
-                    result.steps.append({"tool": name, "args": args, "result": out[:500]})
+                    result.steps.append(
+                        {"tool": name, "args": args, "result": out[:500]}
+                    )
                     if self.progress_cb:
-                        pct = min(95, 20 + 75 * result.tool_calls // max(1, self.max_iter))
+                        pct = min(
+                            95, 20 + 75 * result.tool_calls // max(1, self.max_iter)
+                        )
                         self.progress_cb(name, pct)
-                    messages.append({"role": "tool", "name": name,
-                                     "content": out[:4000]})
+                    messages.append(
+                        {"role": "tool", "name": name, "content": out[:4000]}
+                    )
                 continue
             result.text = resp.text
             self._remember("user", content)
@@ -171,26 +201,36 @@ class Agent:
     # -- internals ----------------------------------------------------------
     def _system_block(self) -> str:
         skills_blk = self.skills.system_block()
-        base = ("You are Cyclops, a personal AI agent that routes text, audio and "
-                "images to tools and returns concise results. You can control a "
-                "terminal, read/write files, search the web, read the user's memory/"
-                "persona/health, manage calendar/clipboard, describe images, ingest "
-                "photos/voice/places, export WhatsApp chats, and talk to a wearable "
-                "device (HUD, notifications, capture). Prefer tools when they help. "
-                "Be terse unless asked otherwise.")
+        base = (
+            "You are Cyclops, a personal AI agent that routes text, audio and "
+            "images to tools and returns concise results. You can control a "
+            "terminal, read/write files, search the web, read the user's memory/"
+            "persona/health, manage calendar/clipboard, describe images, ingest "
+            "photos/voice/places, export WhatsApp chats, and talk to a wearable "
+            "device (HUD, notifications, capture). Prefer tools when they help. "
+            "Be terse unless asked otherwise."
+        )
         if self.cfg.system_note:
             base = self.cfg.system_note + "\n\n" + base
         parts = [base]
         # Hermes-style durable memory: agent facts (MEMORY.md) + user profile (USER.md)
         agent_mem = self.memory.read(target="agent")
         if agent_mem:
-            parts.append("AGENT MEMORY (durable facts about the world/environment):\n" + agent_mem)
+            parts.append(
+                "AGENT MEMORY (durable facts about the world/environment):\n"
+                + agent_mem
+            )
         user_mem = self.memory.read(target="user")
         if user_mem:
-            parts.append("USER PROFILE (who the user is, preferences, how they work):\n" + user_mem)
-        if skills_blk: parts.append(skills_blk)
+            parts.append(
+                "USER PROFILE (who the user is, preferences, how they work):\n"
+                + user_mem
+            )
+        if skills_blk:
+            parts.append(skills_blk)
         rec = self.memory.recall(limit=self.cfg.memory_recall or 8)
-        if rec: parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
+        if rec:
+            parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
         if self.context is not None:
             fused = self.context.render()
             if fused and fused != "[context] empty":
@@ -214,18 +254,20 @@ class Agent:
         """
         try:
             learning_mod.learn_from_turn(
-                user_text, answer, self.memory,
-                router=self.router, async_ok=True)
+                user_text, answer, self.memory, router=self.router, async_ok=True
+            )
         except Exception:
             pass
 
     def _user_content(self, text, images, audio_transcript):
         blocks = []
         if audio_transcript:
-            blocks.append({"type": "text", "text": f"[audio transcript] {audio_transcript}"})
+            blocks.append(
+                {"type": "text", "text": f"[audio transcript] {audio_transcript}"}
+            )
         if text:
             blocks.append({"type": "text", "text": text})
-        for url in (images or []):
+        for url in images or []:
             blocks.append({"type": "image_url", "image_url": {"url": url}})
         if not blocks:
             blocks.append({"type": "text", "text": ""})

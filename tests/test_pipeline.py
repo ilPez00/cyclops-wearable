@@ -4,6 +4,7 @@ Guarantees the offline default is enforced by policy, not by accident: under
 local_first (default) with no API keys the pipeline uses the deterministic
 offline stub; cloud is only reachable when explicitly opted in.
 """
+
 import os
 import sys
 
@@ -14,8 +15,12 @@ from brain.transcriber import CloudTranscriber, StubTranscriber
 
 
 def _clear_keys():
-    for k in ("DEEPGRAM_API_KEY", "GROQ_API_KEY", "OPENAI_API_KEY",
-              "OPENROUTER_API_KEY"):
+    for k in (
+        "DEEPGRAM_API_KEY",
+        "GROQ_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+    ):
         os.environ.pop(k, None)
 
 

@@ -8,6 +8,7 @@ shows live HR even though the ring never touched the XIAO.
 The send path is injectable (frame -> bytes callable) so the relay is fully
 testable without Bluetooth: a fake transport records the frames it would push.
 """
+
 from __future__ import annotations
 
 from brain.protocol_v2 import MSG_HEALTH_SAMPLE, build_health, parse_health
@@ -27,5 +28,8 @@ def relay_health(aggregator, send_frame, ts: int = 0) -> bytes:
 def parse_wearable_health(payload: bytes) -> dict:
     """What the wearable decodes on the other end (mirror of Hud.on_health_sample)."""
     d = parse_health(payload)
-    return {"hr": d.get("hr", 0) or 0, "spo2": d.get("spo2", 0) or 0,
-            "ring_batt": d.get("batt", 0) or 0}
+    return {
+        "hr": d.get("hr", 0) or 0,
+        "spo2": d.get("spo2", 0) or 0,
+        "ring_batt": d.get("batt", 0) or 0,
+    }

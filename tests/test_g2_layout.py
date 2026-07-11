@@ -3,6 +3,7 @@
 Proves the simulator/firmware and the G2 agree on the wire, so the tiny-OLED
 weakness (premortem D7) is closed by borrowing the G2 as the real display.
 """
+
 import os
 import sys
 
@@ -14,8 +15,9 @@ from shells.hud_sim import HudSim
 
 
 def test_banner_formatting():
-    b = model_to_banner("agent", ["Meet Bob", "bring cable"], progress=42,
-                        hr=72, spo2=97, batt=80)
+    b = model_to_banner(
+        "agent", ["Meet Bob", "bring cable"], progress=42, hr=72, spo2=97, batt=80
+    )
     assert "agent" in b and "H72" in b and "S97" in b and "B80" in b
     assert "Meet Bob" in b and "42%" in b
     print("OK G2 banner formatting")
@@ -23,8 +25,11 @@ def test_banner_formatting():
 
 def test_agent_frame_to_g2_packets():
     sim = HudSim()
-    sim.feed_hud_frame(build_hud(HUD_KINDS.index("agent"),
-                                 ["Meet Bob at 3pm", "bring the cable"], more=False))
+    sim.feed_hud_frame(
+        build_hud(
+            HUD_KINDS.index("agent"), ["Meet Bob at 3pm", "bring the cable"], more=False
+        )
+    )
     sim.set_health(hr=72, spo2=97, batt=80)
     pkts = sim.to_g2()
     assert_g2_packets(pkts)

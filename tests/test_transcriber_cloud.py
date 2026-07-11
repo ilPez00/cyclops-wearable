@@ -1,4 +1,5 @@
 """Offline tests for the real cloud transcriber (Deepgram + OpenAI) via fake session."""
+
 import json
 import os
 import sys
@@ -10,23 +11,43 @@ from brain.transcriber import CloudTranscriber, StubTranscriber, get_transcriber
 
 class FakeKeys:
     """Minimal key store so CloudTranscriber runs without the real /home/gio/.env."""
+
     def __init__(self, prov, key, endpoint=None):
-        self._prov = prov; self._key = key; self._ep = endpoint
-    def get_key(self, p): return self._key if p == self._prov else None
-    def get_endpoint(self, p): return self._ep if p == self._prov else None
-    def has(self, p): return p == self._prov
+        self._prov = prov
+        self._key = key
+        self._ep = endpoint
+
+    def get_key(self, p):
+        return self._key if p == self._prov else None
+
+    def get_endpoint(self, p):
+        return self._ep if p == self._prov else None
+
+    def has(self, p):
+        return p == self._prov
+
     def provider(self, p):
-        return {"key": self._key, "endpoint": self._ep} if p == self._prov else {"key": None, "endpoint": None}
+        return (
+            {"key": self._key, "endpoint": self._ep}
+            if p == self._prov
+            else {"key": None, "endpoint": None}
+        )
 
 
 class Resp:
-    def __init__(self, d): self._d = d
-    def json(self): return self._d
+    def __init__(self, d):
+        self._d = d
+
+    def json(self):
+        return self._d
 
 
 class Session:
     def __init__(self, expect_url_substr, payload):
-        self.expect = expect_url_substr; self.payload = payload; self.calls = []
+        self.expect = expect_url_substr
+        self.payload = payload
+        self.calls = []
+
     def post(self, url, data=None, headers=None, timeout=30, files=None):
         self.calls.append(url)
         assert self.expect in url, f"unexpected url {url}"
@@ -35,10 +56,17 @@ class Session:
 
 def test_cloud_deepgram():
     keys = FakeKeys("deepgram", "tok", "https://api.deepgram.com/v1")
-    sess = Session("deepgram.com", {
-        "results": {"channels": [{"alternatives": [{"transcript": "hello from deepgram"}]}]}
-    })
-    t = CloudTranscriber(keys=keys, audio_provider="deepgram", session=sess, language="it")
+    sess = Session(
+        "deepgram.com",
+        {
+            "results": {
+                "channels": [{"alternatives": [{"transcript": "hello from deepgram"}]}]
+            }
+        },
+    )
+    t = CloudTranscriber(
+        keys=keys, audio_provider="deepgram", session=sess, language="it"
+    )
     out = t.transcribe(b"\x00\x00" * 100, rate=16000)
     assert out == "hello from deepgram"
     assert "language=it" in sess.calls[0]

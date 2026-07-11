@@ -4,6 +4,7 @@ A skill is a markdown file with YAML frontmatter (name, description) and a body.
 The agent can surface skill instructions to the model as extra system context,
 and skills can register tools. This mirrors how Hermes loads skills on disk.
 """
+
 from __future__ import annotations
 
 import re
@@ -74,7 +75,7 @@ class Skills:
         body = text
         if m:
             fm = m.group(1)
-            body = text[m.end():]
+            body = text[m.end() :]
             for line in fm.splitlines():
                 if line.lower().startswith("name:"):
                     name = line.split(":", 1)[1].strip()

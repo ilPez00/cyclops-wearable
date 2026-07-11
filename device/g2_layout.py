@@ -10,13 +10,15 @@ the desktop simulator (shells/hud_sim.py) and the wearable HUD model both
 It pairs with the even_hub_sdk plugin in `g2-plugin/` (the renderer that runs
 *inside* the G2 companion app and receives these packets over BLE).
 """
+
 from __future__ import annotations
 
 from device.g2 import G2_MAX_PAYLOAD, split_g2
 
 
-def model_to_banner(kind: str, lines: list[str], progress=None,
-                    hr=None, spo2=None, batt=None) -> str:
+def model_to_banner(
+    kind: str, lines: list[str], progress=None, hr=None, spo2=None, batt=None
+) -> str:
     """Flatten a HUD model into a G2-safe banner (each line <=18 chars)."""
     out: list[str] = []
     segs = []
@@ -39,8 +41,9 @@ def model_to_banner(kind: str, lines: list[str], progress=None,
     return "\n".join(out)
 
 
-def render_to_g2(kind: str, lines: list[str], progress=None,
-                 hr=None, spo2=None, batt=None) -> list[bytes]:
+def render_to_g2(
+    kind: str, lines: list[str], progress=None, hr=None, spo2=None, batt=None
+) -> list[bytes]:
     """Produce the exact G2 BLE packet list for a HUD model.
 
     Each packet: 0x01 control byte + <=18B UTF-8. Mirrors what the G2 firmware
@@ -49,6 +52,7 @@ def render_to_g2(kind: str, lines: list[str], progress=None,
     banner = model_to_banner(kind, lines, progress, hr, spo2, batt)
     if not banner:
         from device.g2 import build_g2_packet
+
         return [build_g2_packet("")]  # blank screen packet
     return split_g2(banner)
 

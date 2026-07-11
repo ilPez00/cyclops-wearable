@@ -8,6 +8,7 @@ Assembles one context block for the agent from the body signals Cyclops owns:
 Offline-first and dependency-free; the calendar source is a JSONL path
 (one event per line: {"title","start","loc"}) or an in-memory list.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,8 +18,8 @@ import os
 class ContextAssembler:
     def __init__(self):
         self._notes = []
-        self._health = None        # HealthAggregator
-        self._calendar = []        # list of event dicts
+        self._health = None  # HealthAggregator
+        self._calendar = []  # list of event dicts
 
     # -- inputs ------------------------------------------------------------
     def add_notes(self, notes) -> "ContextAssembler":
@@ -54,8 +55,7 @@ class ContextAssembler:
         health = self._health.snapshot() if self._health else {}
         upcoming = sorted(self._calendar, key=lambda e: e.get("start", ""))[:5]
         return {
-            "notes": [n.to_dict() if hasattr(n, "to_dict") else n
-                      for n in self._notes],
+            "notes": [n.to_dict() if hasattr(n, "to_dict") else n for n in self._notes],
             "health": health,
             "calendar": upcoming,
         }
@@ -66,18 +66,25 @@ class ContextAssembler:
         lines = []
         if d["health"]:
             h = d["health"]
-            vit = ", ".join(f"{k}={v}" for k, v in
-                            (("hr", h.get("hr")), ("spo2", h.get("spo2")),
-                             ("batt", h.get("batt")))
-                            if v)
+            vit = ", ".join(
+                f"{k}={v}"
+                for k, v in (
+                    ("hr", h.get("hr")),
+                    ("spo2", h.get("spo2")),
+                    ("batt", h.get("batt")),
+                )
+                if v
+            )
             if vit:
                 lines.append(f"[health] {vit}")
         if d["calendar"]:
-            cal = "; ".join(f"{e.get('title','?')}@{e.get('start','?')}"
-                            for e in d["calendar"])
+            cal = "; ".join(
+                f"{e.get('title', '?')}@{e.get('start', '?')}" for e in d["calendar"]
+            )
             lines.append(f"[calendar] {cal}")
         if d["notes"]:
-            nt = "; ".join(f"{n.get('type','note')}: {n.get('text','')}"
-                           for n in d["notes"][-5:])
+            nt = "; ".join(
+                f"{n.get('type', 'note')}: {n.get('text', '')}" for n in d["notes"][-5:]
+            )
             lines.append(f"[notes] {nt}")
         return "\n".join(lines) if lines else "[context] empty"

@@ -1,6 +1,7 @@
 """Offline: HUD simulator decodes the real wire frames (DISPLAY_CMD + HUD_FRAME)
 and renders a glanceable grid. Mirrors the firmware's parse contract so the
 wearable UX is testable without hardware (premortem D1/D5)."""
+
 import os
 import sys
 
@@ -11,8 +12,11 @@ from shells.hud_sim import HudSim
 
 def test_hud_frame():
     sim = HudSim()
-    sim.feed_hud_frame(build_hud(HUD_KINDS.index("agent"),
-                                 ["Meet Bob at 3pm", "bring the cable"], more=False))
+    sim.feed_hud_frame(
+        build_hud(
+            HUD_KINDS.index("agent"), ["Meet Bob at 3pm", "bring the cable"], more=False
+        )
+    )
     assert sim.mode == "agent"
     grid = sim.render()
     assert any("Meet Bob" in r for r in grid)
@@ -50,7 +54,9 @@ def test_health_status_bar():
 
 def test_grid_geometry():
     sim = HudSim(cols=21, rows=4)
-    sim.feed_hud_frame(build_hud(HUD_KINDS.index("agent"), ["a", "b", "c", "d", "e"], more=True))
+    sim.feed_hud_frame(
+        build_hud(HUD_KINDS.index("agent"), ["a", "b", "c", "d", "e"], more=True)
+    )
     grid = sim.render()
     assert len(grid) == 4
     assert all(len(r) == 21 for r in grid)

@@ -16,16 +16,19 @@ Offline-safe by design:
 Audio capture is privacy-sensitive: callers MUST gate start() on Consent Mode
 (see agent/tools/consent.py).
 """
+
 from __future__ import annotations
 
 import base64
 import os
 
 # --- Omi BLE (verify against your Omi firmware; override via env) ----------
-OMI_SERVICE_UUID = os.environ.get("CYCLOPS_OMI_SRVC",
-                                  "19B10000-E8F2-537E-4F6C-D104768A1214")
-OMI_AUDIO_UUID = os.environ.get("CYCLOPS_OMI_AUDIO",
-                                "19B10001-E8F2-537E-4F6C-D104768A1214")
+OMI_SERVICE_UUID = os.environ.get(
+    "CYCLOPS_OMI_SRVC", "19B10000-E8F2-537E-4F6C-D104768A1214"
+)
+OMI_AUDIO_UUID = os.environ.get(
+    "CYCLOPS_OMI_AUDIO", "19B10001-E8F2-537E-4F6C-D104768A1214"
+)
 OMI_RATE = 16000
 
 
@@ -34,8 +37,10 @@ def decode_opus(opus_bytes: bytes, rate: int = OMI_RATE) -> bytes:
     try:
         import opuslib
     except Exception as e:
-        raise RuntimeError("opuslib not installed; install it or feed PCM16 "
-                           "directly to the ingest loop") from e
+        raise RuntimeError(
+            "opuslib not installed; install it or feed PCM16 "
+            "directly to the ingest loop"
+        ) from e
     dec = opuslib.Decoder(rate, 1)
     return dec.decode(opus_bytes, OMI_RATE // 50)  # 20 ms frame
 
@@ -63,14 +68,16 @@ class OmiAudioSource:
 class FakeOmiSource(OmiAudioSource):
     """Test source: emits N synthetic PCM16 chunks then stops."""
 
-    def __init__(self, chunks: int = 3, samples_per_chunk: int = 160,
-                 rate: int = OMI_RATE):
+    def __init__(
+        self, chunks: int = 3, samples_per_chunk: int = 160, rate: int = OMI_RATE
+    ):
         super().__init__(rate)
         self.chunks = chunks
         self.samples_per_chunk = samples_per_chunk
 
     def _run(self):
         import struct
+
         for _ in range(self.chunks):
             if not self.running:
                 break
@@ -83,8 +90,13 @@ class BleOmiSource(OmiAudioSource):
     """Real Omi over BLE (import-safe). Subscribes to the audio characteristic,
     decodes Opus -> PCM16, and forwards chunks. Needs `bleak` + `opuslib`."""
 
-    def __init__(self, address: str | None = None, rate: int = OMI_RATE,
-                 srvc: str = OMI_SERVICE_UUID, audio: str = OMI_AUDIO_UUID):
+    def __init__(
+        self,
+        address: str | None = None,
+        rate: int = OMI_RATE,
+        srvc: str = OMI_SERVICE_UUID,
+        audio: str = OMI_AUDIO_UUID,
+    ):
         super().__init__(rate)
         self.address = address
         self.srvc = srvc
@@ -126,8 +138,13 @@ class OmiIngest:
     caller's responsibility (the tool gates it).
     """
 
-    def __init__(self, source: OmiAudioSource, transcriber,
-                 on_phrase=lambda t: None, max_chunks: int = 30):
+    def __init__(
+        self,
+        source: OmiAudioSource,
+        transcriber,
+        on_phrase=lambda t: None,
+        max_chunks: int = 30,
+    ):
         self.source = source
         self.transcriber = transcriber
         self.on_phrase = on_phrase

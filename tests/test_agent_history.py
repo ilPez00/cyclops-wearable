@@ -1,4 +1,5 @@
 """Tests for agent conversation history + memory write-back."""
+
 import json
 import os
 import sys
@@ -14,10 +15,15 @@ from agent.tools import build_registry
 
 class FakeRouter:
     """Echoes a deterministic answer; never calls tools, just replies."""
+
     def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
         # last user message text
         last = messages[-1]
-        text = last.get("content") if isinstance(last.get("content"), str) else str(last.get("content"))
+        text = (
+            last.get("content")
+            if isinstance(last.get("content"), str)
+            else str(last.get("content"))
+        )
         return ChatResult(text=f"reply to: {text}")
 
 
@@ -37,10 +43,12 @@ def test_history_accumulates():
 def test_history_replayed_into_context():
     cfg = AgentConfig()
     seen = []
+
     class SpyRouter:
         def chat(self, messages, tools=None, temperature=0.4, **_kwargs):
             seen.append(messages)
             return ChatResult(text="ok")
+
     agent = Agent(cfg, router=SpyRouter(), registry=build_registry(cfg, agent=None))
     agent.run("first turn")
     agent.run("second turn")
@@ -53,7 +61,8 @@ def test_history_replayed_into_context():
 def test_reset_clears_history():
     cfg = AgentConfig()
     agent = Agent(cfg, router=FakeRouter(), registry=build_registry(cfg, agent=None))
-    agent.run("a"); agent.run("b")
+    agent.run("a")
+    agent.run("b")
     assert len(agent.history) >= 2
     agent.reset()
     assert agent.history == []
@@ -75,6 +84,7 @@ def test_memory_writeback():
     tmp = tempfile.mkdtemp()
     cfg.memory_root = tmp
     from agent.memory import MemoryStore
+
     store = MemoryStore(cfg)
     idx = store.append("buy milk", target="agent")
     assert idx == 0

@@ -4,6 +4,7 @@ Parses the standard WhatsApp export format (txt with date/time sender: body)
 and returns a condensed, AI-friendly summary plus per-contact threads. This is
 the "export WhatsApp chats to feed the AI" feature.
 """
+
 from __future__ import annotations
 
 import re
@@ -15,7 +16,8 @@ from ..loop import Tool
 # Matches: 12/04/2026, 14:33 - Sender: message
 _LINE = re.compile(
     r"^(\d{1,2}/\d{1,2}/\d{2,4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*"
-    r"([^:]+?):\s?(.*)$")
+    r"([^:]+?):\s?(.*)$"
+)
 
 
 def parse_export(text: str) -> dict:
@@ -45,6 +47,7 @@ def make_whatsapp_tool(root: str = "~") -> Tool:
         if not path:
             return "error: provide 'path' to a WhatsApp export .txt"
         import os
+
         p = os.path.expanduser(path)
         if not os.path.exists(p):
             return f"error: file not found: {p}"
@@ -63,7 +66,10 @@ def make_whatsapp_tool(root: str = "~") -> Tool:
         parameters={
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "path to WhatsApp export txt"},
+                "path": {
+                    "type": "string",
+                    "description": "path to WhatsApp export txt",
+                },
             },
             "required": ["path"],
         },

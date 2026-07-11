@@ -3,6 +3,7 @@
 Paths are configurable so the same core runs on the phone, desktop, or the
 wearable. Environment variables + a config file are both supported; env wins.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,32 +17,32 @@ from typing import Optional
 class AgentConfig:
     # Model routing -------------------------------------------------------
     model: str = "auto"
-    provider: str = "auto"          # auto|openrouter|groq|openai|ollama|lmstudio|custom|...
-    base_url: str = ""              # for local/custom OpenAI-compatible servers
-    api_key: str = ""               # optional; falls back to env / key store
+    provider: str = "auto"  # auto|openrouter|groq|openai|ollama|lmstudio|custom|...
+    base_url: str = ""  # for local/custom OpenAI-compatible servers
+    api_key: str = ""  # optional; falls back to env / key store
 
     # Local-model toggle (the "run AI on device" switch) -------------------
-    local_mode: bool = False        # True -> force a local endpoint
-    local_first: bool = True        # P1-B: prefer offline/local; cloud only if explicit
-    inference_mode: str = "auto"    # auto|offline|local|cloud (resolved by resolve_mode)
+    local_mode: bool = False  # True -> force a local endpoint
+    local_first: bool = True  # P1-B: prefer offline/local; cloud only if explicit
+    inference_mode: str = "auto"  # auto|offline|local|cloud (resolved by resolve_mode)
     local_base_url: str = "http://127.0.0.1:11434/v1"  # ollama default
     local_model: str = "llama3.1"
     local_vision_model: str = "llava"
     local_stt: str = "http://127.0.0.1:11434"
-    vision_model: str = ""          # cloud vision model override
+    vision_model: str = ""  # cloud vision model override
 
     # Memory / persona / health roots (configurable; default to what exists) -
     hermes_home: str = "~/.hermes"
-    digigio_home: str = "~/digigio"     # mounted digigio brain (persona/health)
+    digigio_home: str = "~/digigio"  # mounted digigio brain (persona/health)
     memory_file: str = "MEMORY.md"
     user_file: str = "USER.md"
     # Cyclops writes its OWN memory here so it never clobbers the user's real
     # ~/.hermes/MEMORY.md / USER.md.
     memory_root: str = "~/.cyclops/memory"
-    memory_max_chars: int = 240   # per-card char budget (Hermes-style, cache-cheap)
-    memory_recall: int = 8        # how many persisted turns to inject as context
-    config_dir: str = "~/.config/cyclops"   # P2-A: plugin registry root
-    plugin_index_url: str = ""     # P2-A: marketplace index (empty = offline)
+    memory_max_chars: int = 240  # per-card char budget (Hermes-style, cache-cheap)
+    memory_recall: int = 8  # how many persisted turns to inject as context
+    config_dir: str = "~/.config/cyclops"  # P2-A: plugin registry root
+    plugin_index_url: str = ""  # P2-A: marketplace index (empty = offline)
 
     # Skills --------------------------------------------------------------
     skills_dirs: list[str] = field(default_factory=lambda: ["~/.hermes/skills"])
@@ -56,14 +57,16 @@ class AgentConfig:
     consent_mode: bool = True  # when off, capture/recording is refused
 
     # Safety --------------------------------------------------------------
-    terminal_confirm: bool = True   # require confirm before shell exec
+    terminal_confirm: bool = True  # require confirm before shell exec
     allow_fs_write: bool = False
 
     # Customization -------------------------------------------------------
-    persona: str = ""               # companion-app persona (mirrors system_note)
-    system_note: str = ""           # extra system prompt text
+    persona: str = ""  # companion-app persona (mirrors system_note)
+    system_note: str = ""  # extra system prompt text
     max_tool_iter: int = 6
-    tool_overrides: dict = field(default_factory=dict)  # tool -> {provider,model,endpoint,key}
+    tool_overrides: dict = field(
+        default_factory=dict
+    )  # tool -> {provider,model,endpoint,key}
 
     # ---- JSON profile (companion settings persist here) ----
     def to_dict(self) -> dict:
@@ -90,22 +93,28 @@ class AgentConfig:
         return cfg
 
     @classmethod
-    def load(cls, path: Optional[str] = None, env: Optional[dict] = None) -> "AgentConfig":
+    def load(
+        cls, path: Optional[str] = None, env: Optional[dict] = None
+    ) -> "AgentConfig":
         env = env if env is not None else dict(os.environ)
         cfg = cls()
         if path and os.path.exists(path):
             cfg._from_file(path)
         # env overrides
-        if env.get("CYCLOPS_MODEL"): cfg.model = env["CYCLOPS_MODEL"]
-        if env.get("CYCLOPS_PROVIDER"): cfg.provider = env["CYCLOPS_PROVIDER"]
-        if env.get("CYCLOPS_BASE_URL"): cfg.base_url = env["CYCLOPS_BASE_URL"]
+        if env.get("CYCLOPS_MODEL"):
+            cfg.model = env["CYCLOPS_MODEL"]
+        if env.get("CYCLOPS_PROVIDER"):
+            cfg.provider = env["CYCLOPS_PROVIDER"]
+        if env.get("CYCLOPS_BASE_URL"):
+            cfg.base_url = env["CYCLOPS_BASE_URL"]
         if env.get("CYCLOPS_LOCAL") in ("1", "true", "yes"):
             cfg.local_mode = True
         if env.get("CYCLOPS_LOCAL_FIRST") in ("0", "false", "no"):
             cfg.local_first = False
         if env.get("CYCLOPS_INFERENCE_MODE") in ("offline", "local", "cloud", "auto"):
             cfg.inference_mode = env["CYCLOPS_INFERENCE_MODE"]
-        if env.get("CYCLOPS_DEVICE_HOST"): cfg.device_host = env["CYCLOPS_DEVICE_HOST"]
+        if env.get("CYCLOPS_DEVICE_HOST"):
+            cfg.device_host = env["CYCLOPS_DEVICE_HOST"]
         if env.get("CYCLOPS_DEVICE_TRANSPORT"):
             cfg.device_transport = env["CYCLOPS_DEVICE_TRANSPORT"]
         if env.get("CYCLOPS_CAMERA_SOURCE"):
@@ -126,23 +135,36 @@ class AgentConfig:
                     k, _, v = line.strip().partition(":")
                     v = v.strip().strip('"').strip("'")
                     if section == "model":
-                        if k == "default": self.model = v
-                        elif k == "provider": self.provider = v
-                        elif k == "base_url": self.base_url = v
+                        if k == "default":
+                            self.model = v
+                        elif k == "provider":
+                            self.provider = v
+                        elif k == "base_url":
+                            self.base_url = v
                     continue
                 k, _, v = line.partition(":")
-                k = k.strip(); v = v.strip().strip('"').strip("'")
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
                 if k == "model":
-                    section = "model"; continue
+                    section = "model"
+                    continue
                 section = None
-                if k == "local_mode": self.local_mode = v in ("true", "1", "yes")
-                elif k == "local_first": self.local_first = v in ("true", "1", "yes")
-                elif k == "inference_mode": self.inference_mode = v
-                elif k == "local_base_url": self.local_base_url = v
-                elif k == "device_transport": self.device_transport = v
-                elif k == "device_host": self.device_host = v
-                elif k == "consent_mode": self.consent_mode = v in ("true", "1", "yes")
-                elif k == "terminal_confirm": self.terminal_confirm = v in ("true", "1", "yes")
+                if k == "local_mode":
+                    self.local_mode = v in ("true", "1", "yes")
+                elif k == "local_first":
+                    self.local_first = v in ("true", "1", "yes")
+                elif k == "inference_mode":
+                    self.inference_mode = v
+                elif k == "local_base_url":
+                    self.local_base_url = v
+                elif k == "device_transport":
+                    self.device_transport = v
+                elif k == "device_host":
+                    self.device_host = v
+                elif k == "consent_mode":
+                    self.consent_mode = v in ("true", "1", "yes")
+                elif k == "terminal_confirm":
+                    self.terminal_confirm = v in ("true", "1", "yes")
 
     def effective_endpoint(self, provider: str | None = None) -> str:
         """Resolve the OpenAI-compatible base_url for the current provider."""
@@ -159,8 +181,7 @@ class AgentConfig:
         """
         cap = capability.upper()
         prov = os.environ.get(f"CYCLOPS_{cap}_PROVIDER", self.provider)
-        endpoint = os.environ.get(f"CYCLOPS_{cap}_ENDPOINT",
-                                  self.effective_endpoint())
+        endpoint = os.environ.get(f"CYCLOPS_{cap}_ENDPOINT", self.effective_endpoint())
         model = os.environ.get(f"CYCLOPS_{cap}_MODEL", self.model)
         return {"provider": prov, "endpoint": endpoint, "model": model}
 
@@ -188,12 +209,13 @@ class AgentConfig:
             return self.api_key
         prov = provider or self.provider
         if prov != "auto":
-            envk = (prov.upper() + "_API_KEY")
+            envk = prov.upper() + "_API_KEY"
             if os.environ.get(envk):
                 return os.environ[envk]
         # try the cyclops ai key store
         try:
             from brain.aikeys import AiKeys
+
             k = AiKeys()
             for name in (prov, "openrouter", "openai", "groq"):
                 if name == "auto":
@@ -203,4 +225,8 @@ class AgentConfig:
                     return val
         except Exception:
             pass
-        return os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
+        return (
+            os.environ.get("OPENROUTER_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+            or ""
+        )
