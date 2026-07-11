@@ -217,6 +217,8 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
+    private fun showSettings() {
         val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
         val ctx = this
         val layout = LinearLayout(this).apply {
