@@ -7,7 +7,6 @@ offline with no API keys. A cloud adapter can be added later (see APITranscriber
 
 from __future__ import annotations
 
-import os
 import time
 
 
@@ -53,7 +52,6 @@ class WhisperTranscriber(Transcriber):
             raise RuntimeError(f"faster-whisper unavailable: {e}")
 
     def transcribe(self, pcm16: bytes, rate: int = 16000) -> str:
-        import io
 
         import numpy as np
 

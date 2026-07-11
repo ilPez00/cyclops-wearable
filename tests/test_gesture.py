@@ -14,7 +14,6 @@ from brain.protocol_v2 import (
     GEST,
     MSG_RING_GESTURE,
     build_ring_gesture,
-    decode,
     encode,
     parse_ring_gesture,
 )

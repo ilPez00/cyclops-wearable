@@ -10,9 +10,7 @@ from __future__ import annotations
 
 from .health import HealthSample, HealthStore
 from .protocol_v2 import (
-    MSG_HEALTH_SAMPLE,
     MSG_RING_GESTURE,
-    build_health,
     encode,
     parse_health,
 )

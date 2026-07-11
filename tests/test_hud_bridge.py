@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.hud_bridge import HudBridge
 from brain.protocol import MSG
 from brain.protocol_v2 import (
-    ACT_AGENT,
     ACT_CAMERA,
     ACT_CONFIRM_YES,
     ACT_HEALTH,
@@ -95,7 +94,6 @@ def test_cmd_roundtrip_parse():
 def test_frame_receiver_end_to_end():
     # simulate the firmware emitting a v2 MSG_CMD frame over a byte stream
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol import MSG
     from brain.protocol_v2 import encode
 
     cap = Cap()
@@ -148,7 +146,7 @@ def test_frame_receiver_recovers_from_oversized_frame():
 
 
 def test_audio_capture_roundtrip():
-    from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
+    from brain.hud_bridge import FrameReceiver, HudBridge
     from brain.protocol import MSG, encode
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber

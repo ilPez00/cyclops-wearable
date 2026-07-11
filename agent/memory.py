@@ -23,9 +23,8 @@ from __future__ import annotations
 import json
 import re
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 # § delimiter between cards. Reading tolerates either "\n§\n" or a leading "§ ".
 _CARD_SEP = "\n§\n"

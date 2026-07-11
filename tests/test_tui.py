@@ -1,6 +1,5 @@
 """Offline tests for the TUI shell (no textual needed, no network)."""
 
-import json
 import os
 import sys
 

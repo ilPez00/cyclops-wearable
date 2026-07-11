@@ -8,7 +8,7 @@ and skills can register tools. This mirrors how Hermes loads skills on disk.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 

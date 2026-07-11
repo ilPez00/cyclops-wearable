@@ -10,7 +10,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from brain.display import ConsoleSink, G2GlassesSink, LocalScreenSink
+from brain.display import G2GlassesSink, LocalScreenSink
 from brain.pipeline import Pipeline
 from brain.store import NoteStore
 from brain.transcriber import StubTranscriber

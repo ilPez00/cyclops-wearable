@@ -3,14 +3,13 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from brain.display import ArduinoSink, ConsoleSink, G2GlassesSink, LocalScreenSink
+from brain.display import G2GlassesSink
 from brain.health import HealthSample, HealthStore
 from brain.pipeline import Pipeline
 from brain.protocol_v2 import (
     build_health,
     build_hud,
     decode,
-    encode,
     parse_health,
     parse_hud,
     peer_hello,

@@ -16,7 +16,7 @@ import threading
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
-from agent.models import ChatResult, ModelRouter
+from agent.models import ModelRouter
 
 
 def test_profile_roundtrip():

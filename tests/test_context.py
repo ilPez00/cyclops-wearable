@@ -7,7 +7,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.context import ContextAssembler
-from brain.extractor import Note, extract
+from brain.extractor import extract
 from device.health_fuse import HealthAggregator
 
 

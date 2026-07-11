@@ -84,11 +84,9 @@ def test_vision_live_ollama_smoke():
     generated image for real; otherwise skip (no hardware / offline)."""
     import base64
     import io
-    import os
-    import urllib.request
 
     try:
-        import PIL  # skip live vision test when Pillow absent (CI)
+        from PIL import Image  # skip live vision test when Pillow absent (CI)
     except ImportError:
         print("SKIP test_vision_live_ollama_smoke (Pillow absent)")
         return

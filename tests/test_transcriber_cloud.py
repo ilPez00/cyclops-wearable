@@ -1,6 +1,5 @@
 """Offline tests for the real cloud transcriber (Deepgram + OpenAI) via fake session."""
 
-import json
 import os
 import sys
 

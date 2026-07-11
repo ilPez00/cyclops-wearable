@@ -26,7 +26,7 @@ sys.path.insert(
         __import__("os").path.dirname(__import__("os").path.abspath(__file__))
     ),
 )
-from device.transport import FakeTransport, Transport, build_transport  # noqa: E402
+from device.transport import Transport, build_transport  # noqa: E402
 
 
 def make_device_tool(

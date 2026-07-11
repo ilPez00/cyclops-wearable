@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 
 from .protocol import MSG, encode
-from .protocol_v2 import HUD_KINDS, MSG_HUD_FRAME, build_hud
+from .protocol_v2 import HUD_KINDS, build_hud
 
 
 class DisplaySink:
@@ -95,6 +95,6 @@ class G2GlassesSink(DisplaySink):
     def teleprompter(self, lines):
         # stream one line at a time; phone handles paging
         for i in range(0, len(lines), 4):
-            chunk = [self._trim(l) for l in lines[i : i + 4]]
+            chunk = [self._trim(ln) for ln in lines[i : i + 4]]
             more = (i + 4) < len(lines)
             self.t.write(build_hud(HUD_KINDS.index("teleprompter"), chunk, more))

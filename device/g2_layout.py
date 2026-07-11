@@ -33,8 +33,8 @@ def model_to_banner(
     hdr = " ".join(segs)[:18]
     if hdr:
         out.append(hdr)
-    for l in (lines or [])[:3]:
-        out.append(l[:18])
+    for ln in (lines or [])[:3]:
+        out.append(ln[:18])
     if progress is not None:
         out.append(f"[{progress}%]"[:18])
     out = out[:4]

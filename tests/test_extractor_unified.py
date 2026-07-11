@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.extractor import NOTE_TYPES, Note, RuleExtractor, extract, get_extractor
-from brain.llm_extractor import LLMClient, LLMClientError, LLMExtractor
+from brain.extractor import RuleExtractor, extract, get_extractor
+from brain.llm_extractor import LLMExtractor
 
 
 class FakeKeys:

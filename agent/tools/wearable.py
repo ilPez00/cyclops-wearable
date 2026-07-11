@@ -12,7 +12,6 @@ import json
 
 from ..config import AgentConfig
 from ..loop import Tool
-from ..models import _urllib_session
 
 
 def _make(

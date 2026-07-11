@@ -17,7 +17,6 @@ Usage:
 from __future__ import annotations
 
 import os
-import sys
 
 from agent.config import AgentConfig
 from agent.loop import Agent

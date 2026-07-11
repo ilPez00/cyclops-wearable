@@ -9,7 +9,7 @@ can replace extract() later behind the same interface.
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 
 NOTE_TYPES = ("task", "reminder", "decision", "idea", "summary")

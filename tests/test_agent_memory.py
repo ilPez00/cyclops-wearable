@@ -13,7 +13,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
-from agent.loop import Agent, Tool, ToolRegistry, TurnResult
+from agent.loop import Agent, Tool, ToolRegistry
 from agent.memory import MemoryStore
 from agent.models import ChatResult
 

@@ -8,8 +8,8 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from brain.aikeys import AiKeys
-from brain.extractor import Note, extract
-from brain.llm_extractor import LLMClient, LLMExtractor
+from brain.extractor import extract
+from brain.llm_extractor import LLMExtractor
 
 
 class FakeResp:

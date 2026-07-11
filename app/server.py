@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,13 +15,11 @@ from urllib.parse import parse_qs, urlparse
 
 REPO = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, REPO)
-from agent.config import AgentConfig
-from agent.loop import Agent
-from agent.tools import build_registry
-from brain.aikeys import AiKeys
-from brain.factory import build_pipeline
-from brain.pipeline import Pipeline
-from brain.store import NoteStore
+from agent.config import AgentConfig  # noqa: E402
+from agent.loop import Agent  # noqa: E402
+from agent.tools import build_registry  # noqa: E402
+from brain.factory import build_pipeline  # noqa: E402
+from brain.store import NoteStore  # noqa: E402
 
 STORE_PATH = os.path.expanduser("~/.cyclops/notes.jsonl")
 PROFILE_PATH = os.path.expanduser("~/.cyclops/profile.json")
@@ -187,7 +184,6 @@ class H(BaseHTTPRequestHandler):
             arg = q.get("arg", [""])[0]
             try:
                 from brain.hud_bridge import HudBridge
-                from brain.protocol_v2 import MSG, encode
 
                 class _Cap:
                     def __init__(self):

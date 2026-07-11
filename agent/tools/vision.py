@@ -6,9 +6,7 @@ Cloud: any OpenAI-compatible vision endpoint. HTTP layer injectable for tests.
 
 from __future__ import annotations
 
-import base64
 import json
-from typing import Optional
 
 from ..config import AgentConfig
 from ..loop import Tool

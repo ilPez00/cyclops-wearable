@@ -7,11 +7,9 @@
 No network/keys.
 """
 
-import json
 import os
 import sys
 import tempfile
-import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 

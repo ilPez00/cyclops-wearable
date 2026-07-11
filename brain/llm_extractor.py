@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable
 
 from .extractor import NOTE_TYPES, Note, _resolve_due

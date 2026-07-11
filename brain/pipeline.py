@@ -4,7 +4,6 @@ Optionally joins ring health context (premortem #3)."""
 from __future__ import annotations
 
 from .extractor import Note, extract, get_extractor
-from .store import NoteStore
 from .transcriber import get_transcriber
 
 

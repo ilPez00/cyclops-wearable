@@ -4,7 +4,6 @@ Verifies manifest validation, registry discovery, install, and offline-safe
 sync — no network needed.
 """
 
-import json
 import os
 import sys
 import tempfile

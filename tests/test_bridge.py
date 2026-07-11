@@ -7,7 +7,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.bridge import BridgeContext, DigigioAdapter, DigigioBridge
+from brain.bridge import DigigioAdapter, DigigioBridge
 from brain.extractor import Note
 
 

@@ -11,9 +11,9 @@ sys.path.insert(
 )  # repo root for 'agent' pkg
 
 from agent.config import AgentConfig
-from agent.loop import Agent, ToolRegistry
+from agent.loop import Agent
 from agent.memory import MemoryStore
-from agent.models import ChatResult, ModelRouter
+from agent.models import ChatResult
 from agent.skills import Skills
 from agent.tools import build_registry
 from agent.tools.whatsapp import parse_export

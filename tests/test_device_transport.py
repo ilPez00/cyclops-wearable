@@ -14,7 +14,6 @@ from device.transport import (
     BluetoothTransport,
     CableTransport,
     FakeTransport,
-    WifiTransport,
     build_transport,
 )
 
@@ -162,7 +161,6 @@ def test_ble_link_pc_to_peripheral_write():
 
 
 def test_device_tool_routes_ble_transport():
-    import io
     import json
     import os
     import tempfile

@@ -8,7 +8,6 @@ via ADB; on desktop it runs locally or over SSH.
 
 from __future__ import annotations
 
-import shlex
 import subprocess
 from typing import Callable
 

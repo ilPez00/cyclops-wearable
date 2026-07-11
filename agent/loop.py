@@ -15,7 +15,7 @@ from typing import Callable, Optional
 from . import learning as learning_mod
 from .config import AgentConfig
 from .memory import MemoryStore
-from .models import ChatResult, ModelRouter
+from .models import ModelRouter
 from .skills import Skills
 
 

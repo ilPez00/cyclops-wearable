@@ -62,7 +62,7 @@ def build_g2_packet(text: str) -> bytes:
 
 def split_g2(text: str) -> list[bytes]:
     """Split a (possibly multi-line) banner into <=MAX_PAYLOAD G2 packets."""
-    lines = [l for l in text.split("\n") if l][:4] or [text]
+    lines = [ln for ln in text.split("\n") if ln][:4] or [text]
     out = []
     for ln in lines:
         # chunk long lines so each packet fits the G2 MTU

@@ -58,7 +58,7 @@ MSG_CONFIRM = MSGV2["CONFIRM"]
 MSG_PEER_STATUS = MSGV2["PEER_STATUS"]
 
 
-from .protocol import MAGIC1, MAGIC2, crc16_ccitt_false
+from .protocol import MAGIC1, MAGIC2, crc16_ccitt_false  # noqa: E402
 
 
 def encode(typ, payload):
@@ -107,7 +107,7 @@ def parse_hud(payload: bytes) -> dict:
 
 def build_hud_agent(text: str, more: bool = False) -> bytes:
     """Wrap a multi-line agent answer into an HUD 'agent' frame (Omi/G2 style)."""
-    lines = [l for l in text.split("\n") if l][:4]
+    lines = [ln for ln in text.split("\n") if ln][:4]
     return build_hud(HUD_KINDS.index("agent"), lines, more)
 
 

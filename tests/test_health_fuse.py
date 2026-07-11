@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.protocol_v2 import parse_health
-from device.health_fuse import HealthAggregator, Reading
+from device.health_fuse import HealthAggregator
 
 
 def test_multi_source_fusion():

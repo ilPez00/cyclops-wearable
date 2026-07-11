@@ -14,7 +14,6 @@ Used both by:
 from __future__ import annotations
 
 import json
-import time
 
 from .protocol import MSG, crc16_ccitt_false, encode
 from .protocol_v2 import (
@@ -36,17 +35,14 @@ from .protocol_v2 import (
     ACT_VOICE_CMD,
     ACT_VOICE_NOTE,
     HUD_KINDS,
-    MSG_HUD_FRAME,
     MSG_RING_GESTURE,
     build_hud,
-    build_hud_agent,
-    parse_hud,
 )
 
 # numeric id of MSG_CMD in the firmware protocol
 MSG_CMD = 9
-from .protocol import MSG as _MSG
-from .transcriber import get_transcriber
+from .protocol import MSG as _MSG  # noqa: E402
+from .transcriber import get_transcriber  # noqa: E402
 
 MSG_AUDIO_META = _MSG["AUDIO_META"]
 MSG_AUDIO_CHUNK = _MSG["AUDIO_CHUNK"]
@@ -151,7 +147,7 @@ class HudBridge:
         self._emit_text("AGENT: " + banner)
         self._emit_hud(
             HUD_KINDS.index("agent"),
-            [l[:18] for l in (text or "").split("\n") if l][:4],
+            [ln[:18] for ln in (text or "").split("\n") if ln][:4],
             more=len(text or "") > 72,
         )
 
@@ -255,7 +251,7 @@ class HudBridge:
             ]
             self._emit_hud(
                 HUD_KINDS.index("teleprompter"),
-                [l[:18] for l in self.tele_script[:4]],
+                [ln[:18] for ln in self.tele_script[:4]],
                 more=len(self.tele_script) > 4,
             )
             return ("teleprompter", self.tele_script)
@@ -305,7 +301,7 @@ class HudBridge:
             self._emit_text("AGENT: " + banner)
             self._emit_hud(
                 HUD_KINDS.index("agent"),
-                [l[:18] for l in ans.split("\n") if l][:4],
+                [ln[:18] for ln in ans.split("\n") if ln][:4],
                 more=len(ans) > 72,
             )
             return ("agent", ans)

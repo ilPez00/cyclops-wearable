@@ -1,6 +1,5 @@
 """Tests for the cloud transcriber (F2) — offline via an injected fake session."""
 
-import json
 import os
 import sys
 import tempfile

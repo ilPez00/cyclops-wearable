@@ -4,7 +4,6 @@ Uses FakeCamera (no hardware) and an injectable HTTP session so the whole
 capture -> base64 -> vision path is exercised without a real camera/network.
 """
 
-import base64
 import os
 import sys
 

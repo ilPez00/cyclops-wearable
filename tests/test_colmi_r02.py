@@ -1,7 +1,6 @@
 """Offline: COLMI R02 packet protocol (mirror of firmware/ring_proto.h)."""
 
 import os
-import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

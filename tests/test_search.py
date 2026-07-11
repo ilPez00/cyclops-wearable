@@ -1,6 +1,5 @@
 """Offline tests for semantic/keyword note search (T3.1)."""
 
-import json
 import os
 import sys
 import tempfile

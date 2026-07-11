@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from ..config import AgentConfig
 from ..loop import Tool

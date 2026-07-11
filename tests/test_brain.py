@@ -2,10 +2,10 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))  # repo root
-from brain.display import ConsoleSink, G2GlassesSink, LocalScreenSink
+from brain.display import G2GlassesSink, LocalScreenSink
 from brain.extractor import Note, extract
 from brain.pipeline import Pipeline
-from brain.protocol import MSG, crc16_ccitt_false, decode_frame, encode
+from brain.protocol import MSG, decode_frame, encode
 from brain.store import NoteStore
 from brain.transcriber import StubTranscriber
 

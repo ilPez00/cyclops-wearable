@@ -8,14 +8,13 @@ progress_cb per tool call, and asserts the sink received:
 No network/keys/device involved.
 """
 
-import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
-from agent.loop import Agent, Tool, ToolRegistry, TurnResult
+from agent.loop import Agent, Tool, ToolRegistry
 from brain.hud_bridge import ACT_AGENT, HudBridge
 from brain.protocol_v2 import parse_hud
 

@@ -21,7 +21,6 @@ appserver = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(appserver)
 
 # Inject a fake Agent so no model/network is touched
-from agent.models import ChatResult
 
 
 class FakeAgent:

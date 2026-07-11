@@ -84,7 +84,7 @@ class HudSim:
         self.mode = _KIND_NAMES.get(kind, str(kind))
         lines = d.get("lines", [])
         if lines:
-            self.lines = [l[: self.cols] for l in lines][: self.rows - 1]
+            self.lines = [ln[: self.cols] for ln in lines][: self.rows - 1]
 
     # ---- helpers ----
     @staticmethod
@@ -161,7 +161,7 @@ def demo(profile: str = "legacy"):
     sim.feed_hud_frame(
         build_hud(
             HUD_KINDS.index("agent"),
-            [f"Meet Bob at 3pm"[: sim.cols], f"bring the cable"[: sim.cols]],
+            ["Meet Bob at 3pm"[: sim.cols], "bring the cable"[: sim.cols]],
             more=False,
         )
     )
