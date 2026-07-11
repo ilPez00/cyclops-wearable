@@ -441,6 +441,13 @@ struct Hud {
                 char ln[32]; snprintf(ln, sizeof(ln), "%s%s", mk, menu_items[i]);
                 trim(ln, cols); scr.draw_text(0, body+i, ln);
             }
+            // scroll breadcrumb: vertical bar on right edge at menu_sel position
+            if (menu_n > rows - 1) {
+                int by = 1 + (menu_sel * (rows - 2)) / menu_n;
+                int bh = (rows - 2) / menu_n + 1; if (bh < 1) bh = 1;
+                for (int y = by; y < by + bh && y < rows - 1; ++y)
+                    scr.draw_pixel(scr.char_cols() - 1, body + y, true);
+            }
         } else if (m == NOTES) {
             for (int i = 0; i < rows-1 && i < note_count; ++i) {
                 const char* mk = (i == note_sel) ? ">" : " ";
@@ -478,7 +485,9 @@ struct Hud {
             snprintf(ln, sizeof(ln), "HR %d  SpO2 %d%%", hr, spo2); scr.draw_text(0, body, ln);
             snprintf(ln, sizeof(ln), "ring %dmV bead %dmV", ring_batt, bead_batt); scr.draw_text(0, body+1, ln);
             // pixel graphics on capable panels (>=64px wide): HR + SpO2 arcs + batt icon
-            if (scr.w() >= 64 && scr.h() >= 48) {
+            // skip when battery is low (<30%) to save power — text above still shows
+            bool low_power = (bead_batt > 0 && bead_batt < 30) || (ring_batt > 0 && ring_batt < 30);
+            if (scr.w() >= 64 && scr.h() >= 48 && !low_power) {
                 int cx = scr.w() / 2;
                 drawGauge(scr, cx - 18, body + 18, 14, hr > 0 ? (hr * 100 / 200) : 0);
                 drawGauge(scr, cx + 18, body + 18, 14, spo2);
