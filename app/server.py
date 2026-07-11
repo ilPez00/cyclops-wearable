@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -29,6 +30,9 @@ PORT = 8080
 pipeline = None
 agent = None
 bridge = None
+# serializes access to the shared agent (ThreadingHTTPServer handles requests
+# concurrently; agent.run() mutates history/cfg with no locking of its own)
+_AGENT_LOCK = threading.Lock()
 
 _TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
 _HTML: str | None = None
@@ -77,7 +81,8 @@ class H(BaseHTTPRequestHandler):
         if p.path == "/api/transcript":
             # in-session conversation turns (role/content) from the running agent
             global agent
-            hist = getattr(agent, "history", []) if agent is not None else []
+            with _AGENT_LOCK:
+                hist = list(getattr(agent, "history", [])) if agent is not None else []
             out = [
                 {"role": m.get("role", ""), "content": m.get("content", "")}
                 for m in hist
@@ -153,7 +158,8 @@ class H(BaseHTTPRequestHandler):
                     or q.get("api_key", [""])[0]
                 )
                 if use_shared and agent is not None:
-                    res = agent.run(text)
+                    with _AGENT_LOCK:
+                        res = agent.run(text)
                 else:
                     res = Agent(cfg, registry=reg).run(text)
                 # push the glanceable answer to the wearable HUD (Omi/G2 style)
@@ -243,8 +249,10 @@ class H(BaseHTTPRequestHandler):
                 store = MemoryStore(cfg)
                 written = {"user": 0, "agent": 0}
                 if agent is not None:
+                    with _AGENT_LOCK:
+                        hist = list(getattr(agent, "history", []))
                     written = learning_mod.learn_recent(
-                        getattr(agent, "history", []), store, router=agent.router
+                        hist, store, router=agent.router
                     )
                 return self._send(200, json.dumps({"learned": written}))
             except Exception as e:
@@ -281,7 +289,8 @@ class H(BaseHTTPRequestHandler):
             global agent
             if agent is not None:
                 try:
-                    agent.cfg = cfg
+                    with _AGENT_LOCK:
+                        agent.cfg = cfg
                 except Exception:
                     pass
             return self._send(200, json.dumps({"ok": True, "profile": cfg.to_dict()}))

@@ -45,14 +45,11 @@ def crc16_ccitt_false(data, seed=0xFFFF):
 def encode(typ, payload):
     if len(payload) > 1024:
         raise ValueError("payload too long")
-    body = bytes([typ]) + payload
-    crc = crc16_ccitt_false(body)
-    return (
-        bytes([MAGIC1, MAGIC2])
-        + struct.pack("<H", len(payload))
-        + body
-        + struct.pack("<H", crc)
-    )
+    # CRC covers len(2)+type(1)+payload — same window as the firmware
+    # encode_frame/FrameDecoder and Kotlin CyclopsProto (wire contract).
+    window = struct.pack("<H", len(payload)) + bytes([typ]) + payload
+    crc = crc16_ccitt_false(window)
+    return bytes([MAGIC1, MAGIC2]) + window + struct.pack("<H", crc)
 
 
 def decode_frame(frame):
@@ -62,7 +59,7 @@ def decode_frame(frame):
     typ = frame[4]
     payload = frame[5 : 5 + plen]
     crc_recv = struct.unpack("<H", frame[5 + plen : 7 + plen])[0]
-    crc = crc16_ccitt_false(bytes([typ]) + payload)
+    crc = crc16_ccitt_false(frame[2 : 5 + plen])
     if crc != crc_recv:
         return None
     return (typ, payload)
@@ -116,7 +113,8 @@ class Decoder:
             typ = self.buf[0]
             payload = bytes(self.buf[1:])
             crc_recv = self.pending_crc_lo | (b << 8)
-            if crc16_ccitt_false(bytes([typ]) + payload) == crc_recv:
+            window = struct.pack("<H", self.plen) + bytes(self.buf)  # len+type+payload
+            if crc16_ccitt_false(window) == crc_recv:
                 self.on_frame(typ, payload)
             self._reset()
 

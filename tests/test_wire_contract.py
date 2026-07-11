@@ -75,9 +75,32 @@ def test_kotlin_must_match_python():
         assert actual == expected
 
 
+def test_brain_protocol_matches_firmware_crc_window():
+    # brain.protocol / protocol_v2 encoders must CRC over len(2)+type(1)+payload,
+    # exactly like the firmware encode_frame / FrameDecoder and Kotlin CyclopsProto.
+    # (A type+payload-only window round-trips python<->python but the firmware
+    # rejects every frame — a latent cross-language break.)
+    from brain.protocol import encode as encode_v1
+    from brain.protocol_v2 import encode as encode_v2
+
+    payload = b'{"a":2,"arg":"hi"}'
+    for enc in (encode_v1, encode_v2):
+        f = enc(9, payload)
+        assert f[0] == 0xAA and f[1] == 0x55
+        plen = f[2] | (f[3] << 8)
+        assert plen == len(payload)
+        crc_window = f[2 : 5 + plen]  # len_lo len_hi type payload
+        expected = crc16_ccitt_false(crc_window)
+        actual = struct.unpack("<H", f[5 + plen : 7 + plen])[0]
+        assert actual == expected, (
+            f"{enc.__module__}.encode CRC window diverges from firmware"
+        )
+
+
 if __name__ == "__main__":
     test_crc_standard_vector()
     test_frame_layout()
     test_cmd_frame_roundtrip_bytes()
     test_kotlin_must_match_python()
+    test_brain_protocol_matches_firmware_crc_window()
     print("ALL WIRE-CONTRACT TESTS PASSED")
