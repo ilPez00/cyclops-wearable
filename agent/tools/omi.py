@@ -5,10 +5,12 @@ When no BLE/opus stack or session is present, the tool returns an offline stub
 and the ingest pipeline is fully testable with a FakeOmiSource.
 """
 from __future__ import annotations
-from ..loop import Tool
-from ..config import AgentConfig
-from ..tools.consent import consent_required
+
 from device.omi import FakeOmiSource, OmiIngest
+
+from ..config import AgentConfig
+from ..loop import Tool
+from ..tools.consent import consent_required
 
 
 def make_omi_tool(config: AgentConfig, transcriber=None) -> Tool:

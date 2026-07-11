@@ -1,5 +1,8 @@
 """Offline tests for the real cloud transcriber (Deepgram + OpenAI) via fake session."""
-import sys, os, json
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from brain.transcriber import CloudTranscriber, StubTranscriber, get_transcriber

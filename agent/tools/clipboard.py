@@ -4,9 +4,13 @@ On Linux uses xclip/wl-paste; elsewhere returns a stored value so the agent
 still works headless. Never crashes if no clipboard backend exists.
 """
 from __future__ import annotations
-import os, shutil, subprocess
-from ..loop import Tool
+
+import os
+import shutil
+import subprocess
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 _STORE = os.path.join(os.path.expanduser("~/cyclops_data"), "clipboard.txt")
 

@@ -15,13 +15,13 @@ import json
 import sys
 from typing import Optional
 
-from ..loop import Tool
 from ..config import AgentConfig
+from ..loop import Tool
 
 # make device/ importable both as a package and from repo root
 sys.path.insert(0, os_path := __import__("os").path.dirname(
     __import__("os").path.dirname(__import__("os").path.abspath(__file__))))
-from device.transport import build_transport, Transport, FakeTransport  # noqa: E402
+from device.transport import FakeTransport, Transport, build_transport  # noqa: E402
 
 
 def make_device_tool(config: AgentConfig, session=None, transport: Optional[Transport] = None) -> Tool:

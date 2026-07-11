@@ -6,11 +6,16 @@
 - Brain server /api/settings GET/POST merges + persists a profile (uses stdlib
   BaseHTTPRequestHandler via a live ThreadingHTTPServer on a free port).
 """
-import sys, os, json, tempfile, threading
+import json
+import os
+import sys
+import tempfile
+import threading
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
-from agent.models import ModelRouter, ChatResult
+from agent.models import ChatResult, ModelRouter
 
 
 def test_profile_roundtrip():
@@ -59,6 +64,7 @@ def test_router_per_tool_override():
 def test_server_settings_endpoint():
     # live stdlib server on a free port, POST a profile then GET it back
     from http.server import ThreadingHTTPServer
+
     import app.server as srv  # main() is guarded, safe to import
     d = tempfile.mkdtemp(); prof = os.path.join(d, "profile.json")
     srv.PROFILE_PATH = prof

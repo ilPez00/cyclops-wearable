@@ -1,10 +1,13 @@
 """Offline tests for the TUI shell (no textual needed, no network)."""
-import sys, os, json
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))  # /home/gio
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))  # repo root /home/gio/cyclops
 
-from shells.tui.cyclops_tui import build_agent
 from agent.models import ChatResult
+from shells.tui.cyclops_tui import build_agent
 
 
 class FakeRouter:

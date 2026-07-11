@@ -6,8 +6,15 @@ model the message handling and map gestures -> cyclops actions. Real BLE uses
 android.bluetooth via the companion app; this module is the protocol/state logic.
 """
 from __future__ import annotations
-from .protocol_v2 import build_health, parse_health, MSG_HEALTH_SAMPLE, MSG_RING_GESTURE, encode
-from .health import HealthStore, HealthSample
+
+from .health import HealthSample, HealthStore
+from .protocol_v2 import (
+    MSG_HEALTH_SAMPLE,
+    MSG_RING_GESTURE,
+    build_health,
+    encode,
+    parse_health,
+)
 
 GESTURE_MAP = {0:"tap",1:"double",2:"long",3:"swipe"}
 

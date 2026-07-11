@@ -1,10 +1,22 @@
 """Offline: COLMI R02 packet protocol (mirror of firmware/ring_proto.h)."""
-import sys, os, struct
+import os
+import struct
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from device.colmi_r02 import (
-    make_packet, checksum, is_error, parse_battery, parse_real_time,
-    battery_packet, start_real_time_packet, stop_real_time_packet,
-    CMD_BATTERY, CMD_START_REAL_TIME, RT_HEART_RATE, RT_SPO2,
+    CMD_BATTERY,
+    CMD_START_REAL_TIME,
+    RT_HEART_RATE,
+    RT_SPO2,
+    battery_packet,
+    checksum,
+    is_error,
+    make_packet,
+    parse_battery,
+    parse_real_time,
+    start_real_time_packet,
+    stop_real_time_packet,
 )
 
 

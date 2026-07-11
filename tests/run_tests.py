@@ -1,5 +1,9 @@
 """Minimal zero-dependency test runner (pytest not available in this env)."""
-import sys, os, traceback, importlib.util
+import importlib.util
+import os
+import sys
+import traceback
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "brain"))
 sys.path.insert(0, os.path.dirname(__file__))
 

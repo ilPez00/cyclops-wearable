@@ -11,7 +11,8 @@ It pairs with the even_hub_sdk plugin in `g2-plugin/` (the renderer that runs
 *inside* the G2 companion app and receives these packets over BLE).
 """
 from __future__ import annotations
-from device.g2 import split_g2, G2_MAX_PAYLOAD
+
+from device.g2 import G2_MAX_PAYLOAD, split_g2
 
 
 def model_to_banner(kind: str, lines: list[str], progress=None,

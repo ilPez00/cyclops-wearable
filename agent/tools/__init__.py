@@ -8,26 +8,26 @@ from __future__ import annotations
 
 from ..config import AgentConfig
 from ..loop import ToolRegistry
-from .terminal import make_terminal_tool
-from .whatsapp import make_whatsapp_tool
-from .media import make_media_tool
-from .device import make_device_tool
 from .brain import make_brain_tool
-from .fs import make_fs_tool
-from .vision import make_vision_tool
-from .web import make_web_tool
 from .calendar import make_calendar_tool
-from .clipboard import make_clipboard_tool
-from .health import make_health_tool
-from .wearable import make_hud_tool, make_notify_tool, make_capture_tool
 from .camera import make_camera_tool
+from .clipboard import make_clipboard_tool
 from .consent import make_consent_tool
-from .omi import make_omi_tool
 from .context import make_context_tool
+from .device import make_device_tool
+from .fs import make_fs_tool
+from .health import make_health_tool
+from .history import make_history_tool
+from .media import make_media_tool
+from .memory_tool import make_memory_tool
+from .omi import make_omi_tool
 from .plugin import make_plugin_tool
 from .screen import make_screen_tool
-from .memory_tool import make_memory_tool
-from .history import make_history_tool
+from .terminal import make_terminal_tool
+from .vision import make_vision_tool
+from .wearable import make_capture_tool, make_hud_tool, make_notify_tool
+from .web import make_web_tool
+from .whatsapp import make_whatsapp_tool
 
 
 def build_registry(config: AgentConfig, session=None, confirm=None,

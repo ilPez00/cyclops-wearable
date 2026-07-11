@@ -6,6 +6,7 @@ is a behavioral twin used by the demo and to test input mapping headlessly.
 """
 from __future__ import annotations
 
+
 class DeviceSim:
     MAX_NOTES = 8
     COLS = 22

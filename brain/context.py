@@ -9,7 +9,9 @@ Offline-first and dependency-free; the calendar source is a JSONL path
 (one event per line: {"title","start","loc"}) or an in-memory list.
 """
 from __future__ import annotations
-import json, os
+
+import json
+import os
 
 
 class ContextAssembler:

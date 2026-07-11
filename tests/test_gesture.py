@@ -4,11 +4,19 @@ Covers the gesture protocol (encode/parse), the firmware dispatch (host gate
 has its own block), and the Python bridge routing a RING_GESTURE frame:
 nav gestures forward to the sink, `nod` triggers transcription.
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from brain.protocol_v2 import (build_ring_gesture, parse_ring_gesture,
-                               MSG_RING_GESTURE, encode, decode, GEST)
-from brain.hud_bridge import HudBridge, FrameReceiver
+from brain.hud_bridge import FrameReceiver, HudBridge
+from brain.protocol_v2 import (
+    GEST,
+    MSG_RING_GESTURE,
+    build_ring_gesture,
+    decode,
+    encode,
+    parse_ring_gesture,
+)
 
 
 def test_gesture_protocol_roundtrip():

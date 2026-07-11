@@ -5,11 +5,11 @@ wearable. Environment variables + a config file are both supported; env wins.
 """
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-import json
 
 
 @dataclass

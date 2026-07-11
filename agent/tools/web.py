@@ -1,6 +1,8 @@
 """Tools: web search + fetch (injectable transport, offline-safe)."""
 from __future__ import annotations
+
 import json
+
 from ..loop import Tool
 
 

@@ -1,8 +1,12 @@
 """Offline: P2-B multi-source context fusion (notes + health + calendar)."""
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.context import ContextAssembler
-from brain.extractor import extract, Note
+from brain.extractor import Note, extract
 from device.health_fuse import HealthAggregator
 
 

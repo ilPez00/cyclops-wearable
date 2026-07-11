@@ -17,8 +17,9 @@ Audio capture is privacy-sensitive: callers MUST gate start() on Consent Mode
 (see agent/tools/consent.py).
 """
 from __future__ import annotations
-import os
+
 import base64
+import os
 
 # --- Omi BLE (verify against your Omi firmware; override via env) ----------
 OMI_SERVICE_UUID = os.environ.get("CYCLOPS_OMI_SRVC",
@@ -92,6 +93,7 @@ class BleOmiSource(OmiAudioSource):
     def _run(self):
         try:
             import asyncio
+
             from bleak import BleakClient
         except Exception as e:
             raise RuntimeError("bleak not installed: `pip install bleak`") from e

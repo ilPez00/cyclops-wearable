@@ -10,8 +10,8 @@ import json
 import os
 from pathlib import Path
 
-from ..loop import Tool
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_media_tool(config: AgentConfig) -> Tool:

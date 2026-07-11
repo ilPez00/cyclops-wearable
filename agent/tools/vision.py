@@ -4,10 +4,13 @@ Local: Ollama (llava/llava-phi3) OpenAI-compatible /v1/chat/completions.
 Cloud: any OpenAI-compatible vision endpoint. HTTP layer injectable for tests.
 """
 from __future__ import annotations
-import json, base64
+
+import base64
+import json
 from typing import Optional
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 from ..models import _urllib_session
 
 

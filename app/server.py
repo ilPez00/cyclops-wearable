@@ -4,19 +4,23 @@ Serves notes + transcripts via a small JSON API and a live HTML page.
 Usage:  python3 app/server.py [port] [store_path]
 """
 from __future__ import annotations
-import sys, os, json, re
+
+import json
+import os
+import re
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 REPO = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, REPO)
-from brain.store import NoteStore
-from brain.pipeline import Pipeline
-from brain.factory import build_pipeline
-from brain.aikeys import AiKeys
 from agent.config import AgentConfig
-from agent.tools import build_registry
 from agent.loop import Agent
+from agent.tools import build_registry
+from brain.aikeys import AiKeys
+from brain.factory import build_pipeline
+from brain.pipeline import Pipeline
+from brain.store import NoteStore
 
 STORE_PATH = os.path.expanduser("~/.cyclops/notes.jsonl")
 PROFILE_PATH = os.path.expanduser("~/.cyclops/profile.json")
@@ -148,7 +152,7 @@ class H(BaseHTTPRequestHandler):
             act = int(q.get("a", ["0"])[0]); arg = q.get("arg", [""])[0]
             try:
                 from brain.hud_bridge import HudBridge
-                from brain.protocol_v2 import encode, MSG
+                from brain.protocol_v2 import MSG, encode
                 class _Cap:
                     def __init__(self): self.frames = []
                     def write(self, b): self.frames.append(b)
@@ -179,8 +183,8 @@ class H(BaseHTTPRequestHandler):
             # Trigger a learning review of recent turns (the app's "Learn" btn).
             # Offline-safe: returns {"learned": 0} when no LLM is configured.
             try:
-                from agent.memory import MemoryStore
                 from agent import learning as learning_mod
+                from agent.memory import MemoryStore
                 cfg = AgentConfig.load(env=dict(os.environ))
                 store = MemoryStore(cfg)
                 written = {"user": 0, "agent": 0}

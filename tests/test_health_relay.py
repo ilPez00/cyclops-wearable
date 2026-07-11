@@ -4,11 +4,13 @@ Fuses ring vitals in the companion and relays a MSG_HEALTH_SAMPLE frame; the
 fake transport records what would be pushed, and the parse mirror matches the
 firmware Hud.on_health_sample contract (zero = absent).
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from device.health_fuse import HealthAggregator
-from device.health_relay import relay_health, parse_wearable_health
 from brain.protocol_v2 import MSG_HEALTH_SAMPLE
+from device.health_fuse import HealthAggregator
+from device.health_relay import parse_wearable_health, relay_health
 
 
 def test_relay_builds_health_sample():

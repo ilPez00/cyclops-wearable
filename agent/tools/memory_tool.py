@@ -9,8 +9,9 @@ All writes go to the Cyclops memory root (~/.cyclops/memory) so the user's
 real ~/.hermes files are never touched.
 """
 from __future__ import annotations
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_memory_tool(config: AgentConfig) -> Tool:

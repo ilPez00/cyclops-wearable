@@ -23,6 +23,7 @@ RingClient is actually constructed, so the brain/companion can read the ring
 from a phone or laptop, and the firmware mirrors the same protocol over NimBLE.
 """
 from __future__ import annotations
+
 import struct
 from dataclasses import dataclass, field
 from typing import Optional

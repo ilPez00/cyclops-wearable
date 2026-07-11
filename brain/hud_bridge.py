@@ -11,20 +11,42 @@ Used both by:
   - tests         (headless: a fake transport)
 """
 from __future__ import annotations
-import json, time
-from .protocol import encode, MSG
-from .protocol_v2 import (parse_hud, build_hud, MSG_HUD_FRAME, HUD_KINDS,
-                          ACT_TRANSCRIBE_START, ACT_TRANSLATE, ACT_HEALTH,
-                          ACT_NAV, ACT_TELEPROMPTER, ACT_CAMERA,
-                          ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES,
-                          ACT_CONFIRM_NO, ACT_NOTES, ACT_AGENT, ACT_AGENT_ABORT,
-                          ACT_PHOTO, ACT_VIDEO, ACT_VOICE_NOTE, ACT_VOICE_CMD,
-                          build_hud_agent, MSG_RING_GESTURE)
+
+import json
+import time
+
+from .protocol import MSG, encode
+from .protocol_v2 import (
+    ACT_AGENT,
+    ACT_AGENT_ABORT,
+    ACT_CAMERA,
+    ACT_CONFIRM_NO,
+    ACT_CONFIRM_YES,
+    ACT_HEALTH,
+    ACT_IMAGE_ANALYSIS,
+    ACT_NAV,
+    ACT_NOTES,
+    ACT_PHOTO,
+    ACT_SSH,
+    ACT_TELEPROMPTER,
+    ACT_TRANSCRIBE_START,
+    ACT_TRANSLATE,
+    ACT_VIDEO,
+    ACT_VOICE_CMD,
+    ACT_VOICE_NOTE,
+    HUD_KINDS,
+    MSG_HUD_FRAME,
+    MSG_RING_GESTURE,
+    build_hud,
+    build_hud_agent,
+    parse_hud,
+)
 
 # numeric id of MSG_CMD in the firmware protocol
 MSG_CMD = 9
 from .protocol import MSG as _MSG
 from .transcriber import get_transcriber
+
 MSG_AUDIO_META = _MSG["AUDIO_META"]
 MSG_AUDIO_CHUNK = _MSG["AUDIO_CHUNK"]
 MSG_AUDIO_STOP = _MSG["AUDIO_STOP"]
@@ -126,7 +148,7 @@ class HudBridge:
         a nav intent to the device sink and returns the gesture name. `nod`
         toggles transcription via the normal dispatch path.
         """
-        from .protocol_v2 import parse_ring_gesture, ACT_TRANSCRIBE_START
+        from .protocol_v2 import ACT_TRANSCRIBE_START, parse_ring_gesture
         g = parse_ring_gesture(payload)
         self.last_gesture = g["name"]
         if g["name"] == "nod":

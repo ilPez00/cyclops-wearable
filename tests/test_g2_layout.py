@@ -3,12 +3,14 @@
 Proves the simulator/firmware and the G2 agree on the wire, so the tiny-OLED
 weakness (premortem D7) is closed by borrowing the G2 as the real display.
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from device.g2_layout import (model_to_banner, render_to_g2, assert_g2_packets)
+from brain.protocol_v2 import HUD_KINDS, build_hud
 from device.g2 import G2_MAX_PAYLOAD
+from device.g2_layout import assert_g2_packets, model_to_banner, render_to_g2
 from shells.hud_sim import HudSim
-from brain.protocol_v2 import build_hud, HUD_KINDS
 
 
 def test_banner_formatting():

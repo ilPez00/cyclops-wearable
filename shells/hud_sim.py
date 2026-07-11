@@ -13,15 +13,16 @@ can't run here, but its *wire contract* can — so the UX is verifiable on any
 laptop. See docs/31-repremortem-competition.md.
 """
 from __future__ import annotations
+
 import json
 import sys
 
 try:
-    from brain.protocol_v2 import parse_hud, HUD_KINDS
+    from brain.protocol_v2 import HUD_KINDS, parse_hud
 except Exception:  # allow running from repo root or shells/ without package
     import os
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from brain.protocol_v2 import parse_hud, HUD_KINDS
+    from brain.protocol_v2 import HUD_KINDS, parse_hud
 
 
 # HUD_KINDS indices (must match firmware/protocol_v2.py)

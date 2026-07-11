@@ -1,9 +1,17 @@
 """Tests for F5 — companion app API + factory pipeline wiring (offline)."""
-import sys, os, tempfile, json, threading, time, urllib.request, urllib.parse
+import json
+import os
+import sys
+import tempfile
+import threading
+import time
+import urllib.parse
+import urllib.request
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from http.server import ThreadingHTTPServer
 import importlib.util
+from http.server import ThreadingHTTPServer
 
 # load app/server.py as a module WITHOUT running main()
 REPO = os.path.dirname(os.path.dirname(__file__))

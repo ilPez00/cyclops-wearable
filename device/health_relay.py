@@ -9,7 +9,8 @@ The send path is injectable (frame -> bytes callable) so the relay is fully
 testable without Bluetooth: a fake transport records the frames it would push.
 """
 from __future__ import annotations
-from brain.protocol_v2 import build_health, MSG_HEALTH_SAMPLE, parse_health
+
+from brain.protocol_v2 import MSG_HEALTH_SAMPLE, build_health, parse_health
 
 
 def relay_health(aggregator, send_frame, ts: int = 0) -> bytes:

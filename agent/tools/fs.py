@@ -4,8 +4,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..loop import Tool
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_fs_tool(config: AgentConfig) -> Tool:

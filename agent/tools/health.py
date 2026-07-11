@@ -5,9 +5,13 @@ Returns a condensed summary so the agent can answer "how did I sleep" or log
 a workout. Privacy-first: only reads, never uploads raw data outside the loop.
 """
 from __future__ import annotations
-import os, json, glob
-from ..loop import Tool
+
+import glob
+import json
+import os
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_health_tool(config: AgentConfig, aggregator=None) -> Tool:

@@ -1,9 +1,16 @@
 """Offline test for the server's /api/agent endpoint (no network/keys)."""
-import sys, os, json, threading, tempfile, urllib.request, urllib.parse
+import json
+import os
+import sys
+import tempfile
+import threading
+import urllib.parse
+import urllib.request
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from http.server import ThreadingHTTPServer
 import importlib.util
+from http.server import ThreadingHTTPServer
 
 REPO = os.path.dirname(os.path.dirname(__file__))
 spec = importlib.util.spec_from_file_location("appserver", os.path.join(REPO, "app", "server.py"))
@@ -12,6 +19,8 @@ spec.loader.exec_module(appserver)
 
 # Inject a fake Agent so no model/network is touched
 from agent.models import ChatResult
+
+
 class FakeAgent:
     def __init__(self, *a, **k): pass
     def run(self, text, images=None, audio_transcript=None):

@@ -3,12 +3,14 @@
 Uses FakeOmiSource (no BLE/opus) + StubTranscriber so the full
 Omi -> PCM16 -> transcribe -> phrase path is exercised without hardware.
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from agent.config import AgentConfig
 from agent.tools.omi import make_omi_tool
-from device.omi import FakeOmiSource, OmiIngest, BleOmiSource
 from brain.transcriber import StubTranscriber
+from device.omi import BleOmiSource, FakeOmiSource, OmiIngest
 
 
 def test_omi_ingest_fake_source_produces_phrase():

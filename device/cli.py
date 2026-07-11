@@ -9,15 +9,19 @@ This is the behavioral twin of device/src/device.cpp; the firmware compiles the
 same UI/input model on real hardware.
 """
 from __future__ import annotations
-import sys, os
+
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from brain.display import ConsoleSink, G2GlassesSink, LocalScreenSink
+from brain.pipeline import Pipeline
 from brain.store import NoteStore
 from brain.transcriber import StubTranscriber
-from brain.pipeline import Pipeline
-from brain.display import LocalScreenSink, G2GlassesSink, ConsoleSink
-from device.simulator import DeviceSim
 from device.battery import BatteryMonitor
 from device.gestures import GestureDetector
+from device.simulator import DeviceSim
+
 
 def run(mode="local", texts=None):
     texts = texts or [

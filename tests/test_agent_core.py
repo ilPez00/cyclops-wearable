@@ -1,13 +1,17 @@
 """Offline tests for the agent core (no network, no keys)."""
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))  # repo root for 'agent' pkg
 
 from agent.config import AgentConfig
-from agent.models import ModelRouter, ChatResult
-from agent.memory import MemoryStore
-from agent.skills import Skills
 from agent.loop import Agent, ToolRegistry
+from agent.memory import MemoryStore
+from agent.models import ChatResult, ModelRouter
+from agent.skills import Skills
 from agent.tools import build_registry
 from agent.tools.whatsapp import parse_export
 

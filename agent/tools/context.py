@@ -6,8 +6,9 @@ into raw sources. The assembler is injected by the server (shared with the
 agent loop); offline-safe if none is wired.
 """
 from __future__ import annotations
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_context_tool(config: AgentConfig, assembler=None) -> Tool:

@@ -11,6 +11,7 @@ subscribe, dispatch and write* logic is fully testable offline with
 :class:`FakeBleBackend` (no bluez / no hardware required).
 """
 from __future__ import annotations
+
 import json
 import os
 
@@ -117,6 +118,7 @@ class BleLink:
 
     def send_cmd(self, cmd: int, arg: str = "") -> str:
         import json
+
         from brain.protocol import encode
         payload = json.dumps({"a": cmd, "arg": arg}).encode("utf-8")
         frame = encode(9, payload)

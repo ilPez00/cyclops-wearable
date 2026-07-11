@@ -1,5 +1,8 @@
 """Offline tests for the vision tool (local Ollama path + cloud + stub)."""
-import sys, os, json
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
@@ -51,7 +54,8 @@ def test_cloud_path_uses_provider():
 
 def _probe_local_vlm(base_url):
     """Return a usable VLM model name if a local Ollama serves one, else None."""
-    import urllib.request, json as _json
+    import json as _json
+    import urllib.request
     try:
         with urllib.request.urlopen(base_url.rstrip("/") + "/models", timeout=3) as r:
             models = _json.loads(r.read()).get("data", [])
@@ -68,7 +72,10 @@ def _probe_local_vlm(base_url):
 def test_vision_live_ollama_smoke():
     """Live test: if a local Ollama with a VLM is reachable, describe a tiny
     generated image for real; otherwise skip (no hardware / offline)."""
-    import os, io, base64, urllib.request
+    import base64
+    import io
+    import os
+    import urllib.request
     try:
         import PIL  # skip live vision test when Pillow absent (CI)
     except ImportError:

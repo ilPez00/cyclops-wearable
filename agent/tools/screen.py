@@ -5,9 +5,13 @@ describes it with the vision tool. On headless/offline it returns a stub. This
 is the "see what's on my screen" capability for desktop control.
 """
 from __future__ import annotations
-import os, shutil, tempfile
-from ..loop import Tool
+
+import os
+import shutil
+import tempfile
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_screen_tool(config: AgentConfig, vision=None) -> Tool:

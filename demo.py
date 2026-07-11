@@ -4,12 +4,15 @@ extracts smart notes and pushes them to the screen + store + dashboard.
 Run:  python3 demo.py
 """
 from __future__ import annotations
-import os, sys
+
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(__file__))
+from brain.display import ConsoleSink, G2GlassesSink, LocalScreenSink
+from brain.pipeline import Pipeline
 from brain.store import NoteStore
 from brain.transcriber import StubTranscriber
-from brain.pipeline import Pipeline
-from brain.display import ConsoleSink, G2GlassesSink, LocalScreenSink
 from device.simulator import DeviceSim
 
 TMP = "/tmp/cyclops_demo.jsonl"

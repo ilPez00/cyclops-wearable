@@ -11,6 +11,7 @@ device has its own battery) and the ring's battery drives the HEALTH_SAMPLE
 `batt` field by convention.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 

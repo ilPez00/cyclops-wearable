@@ -1,10 +1,12 @@
 """Offline: HUD simulator decodes the real wire frames (DISPLAY_CMD + HUD_FRAME)
 and renders a glanceable grid. Mirrors the firmware's parse contract so the
 wearable UX is testable without hardware (premortem D1/D5)."""
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from brain.protocol_v2 import HUD_KINDS, build_hud
 from shells.hud_sim import HudSim
-from brain.protocol_v2 import build_hud, HUD_KINDS
 
 
 def test_hud_frame():

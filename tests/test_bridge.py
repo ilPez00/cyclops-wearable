@@ -1,8 +1,12 @@
 """Tests for F6 — digiGio bridge (offline, no digigio package needed)."""
-import sys, os, tempfile, json
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.bridge import DigigioBridge, BridgeContext, DigigioAdapter
+from brain.bridge import BridgeContext, DigigioAdapter, DigigioBridge
 from brain.extractor import Note
 
 

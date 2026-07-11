@@ -1,13 +1,21 @@
 """Offline tests for device transports + the device tool routing."""
-import sys, os, json
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from device.transport import (FakeTransport, WifiTransport, BluetoothTransport,
-                              CableTransport, build_transport)
-from device.ble import BleLink, FakeBleBackend
 from agent.config import AgentConfig
 from agent.tools.device import make_device_tool
+from device.ble import BleLink, FakeBleBackend
+from device.transport import (
+    BluetoothTransport,
+    CableTransport,
+    FakeTransport,
+    WifiTransport,
+    build_transport,
+)
 
 
 def test_fake_transport():
@@ -72,10 +80,11 @@ def test_device_tool_capture_sends_camera_cmd():
 
 def test_serial_reader_closes_loop_into_bridge():
     import tempfile
-    from device.transport import SerialFrameReader
+
     from brain.hud_bridge import HudBridge
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber
+    from device.transport import SerialFrameReader
 
     class Cap:
         def __init__(self): self.frames = []
@@ -97,11 +106,13 @@ def test_serial_reader_closes_loop_into_bridge():
 
 
 def test_ble_link_pair_subscribe_dispatch():
-    import tempfile, json
+    import json
+    import tempfile
+
     from brain.hud_bridge import HudBridge
+    from brain.protocol import encode
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber
-    from brain.protocol import encode
 
     class Cap:
         def __init__(self): self.frames = []
@@ -121,9 +132,10 @@ def test_ble_link_pair_subscribe_dispatch():
 
 
 def test_ble_link_pc_to_peripheral_write():
+    import io
+
     from brain.hud_bridge import HudBridge
     from brain.protocol import decode_frame
-    import io
 
     br = HudBridge(io.StringIO())
     backend = FakeBleBackend()
@@ -137,14 +149,17 @@ def test_ble_link_pc_to_peripheral_write():
 
 
 def test_device_tool_routes_ble_transport():
-    import tempfile, json
-    from device.ble import FakeBleBackend
-    from device.transport import build_transport
+    import io
+    import json
+    import os
+    import tempfile
+
     from brain.hud_bridge import HudBridge
+    from brain.protocol import encode
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber
-    from brain.protocol import encode
-    import io, os
+    from device.ble import FakeBleBackend
+    from device.transport import build_transport
 
     class Cap:
         def __init__(self): self.frames = []

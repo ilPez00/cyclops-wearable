@@ -5,12 +5,15 @@
   sees the prior turn injected into its system block (real cross-session recall).
 No network/keys.
 """
-import sys, os, tempfile
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
+from agent.loop import Agent, Tool, ToolRegistry, TurnResult
 from agent.memory import MemoryStore
-from agent.loop import Agent, ToolRegistry, Tool, TurnResult
 from agent.models import ChatResult
 
 

@@ -4,11 +4,13 @@ Guarantees the offline default is enforced by policy, not by accident: under
 local_first (default) with no API keys the pipeline uses the deterministic
 offline stub; cloud is only reachable when explicitly opted in.
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from agent.config import AgentConfig
-from brain.pipeline import resolve_stt, resolve_mode_name
-from brain.transcriber import StubTranscriber, CloudTranscriber
+from brain.pipeline import resolve_mode_name, resolve_stt
+from brain.transcriber import CloudTranscriber, StubTranscriber
 
 
 def _clear_keys():

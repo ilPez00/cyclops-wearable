@@ -1,6 +1,8 @@
 """Python mirror of protocol v2 (see protocol/protocol_v2.md)."""
 from __future__ import annotations
-import struct, json
+
+import json
+import struct
 
 MSGV2 = {"PEER_HELLO":11,"TIME_SYNC":12,"HEALTH_SAMPLE":13,"HUD_FRAME":14,
          "RING_GESTURE":15,"AUDIO_COMPRESSED":16,"CONFIRM":17,"PEER_STATUS":18}
@@ -47,7 +49,8 @@ MSG_CONFIRM = MSGV2["CONFIRM"]
 MSG_PEER_STATUS = MSGV2["PEER_STATUS"]
 
 
-from .protocol import crc16_ccitt_false, MAGIC1, MAGIC2
+from .protocol import MAGIC1, MAGIC2, crc16_ccitt_false
+
 
 def encode(typ, payload):
     if isinstance(payload, str): payload = payload.encode()

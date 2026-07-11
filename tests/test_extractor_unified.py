@@ -1,10 +1,12 @@
 """Offline tests for the unified note extractor (rule + llm backends)."""
-import sys, os, json
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.extractor import (extract, RuleExtractor, get_extractor, Note,
-                             NOTE_TYPES)
-from brain.llm_extractor import LLMExtractor, LLMClient, LLMClientError
+from brain.extractor import NOTE_TYPES, Note, RuleExtractor, extract, get_extractor
+from brain.llm_extractor import LLMClient, LLMClientError, LLMExtractor
 
 
 class FakeKeys:
@@ -73,10 +75,11 @@ def test_get_extractor_llm_with_keys():
 def test_hud_bridge_live_uses_auto_extractor():
     # Regression: the live audio-stop path must extract via the auto-selected
     # extractor (rule w/o keys), not the bare extract() function.
+    import tempfile
+
     from brain.hud_bridge import HudBridge
     from brain.store import NoteStore
     from brain.transcriber import StubTranscriber
-    import tempfile
 
     class Cap:
         def __init__(self): self.frames = []

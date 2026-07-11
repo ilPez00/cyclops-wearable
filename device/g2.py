@@ -13,6 +13,7 @@ G2 BLE (per the open G1/G2 reverse-engineering; override via env if yours differ
 Text packets: a leading 0x01 control byte + UTF-8 payload (<= G2_MAX_PAYLOAD).
 """
 from __future__ import annotations
+
 import os
 
 G2_SRVC = os.environ.get("CYCLOPS_G2_SRVC",
@@ -132,8 +133,8 @@ class G2HudSink:
     def write(self, frame: bytes):
         # best-effort: pull a banner out of DISPLAY_CMD/HUD_FRAME payloads
         try:
-            from brain.protocol_v2 import parse_hud
             from brain.protocol import decode_frame
+            from brain.protocol_v2 import parse_hud
             d = decode_frame(frame)
             if d:
                 typ, payload = d

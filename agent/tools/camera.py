@@ -6,12 +6,15 @@ The camera source is injectable (FakeCamera for tests, OpenGlassCamera/
 PhoneCamera for real hardware). Offline stub returns what would happen.
 """
 from __future__ import annotations
+
 import base64
 from typing import Optional
-from ..loop import Tool
+
+from device.camera import CameraSource, FakeCamera, OpenGlassCamera, PhoneCamera
+
 from ..config import AgentConfig
+from ..loop import Tool
 from ..models import _urllib_session
-from device.camera import FakeCamera, OpenGlassCamera, PhoneCamera, CameraSource
 
 
 def _default_source(config: AgentConfig, session) -> CameraSource:

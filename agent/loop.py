@@ -11,11 +11,11 @@ import json
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+from . import learning as learning_mod
 from .config import AgentConfig
 from .memory import MemoryStore
+from .models import ChatResult, ModelRouter
 from .skills import Skills
-from .models import ModelRouter, ChatResult
-from . import learning as learning_mod
 
 
 @dataclass

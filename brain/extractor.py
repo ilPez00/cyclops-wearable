@@ -6,8 +6,9 @@ relative dates, decisions, ideas, and a running summary. A cloud LLM adapter
 can replace extract() later behind the same interface.
 """
 from __future__ import annotations
+
 import re
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
 NOTE_TYPES = ("task", "reminder", "decision", "idea", "summary")
@@ -111,12 +112,12 @@ def get_extractor(prefer: str = "auto", keys=None, provider: str = "groq",
     if prefer == "rule":
         return RuleExtractor()
     if prefer == "llm":
-        from .llm_extractor import LLMExtractor, LLMClient
+        from .llm_extractor import LLMClient, LLMExtractor
         k = keys or _aikeys()
         c = client or LLMClient(keys=k, provider=provider)
         return LLMExtractor(keys=k, provider=provider, client=c, model=model)
     # auto: only use LLM when a key/endpoint is present
-    from .llm_extractor import LLMExtractor, LLMClient
+    from .llm_extractor import LLMClient, LLMExtractor
     k = keys or _aikeys()
     if k.get_key(provider) or k.get_endpoint(provider):
         c = client or LLMClient(keys=k, provider=provider)

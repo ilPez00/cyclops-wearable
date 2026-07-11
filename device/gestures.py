@@ -5,6 +5,7 @@ peak/zero-crossing heuristic. On real HW feed MPU6886/BMX055 samples here.
 """
 from __future__ import annotations
 
+
 class GestureDetector:
     def __init__(self, threshold=0.6, min_crossings=2, window=20):
         self.threshold = threshold

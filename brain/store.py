@@ -1,8 +1,13 @@
 """Persistent note store: JSONL + markdown export. No external deps."""
 from __future__ import annotations
-import json, os, time
+
+import json
+import os
+import time
 from dataclasses import asdict
-from .extractor import Note, NOTE_TYPES
+
+from .extractor import NOTE_TYPES, Note
+
 
 class NoteStore:
     def __init__(self, path: str = "~/.cyclops/notes.jsonl"):

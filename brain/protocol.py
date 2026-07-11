@@ -1,5 +1,6 @@
 """Python mirror of the device wire protocol (see protocol/protocol.md)."""
 from __future__ import annotations
+
 import struct
 
 MAGIC1, MAGIC2 = 0xAA, 0x55

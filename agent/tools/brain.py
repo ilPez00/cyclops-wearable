@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from ..loop import Tool
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_brain_tool(config: AgentConfig, session=None) -> Tool:

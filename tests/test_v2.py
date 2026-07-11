@@ -1,12 +1,24 @@
-import sys, os, time
+import os
+import sys
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from brain.protocol_v2 import build_hud, parse_hud, build_health, parse_health, encode, decode, peer_hello
-from brain.health import HealthStore, HealthSample
-from brain.ring_client import RingClient
-from brain.display import G2GlassesSink, ArduinoSink, LocalScreenSink, ConsoleSink
-from brain.store import NoteStore
+from brain.display import ArduinoSink, ConsoleSink, G2GlassesSink, LocalScreenSink
+from brain.health import HealthSample, HealthStore
 from brain.pipeline import Pipeline
+from brain.protocol_v2 import (
+    build_health,
+    build_hud,
+    decode,
+    encode,
+    parse_health,
+    parse_hud,
+    peer_hello,
+)
+from brain.ring_client import RingClient
+from brain.store import NoteStore
 from brain.transcriber import StubTranscriber
+
 
 class FakeT:
     def __init__(self): self.sent=[]

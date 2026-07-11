@@ -19,8 +19,8 @@ import os
 import sys
 
 from agent.config import AgentConfig
-from agent.tools import build_registry
 from agent.loop import Agent
+from agent.tools import build_registry
 
 
 def build_agent() -> Agent:
@@ -57,9 +57,17 @@ def run_repl():
 def main():
     try:
         from textual.app import App, ComposeResult
-        from textual.widgets import Header, Footer, Input, RichLog, Static, Switch, Select, Checkbox
-        from textual.containers import Vertical, Horizontal
-        from textual.containers import ScrollableContainer
+        from textual.containers import Horizontal, ScrollableContainer, Vertical
+        from textual.widgets import (
+            Checkbox,
+            Footer,
+            Header,
+            Input,
+            RichLog,
+            Select,
+            Static,
+            Switch,
+        )
     except Exception:
         run_repl()
         return

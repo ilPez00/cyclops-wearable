@@ -1,5 +1,8 @@
 """Tests for brain.aikeys — fully offline (no real secrets, no network)."""
-import sys, os, tempfile
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))  # repo root
 
 from brain.aikeys import AiKeys

@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import Callable
 
-from .extractor import Note, NOTE_TYPES, _resolve_due
+from .extractor import NOTE_TYPES, Note, _resolve_due
 
 
 class LLMClientError(RuntimeError):

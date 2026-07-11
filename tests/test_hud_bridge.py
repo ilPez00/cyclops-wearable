@@ -1,10 +1,29 @@
-import sys, os, json
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.hud_bridge import HudBridge
 from brain.protocol import MSG
-from brain.protocol_v2 import encode, decode, ACT_TRANSCRIBE_START, ACT_TRANSLATE, ACT_HEALTH, ACT_TELEPROMPTER, ACT_CAMERA, ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES, ACT_PHOTO, ACT_VIDEO, ACT_VOICE_NOTE, ACT_VOICE_CMD, ACT_AGENT
-from brain.transcriber import StubTranscriber
+from brain.protocol_v2 import (
+    ACT_AGENT,
+    ACT_CAMERA,
+    ACT_CONFIRM_YES,
+    ACT_HEALTH,
+    ACT_IMAGE_ANALYSIS,
+    ACT_PHOTO,
+    ACT_SSH,
+    ACT_TELEPROMPTER,
+    ACT_TRANSCRIBE_START,
+    ACT_TRANSLATE,
+    ACT_VIDEO,
+    ACT_VOICE_CMD,
+    ACT_VOICE_NOTE,
+    decode,
+    encode,
+)
 from brain.store import NoteStore
+from brain.transcriber import StubTranscriber
 
 
 class Cap:
@@ -53,9 +72,9 @@ def test_cmd_roundtrip_parse():
 
 def test_frame_receiver_end_to_end():
     # simulate the firmware emitting a v2 MSG_CMD frame over a byte stream
-    from brain.hud_bridge import HudBridge, FrameReceiver, MSG_CMD
-    from brain.protocol_v2 import encode
+    from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
     from brain.protocol import MSG
+    from brain.protocol_v2 import encode
     cap = Cap()
     br = HudBridge(cap)
     # firmware builds the same frame the MCU would: MSG_CMD with translate action
@@ -66,10 +85,10 @@ def test_frame_receiver_end_to_end():
     assert any(b"TR:" in f for f in cap.frames), "bridge should have emitted a translate frame"
 
 def test_audio_capture_roundtrip():
-    from brain.hud_bridge import HudBridge, FrameReceiver, MSG_CMD
-    from brain.protocol import encode, MSG
-    from brain.transcriber import StubTranscriber
+    from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
+    from brain.protocol import MSG, encode
     from brain.store import NoteStore
+    from brain.transcriber import StubTranscriber
     if os.path.exists("/tmp/cyclops_audio.jsonl"): os.remove("/tmp/cyclops_audio.jsonl")
     cap = Cap()
     store = NoteStore("/tmp/cyclops_audio.jsonl")
@@ -85,7 +104,7 @@ def test_audio_capture_roundtrip():
     os.remove("/tmp/cyclops_audio.jsonl")
 
 def test_auto_transcriber_returns_transcriber():
-    from brain.transcriber import get_transcriber, Transcriber, StubTranscriber
+    from brain.transcriber import StubTranscriber, Transcriber, get_transcriber
     # auto must never raise and must return a usable Transcriber
     t = get_transcriber("auto")
     assert isinstance(t, Transcriber)

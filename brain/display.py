@@ -7,9 +7,12 @@
 All push via a transport.write(bytes) — USB-serial for Arduino/XIAO, BLE for G2.
 """
 from __future__ import annotations
+
 import json
-from .protocol import encode, MSG
-from .protocol_v2 import build_hud, MSG_HUD_FRAME, HUD_KINDS
+
+from .protocol import MSG, encode
+from .protocol_v2 import HUD_KINDS, MSG_HUD_FRAME, build_hud
+
 
 class DisplaySink:
     def render(self, note): raise NotImplementedError

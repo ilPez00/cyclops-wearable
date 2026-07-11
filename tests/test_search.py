@@ -1,9 +1,13 @@
 """Offline tests for semantic/keyword note search (T3.1)."""
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from brain.store import NoteStore
 from brain.extractor import Note
+from brain.store import NoteStore
 
 
 def _store():

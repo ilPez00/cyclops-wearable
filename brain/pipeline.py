@@ -1,9 +1,11 @@
 """End-to-end brain pipeline: audio/text -> transcript -> notes -> store + display.
 Optionally joins ring health context (premortem #3)."""
 from __future__ import annotations
-from .transcriber import get_transcriber
-from .extractor import extract, Note, get_extractor
+
+from .extractor import Note, extract, get_extractor
 from .store import NoteStore
+from .transcriber import get_transcriber
+
 
 class Pipeline:
     def __init__(self, store, transcriber=None, on_note=None, on_transcript=None,
@@ -58,7 +60,7 @@ def resolve_stt(cfg, keys=None):
     offline (deterministic stub) or use a local whisper endpoint. We never
     phone home implicitly.
     """
-    from .transcriber import get_transcriber, StubTranscriber
+    from .transcriber import StubTranscriber, get_transcriber
     mode = cfg.resolve_mode()
     if mode == "cloud":
         return get_transcriber("cloud", keys=keys)

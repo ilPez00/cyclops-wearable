@@ -3,7 +3,10 @@
 Uses FakeCamera (no hardware) and an injectable HTTP session so the whole
 capture -> base64 -> vision path is exercised without a real camera/network.
 """
-import sys, os, base64
+import base64
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from agent.config import AgentConfig
 from agent.tools.camera import make_camera_tool

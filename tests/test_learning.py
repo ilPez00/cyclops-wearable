@@ -6,13 +6,17 @@
 - async_ok=True spawns daemon thread and returns {} immediately.
 No network/keys.
 """
-import sys, os, json, tempfile, time
+import json
+import os
+import sys
+import tempfile
+import time
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from agent.learning import _extract_json, learn_from_turn, learn_recent
 from agent.config import AgentConfig
+from agent.learning import _extract_json, learn_from_turn, learn_recent
 from agent.memory import MemoryStore
-
 
 # -- _extract_json tests ------------------------------------------------
 

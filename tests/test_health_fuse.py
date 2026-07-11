@@ -1,8 +1,10 @@
 """Offline: P1-D unified health frame — fuse COLMI R02 + Omi + G2/R1."""
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from device.health_fuse import HealthAggregator, Reading
 from brain.protocol_v2 import parse_health
+from device.health_fuse import HealthAggregator, Reading
 
 
 def test_multi_source_fusion():
@@ -49,9 +51,10 @@ def test_battery_source_override():
 
 
 def test_health_tool_vitals():
+    import json
+
     from agent.config import AgentConfig
     from agent.tools.health import make_health_tool
-    import json
     agg = HealthAggregator().from_colmi(hr=70, spo2=96, battery=88, ts=1)
     t = make_health_tool(AgentConfig(), aggregator=agg)
     snap = json.loads(t.run({"action": "vitals"}))

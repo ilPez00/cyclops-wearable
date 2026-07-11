@@ -5,10 +5,14 @@ and natural-ish date parsing (today/tomorrow/+N days). The agent uses this to
 create reminders captured from speech ("remind me to call mom tomorrow").
 """
 from __future__ import annotations
-import os, json, re
+
+import json
+import os
+import re
 from datetime import datetime, timedelta
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def _parse_when(when: str) -> str:

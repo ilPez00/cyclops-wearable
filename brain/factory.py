@@ -12,14 +12,13 @@ fake transport without touching the network.
 """
 from __future__ import annotations
 
-from .store import NoteStore
-from .pipeline import Pipeline
 from .aikeys import AiKeys
+from .pipeline import Pipeline
+from .store import NoteStore
 
 
 def build_transcriber(keys: AiKeys | None = None, session=None):
-    from .transcriber import (StubTranscriber, CloudTranscriber,
-                              WhisperTranscriber)
+    from .transcriber import CloudTranscriber, StubTranscriber, WhisperTranscriber
     keys = keys or AiKeys()
     try:
         return WhisperTranscriber()
@@ -37,7 +36,7 @@ def build_transcriber(keys: AiKeys | None = None, session=None):
 
 def build_extractor(keys: AiKeys | None = None, session=None, provider: str = "groq"):
     from .extractor import extract
-    from .llm_extractor import LLMExtractor, LLMClient
+    from .llm_extractor import LLMClient, LLMExtractor
     keys = keys or AiKeys()
     if keys.get_key(provider) or keys.get_endpoint(provider):
         client = LLMClient(keys=keys, provider=provider, session=session) if session else None

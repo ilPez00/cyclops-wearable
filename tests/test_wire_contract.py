@@ -8,7 +8,11 @@ uses (CRC16-CCITT FALSE, 0xFFFF seed) yields the standard check value 0x29B1 on
 "123456789". This is the contract the Kotlin CyclopsProto must honor on-device.
 """
 from __future__ import annotations
-import struct, sys, os
+
+import os
+import struct
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 

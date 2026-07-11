@@ -1,11 +1,15 @@
 """Tests for agent conversation history + memory write-back."""
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
-from agent.tools import build_registry
-from agent.models import ChatResult
 from agent.loop import Agent
+from agent.models import ChatResult
+from agent.tools import build_registry
 
 
 class FakeRouter:

@@ -3,7 +3,11 @@
 Verifies manifest validation, registry discovery, install, and offline-safe
 sync — no network needed.
 """
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from agent.plugins import PluginManifest, PluginRegistry, sync_index
 

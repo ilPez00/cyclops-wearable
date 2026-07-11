@@ -3,7 +3,11 @@
 Verifies the live ContextAssembler is injected into the agent's system block
 and exposed via the `context` tool, without needing a live model/router.
 """
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from agent.config import AgentConfig
 from agent.loop import Agent

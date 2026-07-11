@@ -1,19 +1,23 @@
 """Offline tests for the expanded tool set + capability registry."""
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+from agent.capabilities import CAPABILITIES, describe, names
 from agent.config import AgentConfig
+from agent.models import ChatResult
 from agent.tools import build_registry
-from agent.tools.web import make_web_tool
 from agent.tools.calendar import make_calendar_tool
 from agent.tools.clipboard import make_clipboard_tool
 from agent.tools.health import make_health_tool
+from agent.tools.screen import make_screen_tool
 from agent.tools.vision import make_vision_tool
 from agent.tools.wearable import make_hud_tool
-from agent.tools.screen import make_screen_tool
-from agent.capabilities import CAPABILITIES, names, describe
-from agent.models import ChatResult
+from agent.tools.web import make_web_tool
 
 
 def test_registry_has_all_capabilities():

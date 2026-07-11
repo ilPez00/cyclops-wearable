@@ -1,10 +1,14 @@
 """Tests for LLMExtractor (F3) — offline via injected fake LLM client."""
-import sys, os, tempfile, json
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.llm_extractor import LLMExtractor, LLMClient
 from brain.aikeys import AiKeys
-from brain.extractor import extract, Note
+from brain.extractor import Note, extract
+from brain.llm_extractor import LLMClient, LLMExtractor
 
 
 class FakeResp:

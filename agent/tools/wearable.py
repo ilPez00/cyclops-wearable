@@ -6,9 +6,11 @@ recording. All go through the device transport (wifi/bt/cable) via the brain
 server's /api/device endpoint. Offline stub returns what would happen.
 """
 from __future__ import annotations
+
 import json
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 from ..models import _urllib_session
 
 

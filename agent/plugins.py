@@ -13,9 +13,8 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Optional
-
 
 REQUIRED_FIELDS = ("name", "version", "kind", "description")
 VALID_KINDS = ("hud", "tool", "gesture", "source", "skill")

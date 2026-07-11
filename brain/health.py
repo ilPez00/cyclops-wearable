@@ -5,8 +5,11 @@ samples in a fixed window and join notes by timestamp neighborhood so we can
 answer "what was my heart rate during that meeting?".
 """
 from __future__ import annotations
-import bisect, os
-from dataclasses import dataclass, asdict
+
+import bisect
+import os
+from dataclasses import asdict, dataclass
+
 
 @dataclass
 class HealthSample:

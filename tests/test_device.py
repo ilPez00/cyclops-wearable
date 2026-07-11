@@ -1,8 +1,11 @@
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from device.battery import BatteryMonitor
-from device.gestures import GestureDetector
 from device.cli import run
+from device.gestures import GestureDetector
+
 
 def test_battery_percent_and_low():
     b = BatteryMonitor(simulation=True)

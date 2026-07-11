@@ -11,8 +11,8 @@ No third-party dependency.
 from __future__ import annotations
 
 import json as _json
-import urllib.request as _req
 import urllib.error as _err
+import urllib.request as _req
 
 
 class Resp:

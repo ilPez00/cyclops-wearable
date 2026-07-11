@@ -5,8 +5,10 @@ deterministic stub returns canned transcripts so the full pipeline is testable
 offline with no API keys. A cloud adapter can be added later (see APITranscriber).
 """
 from __future__ import annotations
+
 import os
 import time
+
 
 class Transcriber:
     name = "base"
@@ -43,7 +45,9 @@ class WhisperTranscriber(Transcriber):
         except Exception as e:  # pragma: no cover
             raise RuntimeError(f"faster-whisper unavailable: {e}")
     def transcribe(self, pcm16: bytes, rate: int = 16000) -> str:
-        import numpy as np, io
+        import io
+
+        import numpy as np
         arr = np.frombuffer(pcm16, dtype="<i2").astype("float32") / 32768.0
         segs, _ = self.model.transcribe(arr, language=self.language)
         return " ".join(s.text for s in segs).strip()

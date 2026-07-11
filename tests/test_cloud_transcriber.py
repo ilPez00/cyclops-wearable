@@ -1,9 +1,13 @@
 """Tests for the cloud transcriber (F2) — offline via an injected fake session."""
-import sys, os, json, tempfile
+import json
+import os
+import sys
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.transcriber import CloudTranscriber
 from brain.aikeys import AiKeys
+from brain.transcriber import CloudTranscriber
 
 
 class FakeResp:

@@ -6,8 +6,9 @@ the flag (persisted via config) and reports status; capture/camera tools read
 the same flag and decline when off.
 """
 from __future__ import annotations
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_consent_tool(config: AgentConfig) -> Tool:

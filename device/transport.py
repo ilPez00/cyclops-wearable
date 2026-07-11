@@ -12,6 +12,7 @@ bridge can target the wearable over *any* link. A `FakeTransport` lets tests
 exercise the full routing with zero hardware/network.
 """
 from __future__ import annotations
+
 import json
 import os
 from typing import Optional

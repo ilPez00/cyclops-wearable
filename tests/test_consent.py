@@ -5,12 +5,14 @@
 - HudSim surfaces a REC / consent-off indicator
 - firmware consent gate verified separately via `make test` (10/10)
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from agent.config import AgentConfig
-from agent.tools.consent import make_consent_tool, consent_required
-from agent.tools.wearable import make_capture_tool
 from agent.tools.camera import make_camera_tool
+from agent.tools.consent import consent_required, make_consent_tool
+from agent.tools.wearable import make_capture_tool
 from device.camera import FakeCamera
 from shells.hud_sim import HudSim
 

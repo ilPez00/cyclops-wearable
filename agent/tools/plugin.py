@@ -4,9 +4,11 @@ Offline-safe: sync falls back to a graceful 'offline' status when no network.
 No remote code execution — install only drops validated manifests.
 """
 from __future__ import annotations
+
 import os
-from ..loop import Tool
+
 from ..config import AgentConfig
+from ..loop import Tool
 from ..plugins import PluginRegistry, sync_index
 
 

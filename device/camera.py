@@ -8,6 +8,7 @@ Offline-safe: `FakeCamera` returns canned bytes so the capture→vision pipeline
 is fully testable without hardware (premortem D1). The HTTP layer is injectable.
 """
 from __future__ import annotations
+
 from typing import Optional
 
 
@@ -68,7 +69,8 @@ class PhoneCamera(CameraSource):
         if self.session is None:
             return None
         try:
-            import base64, json
+            import base64
+            import json
             resp = self.session.post(self.url, timeout=10)
             obj = resp.json() if hasattr(resp, "json") else json.loads(resp.read())
             b64 = obj.get("jpeg") or obj.get("image") or ""

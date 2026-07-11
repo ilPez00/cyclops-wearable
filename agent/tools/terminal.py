@@ -11,8 +11,8 @@ import shlex
 import subprocess
 from typing import Callable
 
-from ..loop import Tool
 from ..config import AgentConfig
+from ..loop import Tool
 
 
 def make_terminal_tool(config: AgentConfig, confirm: Callable[[str], bool] | None = None) -> Tool:

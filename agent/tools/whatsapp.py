@@ -12,7 +12,6 @@ from typing import Optional
 
 from ..loop import Tool
 
-
 # Matches: 12/04/2026, 14:33 - Sender: message
 _LINE = re.compile(
     r"^(\d{1,2}/\d{1,2}/\d{2,4}),?\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*"
