@@ -39,6 +39,11 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".TranscriptActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".MemoryActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

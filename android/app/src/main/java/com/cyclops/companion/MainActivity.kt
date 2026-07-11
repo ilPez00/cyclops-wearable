@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
         binding.btnHud.setOnClickListener { startActivity(Intent(this, HudMirrorActivity::class.java)) }
         binding.btnRemap.setOnClickListener { startActivity(Intent(this, RemapActivity::class.java)) }
+        binding.btnTranscript.setOnClickListener { startActivity(Intent(this, TranscriptActivity::class.java)) }
 
         // transport selector (wifi / bt / cable)
         ArrayAdapter.createFromResource(
@@ -249,6 +250,10 @@ class MainActivity : AppCompatActivity() {
         field("Local model endpoint (e.g. http://127.0.0.1:11434/v1)", "local_endpoint")
         field("Cloud provider (openai/groq/openrouter/...)", "provider")
         val keyEd = field("API key (stored on device only)", "api_key", secret = true)
+        // persona as a first-class concept: name / voice / bio (sent to brain profile)
+        field("Persona name (how the agent identifies)", "persona_name")
+        field("Persona voice (tone: terse / friendly / formal / ...)", "persona_voice")
+        field("Persona bio (who it is, role, constraints)", "persona_bio")
         field("Persona / system note (extra instructions)", "persona")
         // per-tool overrides (provider/model) — saved to the brain profile
         val TOOLS = listOf("vision", "web_search", "web_fetch", "translate", "brain")
@@ -283,6 +288,9 @@ class MainActivity : AppCompatActivity() {
                     putString("local_endpoint", prefs.getString("local_endpoint", ""))
                     putString("provider", prefs.getString("provider", ""))
                     putString("api_key", keyEd.text.toString().trim())
+                    putString("persona_name", prefs.getString("persona_name", ""))
+                    putString("persona_voice", prefs.getString("persona_voice", ""))
+                    putString("persona_bio", prefs.getString("persona_bio", ""))
                     putString("persona", prefs.getString("persona", ""))
                     putString("transport", transSpin.selectedItem?.toString() ?: "wifi")
                     for (t in TOOLS) {
@@ -305,6 +313,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 val profile = org.json.JSONObject().apply {
                     put("persona", prefs.getString("persona", "") ?: "")
+                    put("persona_name", prefs.getString("persona_name", "") ?: "")
+                    put("persona_voice", prefs.getString("persona_voice", "") ?: "")
+                    put("persona_bio", prefs.getString("persona_bio", "") ?: "")
                     put("provider", prefs.getString("provider", "") ?: "")
                     put("api_key", keyEd.text.toString().trim())
                     if (overrides.length() > 0) put("tool_overrides", overrides)
