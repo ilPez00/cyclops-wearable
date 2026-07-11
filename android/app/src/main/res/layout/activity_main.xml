@@ -75,7 +75,7 @@
         android:text="@string/empty"
         android:visibility="gone"
         android:gravity="center"
-        android:textColor="#888" />
+        android:textColor="@color/cyclops_muted" />
 
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/editIngest"
@@ -118,7 +118,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Local model"
-            android:textColor="#ccc" />
+            android:textColor="@color/cyclops_muted" />
         <Switch
             android:id="@+id/swLocal"
             android:layout_width="wrap_content"
@@ -131,7 +131,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Transport"
-            android:textColor="#ccc" />
+            android:textColor="@color/cyclops_muted" />
         <Spinner
             android:id="@+id/spinTransport"
             android:layout_width="wrap_content"

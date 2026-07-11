@@ -1,6 +1,11 @@
 <resources>
     <style name="Theme.Cyclops" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#00E5FF</item>
-        <item name="android:statusBarColor">#001015</item>
+        <!-- Brand tokens (colors.xml). Dynamic color overrides these on API 31+. -->
+        <item name="colorPrimary">@color/cyclops_primary</item>
+        <item name="android:colorBackground">@color/cyclops_bg</item>
+        <item name="colorSurface">@color/cyclops_surface</item>
+        <item name="colorOnSurface">@color/cyclops_on_surface</item>
+        <item name="android:statusBarColor">@color/cyclops_bg_dark</item>
+        <item name="android:navigationBarColor">@color/cyclops_bg_dark</item>
     </style>
 </resources>

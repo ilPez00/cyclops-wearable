@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night variant: pure-dark surfaces, slightly brighter text for OLED. -->
+    <color name="cyclops_bg">#00090C</color>
+    <color name="cyclops_bg_dark">#000000</color>
+    <color name="cyclops_surface">#070D11</color>
+    <color name="cyclops_on_surface">#F2FAFE</color>
+    <color name="cyclops_muted">#B6C7D0</color>
+</resources>

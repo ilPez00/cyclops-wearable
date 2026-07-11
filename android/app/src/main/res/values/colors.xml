@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand + semantic tokens. Dark-oriented by default (the wearable companion
+         is used in low-light contexts); values-night overrides for true dark. -->
+    <color name="cyclops_primary">#00E5FF</color>
+    <color name="cyclops_bg">#001015</color>
+    <color name="cyclops_bg_dark">#00090C</color>
+    <color name="cyclops_surface">#0A141A</color>
+    <color name="cyclops_on_surface">#E6F1F7</color>
+    <!-- Muted text kept >= 4.5:1 on the dark surface for WCAG AA readability. -->
+    <color name="cyclops_muted">#9FB3BD</color>
+    <color name="cyclops_accent_ok">#7CFFB2</color>
+    <color name="cyclops_accent_candidate">#FFB300</color>
+</resources>

@@ -29,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:textColor="#888"
+            android:textColor="@color/cyclops_muted"
             android:text="@string/ring_idle" />
 
         <!-- Live radial gauges (HR + SpO2) and battery bar -->
