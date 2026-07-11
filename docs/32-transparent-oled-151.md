@@ -29,8 +29,8 @@ Geometry is 128×64 (21 cols × 8 text rows), same layout budget as `SCREEN_128x
 | RST  | D0   | 1 |
 
 Module ships configured for SPI by default; for I2C move the two solder resistors
-per the Waveshare wiki (addr 0x3C) — the SSD1306 I2C driver pattern
-(`SCREEN_128x32_I2C`) can be adapted the same way if you prefer 2-wire.
+per the Waveshare wiki (addr 0x3C) and build the I2C target instead:
+`pio run -e xiao_transparent_151_i2c` (2-wire on XIAO D6/D7 = GPIO43/44).
 
 ## Build / flash
 ```

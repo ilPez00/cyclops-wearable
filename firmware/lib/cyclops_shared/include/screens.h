@@ -138,7 +138,43 @@ private:
     Adafruit_SSD1306 disp_;
 };
 }
+#elif defined(SCREEN_TRANSPARENT_151_I2C)
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>
+namespace cyclops {
+// Waveshare 1.51" Transparent OLED in I2C mode (128x64, SSD1309, addr 0x3C).
+// For the 2-wire config: move the two solder resistors per the Waveshare wiki.
+// I2C on XIAO D6/D7 (GPIO43/44), same as the 128x32 I2C driver, to avoid the
+// button/wheel pins. Transparent-aware render (unlit rects are no-ops).
+class Transparent151I2CScreen : public Screen {
+public:
+    Transparent151I2CScreen(int cs, int dc, int rst, int sck, int mosi, int miso, int rst_pin=-1,
+                            uint8_t addr=0x3C, int sda=43, int scl=44)
+        : disp_(128,64,&Wire,rst_pin), addr_(addr), sda_(sda), scl_(scl) { (void)cs;(void)dc;(void)rst;(void)sck;(void)mosi;(void)miso; }
+    int w() const override { return 128; }
+    int h() const override { return 64; }
+    int char_cols() const override { return 21; }
+    int text_rows() const override { return 8; }
+    void begin() override {
+        Wire.begin(sda_, scl_);
+        disp_.begin(SSD1306_EXTERNALVCC, addr_);
+        disp_.clearDisplay(); disp_.setTextSize(1); disp_.setTextColor(SSD1306_WHITE);
+        disp_.dim(false);
+    }
+    void clear() override { disp_.clearDisplay(); }
+    void set_ink(bool on) override { disp_.setTextColor(on?SSD1306_WHITE:SSD1306_BLACK); }
+    void draw_text(int col,int row,const char* s) override { disp_.setCursor(col*6,row*8); disp_.print(s); }
+    void draw_rect(int x,int y,int w,int h,bool on) override { if(on) disp_.fillRect(x,y,w,h,SSD1306_WHITE); }
+    void draw_pixel(int x,int y,bool on=true) override { disp_.drawPixel(x,y,on?SSD1306_WHITE:SSD1306_BLACK); }
+    void flush() override { disp_.display(); }
+private:
+    Adafruit_SSD1306 disp_;
+    uint8_t addr_;
+    int sda_, scl_;
+};
+}
 #else
-#error "Define one of SCREEN_ST7735 / SCREEN_128x64 / SCREEN_128x32 / SCREEN_128x32_I2C / SCREEN_TRANSPARENT_151"
+#error "Define one of SCREEN_ST7735 / SCREEN_128x64 / SCREEN_128x32 / SCREEN_128x32_I2C / SCREEN_TRANSPARENT_151 / SCREEN_TRANSPARENT_151_I2C"
 #endif
 #endif
