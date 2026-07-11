@@ -411,6 +411,16 @@ int main() {
         Hud::drawBoot(ps4, 64, 32, 20, 2);
         assert(ps4.px > 0);
 
+        // mode-transition wipe: a vertical bar sweeps on the first render after a
+        // mode change (prev_mode member defaults to HOME, so pushing MENU
+        // makes the first render draw the wipe column). Deterministic.
+        {
+            Hud ht; ht.send_cmd = on_cmd; ht.init();
+            ht.push(MENU);                 // top()=MENU, prev_mode member=HOME
+            PixScreen ps; ht.render(ps);   // cur=MENU != HOME -> wipe frame 0
+            assert(ps.px > 0);            // transition wiped a column
+        }
+
         // HEALTH mode on a 128x64 panel actually invokes the pixel helpers
         Hud hp; hp.init(); hp.push(HEALTH); hp.set_health(74, 96, 88, 90);
         PixScreen ps5; hp.render(ps5);
