@@ -126,8 +126,28 @@ int main() {
     h2.recording = true; h2.bt = true; h2.hr = 72; h2.bead_batt = 15;
     FakeScreen scr2; h2.render(scr2);
  assert(strstr(scr2.row0, "REC") != nullptr);   // recording flag in status bar
- assert(strstr(scr2.row0, "BT") != nullptr);    // bluetooth flag
+ assert(strstr(scr2.row0, "BT+") != nullptr);   // connected -> BT+ icon
+ assert(strstr(scr2.row0, "!") != nullptr);     // bead_batt=15 <20 -> low-batt warning
  assert(strstr(scr2.row0, "HOME") != nullptr || strstr(scr2.row0, "HLTH") != nullptr);
+
+ // BT- icon when disconnected
+ Hud h3; h3.send_cmd = on_cmd; h3.init();
+ h3.recording = false; h3.bt = false; h3.bead_batt = 80;
+ FakeScreen scr3; h3.render(scr3);
+ assert(strstr(scr3.row0, "BT-") != nullptr);   // disconnected -> BT- icon
+ assert(strstr(scr3.row0, "!") == nullptr);      // healthy battery -> no warning
+
+ // REC pulse glyph in TRANSCRIBE mode
+ Hud h4; h4.send_cmd = on_cmd; h4.init();
+ h4.set_consent(true); h4.recording = true; h4.rec_secs = 5;
+ h4.push(TRANSCRIBE);
+ LineScreen scr4; h4.render(scr4);
+ bool rec_ok = (strstr(scr4.line[1], "REC 0:05") != nullptr);
+ assert(rec_ok);
+ // pulse glyph present (█ or ░) in the REC line
+ bool pulsed = (strstr(scr4.line[1], "\xE2\x96\x88") != nullptr) ||
+               (strstr(scr4.line[1], "\xE2\x96\x91") != nullptr);
+ assert(pulsed);
 
  // ---- consent gate: recording blocked when consent is off ----
  {
@@ -380,7 +400,7 @@ int main() {
         int pxGauge = ps.px;
 
         PixScreen ps2;
-        Hud::drawBatteryIcon(ps2, 2, 54, 80);
+        Hud::drawBatteryIcon(ps2, 2, 54, 80, 80, false);
         assert(ps2.rects >= 2 && ps2.fills >= 1); // body + terminal + fill
 
         PixScreen ps3;

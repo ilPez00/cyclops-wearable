@@ -360,13 +360,28 @@ struct Hud {
         if (fw > 0) scr.fill_rect(x + 1, y + 1, fw, h - 2, true);
     }
 
-    // Battery glyph: body + terminal, fill level 0..100.
+    // Battery glyphs: draw bead (main unit, larger) + ring (wearable, smaller)
+    // side by side. Flash a '!' when either is critically low (<20%). charging
+    // adds a '+' suffix. Monochrome-safe (no emoji).
     template<typename S>
-    static void drawBatteryIcon(S& scr, int x, int y, int level) {
-        scr.draw_rect(x, y, 14, 7, true);                   // body outline
-        scr.draw_rect(x + 14, y + 2, 2, 3, true);           // terminal
-        int fw = (int)(12 * clamp(level, 0, 100) / 100.f);
-        if (fw > 0) scr.fill_rect(x + 1, y + 1, fw, 5, true);
+    static void drawBatteryIcon(S& scr, int x, int y, int ring_level, int bead_level, bool charging) {
+        int bl = bead_level > 0 ? bead_level : ring_level;   // effective level
+        int rl = ring_level > 0 ? ring_level : bead_level;
+        // bead (main): 14x7 body
+        scr.draw_rect(x, y, 14, 7, true);
+        scr.draw_rect(x + 14, y + 2, 2, 3, true);
+        int bw = (int)(12 * clamp(bl, 0, 100) / 100.f);
+        if (bw > 0) scr.fill_rect(x + 1, y + 1, bw, 5, true);
+        // ring (wearable): 10x5 body
+        scr.draw_rect(x + 20, y + 1, 10, 5, true);
+        scr.draw_rect(x + 30, y + 2, 1, 3, true);
+        int rw = (int)(8 * clamp(rl, 0, 100) / 100.f);
+        if (rw > 0) scr.fill_rect(x + 21, y + 2, rw, 3, true);
+        // critical low-battery flash
+        static int low_frame = 0; ++low_frame;
+        bool crit = (bl > 0 && bl < 20) || (rl > 0 && rl < 20);
+        if (crit && (low_frame % 8) < 4) scr.draw_text(x + 33, y, "!");
+        if (charging) scr.draw_text(x + 33, y, "+");
     }
 
     // Boot animation frame (spinner). frame 0..3 cycles a sweeping arc.
@@ -386,9 +401,12 @@ struct Hud {
         // status bar row 0: clock + flags + mode breadcrumb
         char sb[32];
         const char* md = mode_name(top());
-        snprintf(sb, sizeof(sb), "%02u:%02u %s%s%s %s",
+        int eff_batt = bead_batt > 0 ? bead_batt : ring_batt;
+        const char* bt_icon = bt ? "BT+" : "BT-";          // + connected, - not
+        const char* low = (eff_batt > 0 && eff_batt < 20) ? " !" : "";
+        snprintf(sb, sizeof(sb), "%02u:%02u %s%s%s%s %s",
                  (clock/3600)%24, (clock/60)%60,
-                 recording ? "REC " : "", bt ? "BT " : "", consent ? "" : "X ", md);
+                 recording ? "REC " : "", bt_icon, consent ? "" : " X", low, md);
         scr.set_ink(true); scr.draw_text(0, 0, sb);
 
         Mode m = top();
@@ -439,7 +457,9 @@ struct Hud {
                 trim(st, cols); scr.draw_text(0, rows-1, st);
             }
         } else if (m == TRANSCRIBE) {
-            char ln[32]; snprintf(ln, sizeof(ln), "REC %d:%02d", rec_secs/60, rec_secs%60);
+            static int rec_pulse = 0; ++rec_pulse;
+            const char* blk = (rec_pulse % 16) < 8 ? "\xE2\x96\x88" : "\xE2\x96\x91"; // █ / ░
+            char ln[32]; snprintf(ln, sizeof(ln), "REC %d:%02d%s", rec_secs/60, rec_secs%60, blk);
             scr.draw_text(0, body, ln); body++;
             draw_detail(scr, rows, cols, body);
         } else if (m == HEALTH) {
@@ -451,7 +471,7 @@ struct Hud {
                 int cx = scr.w() / 2;
                 drawGauge(scr, cx - 18, body + 18, 14, hr > 0 ? (hr * 100 / 200) : 0);
                 drawGauge(scr, cx + 18, body + 18, 14, spo2);
-                drawBatteryIcon(scr, 2, scr.h() - 10, bead_batt > 0 ? bead_batt : ring_batt);
+                drawBatteryIcon(scr, 2, scr.h() - 10, ring_batt, bead_batt, charging);
             }
         } else if (m == NAV) {
             char ln[32]; snprintf(ln, sizeof(ln), "%s %dm", nav_arrow(nav_head), nav_dist); scr.draw_text(0,body,ln);
