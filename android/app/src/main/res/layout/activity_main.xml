@@ -60,6 +60,13 @@
             android:text="Remap" />
 
         <Button
+            android:id="@+id/btnTranscript"
+            android:contentDescription="Conversation transcript"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Log" />
+
+        <Button
             android:id="@+id/btnRefresh"
         android:contentDescription="Refresh notes"
             android:layout_width="wrap_content"

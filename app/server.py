@@ -25,31 +25,18 @@ pipeline = None
 agent = None
 bridge = None
 
-HTML = """<!doctype html><html><head><meta charset=utf-8>
-<title>Cyclops</title><style>
-body{font-family:system-ui;background:#0e1116;color:#e6e6e6;margin:0;padding:1rem}
-h1{font-size:1.1rem} .sec{margin-top:1rem} h2{font-size:.9rem;color:#7fd1ff;border-bottom:1px solid #222}
-.note{padding:.3rem .5rem;margin:.2rem 0;background:#161b22;border-radius:6px;font-size:.85rem}
-.due{color:#ffb454;font-size:.75rem} .live{color:#7CFFB2}
-</style></head><body>
-<h1>CYCLOPS <span class=live id=rec></span></h1>
-<div id=last></div>
-<div class=sec><h2>Tasks</h2><div id=task></div></div>
-<div class=sec><h2>Reminders</h2><div id=reminder></div></div>
-<div class=sec><h2>Decisions</h2><div id=decision></div></div>
-<div class=sec><h2>Ideas</h2><div id=idea></div></div>
-<div class=sec><h2>Summary</h2><div id=summary></div></div>
-<script>
-async function load(){
-  const r=await fetch('/api/notes'); const d=await r.json();
-  const by=t=>d.filter(n=>n.type===t);
-  const render=(id,arr)=>document.getElementById(id).innerHTML=arr.map(n=>
-    `<div class=note>${n.text}${n.due?`<span class=due> (due ${n.due})</span>`:''}</div>`).join('');
-  ['task','reminder','decision','idea','summary'].forEach(t=>render(t,by(t)));
-  document.getElementById('last').innerHTML = d.length?`<div class=note>last: ${d[d.length-1].text}</div>`:'';
-}
-setInterval(load,1500); load();
-</script></body></html>"""
+_TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
+_HTML: str | None = None
+
+def _load_html() -> str:
+    global _HTML
+    if _HTML is None:
+        try:
+            with open(_TEMPLATE_PATH) as f:
+                _HTML = f.read()
+        except FileNotFoundError:
+            _HTML = "<html><body><h1>Cyclops</h1><p>template missing</p></body></html>"
+    return _HTML
 
 class H(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
@@ -60,7 +47,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         p = urlparse(self.path)
         if p.path == "/" or p.path == "/index.html":
-            return self._send(200, HTML, "text/html")
+            return self._send(200, _load_html(), "text/html")
         if p.path == "/api/notes":
             notes = [n.to_dict() for n in pipeline.store.all()] if pipeline else []
             return self._send(200, json.dumps(notes))
@@ -75,6 +62,13 @@ class H(BaseHTTPRequestHandler):
             text = q.get("text", [""])[0]
             if text and pipeline: pipeline.process_text(text)
             return self._send(200, json.dumps({"ok": True}))
+        if p.path == "/api/transcript":
+            # in-session conversation turns (role/content) from the running agent
+            global agent
+            hist = getattr(agent, "history", []) if agent is not None else []
+            out = [{"role": m.get("role", ""), "content": m.get("content", "")}
+                  for m in hist if isinstance(m, dict)]
+            return self._send(200, json.dumps(out))
         if p.path == "/api/extract":
             # LLM-aware extraction of arbitrary text -> candidate notes (premortem #5)
             q = parse_qs(p.query)
