@@ -26,6 +26,13 @@ static cyclops::Ssd1306_128x32_Screen screen(5, 2, 1, 8, 10, 9, 1);
 #elif defined(SCREEN_128x32_I2C)
 // 4-pin I2C OLED: only SDA/SCL/VCC/GND wired. SPI args ignored, rst_pin=-1.
 static cyclops::Ssd1306_128x32_I2C_Screen screen(0, 0, 0, 0, 0, 0, -1);
+#elif defined(SCREEN_TRANSPARENT_151)
+// Waveshare 1.51" transparent OLED (128x64, SSD1309), 4-wire SPI.
+// CS=GPIO6(D5) DC=GPIO2(D1) RST=GPIO1(D0). SCK=GPIO7 MOSI=GPIO9 MISO=GPIO8.
+static cyclops::Transparent151Screen screen(6, 2, 1, 8, 10, 9, 1);
+#elif defined(SCREEN_TRANSPARENT_151_I2C)
+// Waveshare 1.51" transparent OLED in I2C mode: only SDA/SCL/VCC/GND wired.
+static cyclops::Transparent151I2CScreen screen(0, 0, 0, 0, 0, 0, -1);
 #endif
 
 #define PIN_WHEEL_A 0
@@ -184,6 +191,10 @@ void setup() {
     Serial.println("[boot] screen=SSD1306 128x64");
 #elif defined(SCREEN_128x32)
     Serial.println("[boot] screen=SSD1306 128x32");
+#elif defined(SCREEN_TRANSPARENT_151)
+    Serial.println("[boot] screen=Transparent 1.51in SSD1309 128x64");
+#elif defined(SCREEN_TRANSPARENT_151_I2C)
+    Serial.println("[boot] screen=Transparent 1.51in SSD1309 128x64 (I2C)");
 #endif
     screen.begin();
     Serial.println("[boot] screen.begin ok");
