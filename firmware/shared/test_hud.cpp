@@ -8,6 +8,11 @@
 #include <cassert>
 #include <cctype>
 
+// haptic/LED hook sinks (C function-pointer hooks can't capture locals)
+static int g_pat = -1, g_btn = -1, g_hue = -1;
+static void _on_haptic(int p) { g_pat = p; }
+static void _on_led(int b, int hue) { g_btn = b; g_hue = hue; }
+
 using namespace cyclops;
 
 // Fake screen: records draw calls, enforces geometry like a 128x32 (4 rows x 21 cols).
@@ -460,6 +465,19 @@ int main() {
         assert(strstr(buf, "\"spo2\":96") != nullptr);
         assert(strstr(buf, "\"toast\":\"sent\"") != nullptr);
         assert(strstr(buf, "\"hr\":74") != nullptr);
+    }
+
+    // haptic / LED mapping: setters + gesture fires the hooks
+    {
+        Hud hk; g_pat = -1; g_btn = -1; g_hue = -1;
+        hk.on_haptic = _on_haptic;
+        hk.on_led = _on_led;
+        hk.set_haptic(0, 3); hk.set_led(1, 180);
+        assert(hk.haptic_pattern[0] == 3);
+        assert(hk.led_hue[1] == 180);
+        hk.fire_gesture(1, 1);   // B single -> triggers hooks with led_hue[1]
+        assert(g_pat == hk.haptic_pattern[1]);
+        assert(g_btn == 1 && g_hue == 180);  // led_hue[1]=180
     }
 
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);

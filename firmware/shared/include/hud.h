@@ -83,6 +83,8 @@ struct Hud {
     int tele_page = 0;
     char confirm_prompt[32] = ""; uint8_t confirm_action = 0;
     int rec_secs = 0;
+    int haptic_pattern[2] = {1, 2};   // per-button (A=0,B=1) vibration pattern id
+    int led_hue[2] = {0, 200};        // per-button LED hue (0..360) for the paired LED
     Mode prev_mode = HOME;    // last-rendered mode, for transition wipe
     int trans_frame = 0;        // transition wipe frame counter (0..3)
     uint32_t clock = 0;
@@ -277,6 +279,8 @@ struct Hud {
     }
     void fire_gesture(int btn, int g) {
         if (btn < 0 || btn > 1 || g < 1 || g > 3) return;
+        if (on_haptic) on_haptic(haptic_pattern[btn]);   // buzz the wearer
+        if (on_led) on_led(btn, led_hue[btn]);     // flash the paired LED
         do_action(bindings.cell(btn, g));
     }
     // Run one bound action. Menu/nav actions steer the HUD; capture/agent
@@ -307,6 +311,13 @@ struct Hud {
     }
 
     void set_health(int h, int s, int rb, int bb) { hr = h; spo2 = s; ring_batt = rb; bead_batt = bb; }
+
+    // Haptic / LED mapping (per button A=0, B=1), configurable from the app.
+    void set_haptic(int btn, int pat) { if (btn >= 0 && btn <= 1) haptic_pattern[btn] = pat; }
+    void set_led(int btn, int hue) { if (btn >= 0 && btn <= 1) led_hue[btn] = hue; }
+    // hooks wired to real hardware in xiao (no-op here); fire on each gesture.
+    void (*on_haptic)(int pattern) = nullptr;
+    void (*on_led)(int btn, int hue) = nullptr;
     // Incoming MSG_HEALTH_SAMPLE (phone->wearable relay, P2-C): parse
     // "t=,hr=,spo2=,sl=,batt=" and apply. We only take hr/spo2/ring_batt.
     void on_health_sample(const char* p) {
@@ -430,6 +441,14 @@ struct Hud {
                 scr.draw_text(0, rows - 1, ln);
             } else if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
             else { scr.draw_text(0, body, "Cyclops ready"); body++; }
+            // LED mapping indicator: per-button hue encoded as a bar on capable panels
+            if (scr.w() >= 64) {
+                char li[16];
+                int wa = (led_hue[0] * 10) / 360;   // 0..10
+                int wb = (led_hue[1] * 10) / 360;
+                snprintf(li, sizeof(li), "A%d B%d", wa, wb);
+                trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
+            }
             char ln[32];
             snprintf(ln, sizeof(ln), "%dmV %d notes %s", (bead_batt>0?bead_batt:ring_batt),
                      note_count, recording ? "REC" : "");

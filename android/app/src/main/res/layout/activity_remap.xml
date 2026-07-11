@@ -47,6 +47,45 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Save &amp; push to device" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Haptic &amp; LED per button"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/cyclops_primary" />
+
+    <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stretchColumns="0,1,2"
+        android:layout_marginTop="4dp">
+        <TableRow>
+            <TextView android:text="" android:padding="8dp" />
+            <TextView android:text="Haptic" android:padding="8dp" android:textColor="@color/cyclops_secondary" />
+            <TextView android:text="LED hue" android:padding="8dp" android:textColor="@color/cyclops_secondary" />
+        </TableRow>
+        <TableRow>
+            <TextView android:text="A (eye)" android:padding="8dp" android:textColor="@color/cyclops_on_surface" />
+            <Spinner android:id="@+id/spinHapticA" android:padding="8dp" android:contentDescription="Haptic pattern for button A" />
+            <Spinner android:id="@+id/spinLedA" android:padding="8dp" android:contentDescription="LED hue for button A" />
+        </TableRow>
+        <TableRow>
+            <TextView android:text="B (ear)" android:padding="8dp" android:textColor="@color/cyclops_on_surface" />
+            <Spinner android:id="@+id/spinHapticB" android:padding="8dp" android:contentDescription="Haptic pattern for button B" />
+            <Spinner android:id="@+id/spinLedB" android:padding="8dp" android:contentDescription="LED hue for button B" />
+        </TableRow>
+    </TableLayout>
+
+    <Button
+        android:id="@+id/btnRemapSaveHaptic"
+        android:contentDescription="Save haptic and LED mapping"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Save haptic &amp; LED" />
+
 
     <TextView
         android:id="@+id/txtRemapStatus"
