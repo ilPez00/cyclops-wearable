@@ -1,5 +1,7 @@
 package com.cyclops.companion
 
+import android.os.Handler
+import android.os.Looper
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -26,6 +28,12 @@ object CyclopsApi {
     // Persistent base URL (settings screen / defaults). Example: http://192.168.1.50:8080
     @Volatile
     var baseUrl: String = "http://192.168.1.50:8080"
+
+    // All requests run on a worker thread; callers update views in their
+    // callbacks, so every onResult/onError is posted back to the main looper.
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private fun onMain(block: () -> Unit) { mainHandler.post(block) }
 
     private fun url(path: String, vararg params: Pair<String, String>): URL {
         val sb = StringBuilder(baseUrl.trimEnd('/')).append(path)
@@ -78,9 +86,9 @@ object CyclopsApi {
             val arr = JSONArray(get(url("/api/notes")))
             val out = mutableListOf<Note>()
             for (i in 0 until arr.length()) out += Note.from(arr.getJSONObject(i))
-            onResult(out)
+            onMain { onResult(out) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -88,16 +96,16 @@ object CyclopsApi {
      *  brain server proxies the device frame at /api/status; if absent, the
      *  mirror view falls back to its local demo. */
     fun status(onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
-        try { onResult(get(url("/api/status"))) }
-        catch (e: Exception) { onError(e.message ?: e.toString()) }
+        try { val r = get(url("/api/status")); onMain { onResult(r) } }
+        catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
     fun ingest(text: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
             get(url("/api/ingest", "text" to text))
-            onResult(true)
+            onMain { onResult(true) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -106,9 +114,9 @@ object CyclopsApi {
             val arr = JSONArray(get(url("/api/extract", "text" to text)))
             val out = mutableListOf<Note>()
             for (i in 0 until arr.length()) out += Note.from(arr.getJSONObject(i))
-            onResult(out)
+            onMain { onResult(out) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -137,10 +145,10 @@ object CyclopsApi {
             }
             // mirror the answer onto the wearable HUD (Omi/G2 glanceable banner)
             try { hud(reply, {}, {}) } catch (_: Exception) {}
-            if (reply.isNotEmpty()) onResult(reply, calls, steps)
-            else onError(obj.optString("error", "no reply"))
+            if (reply.isNotEmpty()) onMain { onResult(reply, calls, steps) }
+            else onMain { onError(obj.optString("error", "no reply")) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -154,8 +162,8 @@ object CyclopsApi {
                 put("kind", "bind"); put("btn", btn); put("g", g); put("act", act)
             }.toString()
             get(url("/api/hud_cmd", "a" to "20", "arg" to arg))  // ACT_OK relays the cmd
-            onResult(true)
-        } catch (e: Exception) { onError(e.message ?: e.toString()) }
+            onMain { onResult(true) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
     // Persist a button's haptic pattern + LED hue (A=0,B=1) to the brain
@@ -171,26 +179,26 @@ object CyclopsApi {
                 })
             }
             val obj = JSONObject(post(url("/api/settings"), map.toString()))
-            onResult(obj.optBoolean("ok", false))
-        } catch (e: Exception) { onError(e.message ?: e.toString()) }
+            onMain { onResult(obj.optBoolean("ok", false)) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
     // The server fulfills it locally and streams the frame to the glasses.
     fun hud(text: String, onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
         try {
             val obj = JSONObject(get(url("/api/hud_cmd", "a" to "14", "arg" to text)))
             val action = obj.optString("action", "")
-            onResult(action)
+            onMain { onResult(action) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
     // Pull the current profile (persona, provider, per-tool overrides, ...) from the brain.
     fun getSettings(onResult: (JSONObject) -> Unit, onError: (String) -> Unit) = thread {
         try {
-            onResult(JSONObject(get(url("/api/settings"))))
+            val r = JSONObject(get(url("/api/settings"))); onMain { onResult(r) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -204,8 +212,8 @@ object CyclopsApi {
                 val o = arr.optJSONObject(i) ?: continue
                 out.add(Pair(o.optString("role", ""), o.optString("content", "")))
             }
-            onResult(out)
-        } catch (e: Exception) { onError(e.message ?: e.toString()) }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
     // Response: { "agent": [ {text,target}, ... ], "user": [ ... ] }
@@ -214,9 +222,9 @@ object CyclopsApi {
             val obj = JSONObject(get(url("/api/memory")))
             val agent = obj.optJSONArray("agent") ?: JSONArray()
             val user = obj.optJSONArray("user") ?: JSONArray()
-            onResult(agent, user)
+            onMain { onResult(agent, user) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -231,9 +239,9 @@ object CyclopsApi {
                 if (note.isNotEmpty()) put("note", note)
             }
             val obj = JSONObject(post(url("/api/memory"), body.toString()))
-            onResult(obj.optBoolean("ok", false))
+            onMain { onResult(obj.optBoolean("ok", false)) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -243,9 +251,9 @@ object CyclopsApi {
         try {
             val obj = JSONObject(get(url("/api/learn")))
             val learned = obj.optJSONObject("learned") ?: JSONObject()
-            onResult(learned.optInt("user", 0), learned.optInt("agent", 0))
+            onMain { onResult(learned.optInt("user", 0), learned.optInt("agent", 0)) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 
@@ -253,9 +261,9 @@ object CyclopsApi {
     fun putSettings(json: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
             val obj = JSONObject(post(url("/api/settings"), json))
-            onResult(obj.optBoolean("ok", false))
+            onMain { onResult(obj.optBoolean("ok", false)) }
         } catch (e: Exception) {
-            onError(e.message ?: e.toString())
+            onMain { onError(e.message ?: e.toString()) }
         }
     }
 

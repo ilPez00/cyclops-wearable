@@ -49,7 +49,8 @@ class CyclopsService : Service() {
             }
         }
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            val ch = gatt.getService(SRVC_UUID)?.getCharacteristic(NOTE_UUID)
+            // service/characteristic can be absent (wrong device, partial discovery)
+            val ch = gatt.getService(SRVC_UUID)?.getCharacteristic(NOTE_UUID) ?: return
             noteChar = ch
             gatt.setCharacteristicNotification(ch, true)
         }
@@ -68,4 +69,13 @@ class CyclopsService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        noteChar = null
+        if (::bluetoothGatt.isInitialized) {
+            bluetoothGatt.disconnect()
+            bluetoothGatt.close()
+        }
+        super.onDestroy()
+    }
 }
