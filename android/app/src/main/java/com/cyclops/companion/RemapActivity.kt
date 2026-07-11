@@ -84,6 +84,35 @@ class RemapActivity : AppCompatActivity() {
             }
             pushAll(binding.txtRemapStatus)
         }
+
+        // ---- haptic pattern + LED hue per button (A=0, B=1) ----
+        val haptics = arrayOf("off", "short", "double", "long", "pulse")
+        val hues = arrayOf("red", "amber", "green", "cyan", "blue", "violet", "white")
+        fun setupSpinner(id: Int, items: Array<String>, sel: Int): Spinner =
+            binding.root.findViewById<Spinner>(id).apply {
+                adapter = ArrayAdapter(this@RemapActivity, android.R.layout.simple_spinner_item, items)
+                    .also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+                setSelection(sel)
+            }
+        val spinHap = arrayOf(
+            setupSpinner(R.id.spinHapticA, haptics, 1),
+            setupSpinner(R.id.spinHapticB, haptics, 2))
+        val spinLed = arrayOf(
+            setupSpinner(R.id.spinLedA, hues, 0),
+            setupSpinner(R.id.spinLedB, hues, 4))
+        // map spinner index -> protocol value (haptic: 0..4; led hue: idx*60 deg)
+        binding.btnRemapSaveHaptic.setOnClickListener {
+            var done = 0; var fail = false
+            for (b in 0..1) {
+                val pat = spinHap[b].selectedItemPosition
+                val hue = spinLed[b].selectedItemPosition * 60   // 0..360
+                CyclopsApi.bindHapticLed(b, pat, hue,
+                    onResult = { done++; if (done == 2) binding.txtRemapStatus.text =
+                        if (fail) "Some haptic/LED saves failed." else "Haptic & LED saved." },
+                    onError = { fail = true; done++; if (done == 2) binding.txtRemapStatus.text =
+                        "Some haptic/LED saves failed." })
+            }
+        }
     }
 
     private fun pushAll(status: TextView) {

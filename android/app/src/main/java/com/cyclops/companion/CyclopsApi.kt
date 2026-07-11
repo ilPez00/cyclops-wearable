@@ -158,7 +158,22 @@ object CyclopsApi {
         } catch (e: Exception) { onError(e.message ?: e.toString()) }
     }
 
-    // Push a glanceable banner to the wearable HUD via /api/hud_cmd (ACT_AGENT=14).
+    // Persist a button's haptic pattern + LED hue (A=0,B=1) to the brain
+    // profile (button_map); the wearable loads it on (re)connect.
+    fun bindHapticLed(btn: Int, pat: Int, hue: Int,
+                         onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val map = org.json.JSONObject().apply {
+                put("button_map", org.json.JSONObject().apply {
+                    put("btn$btn", org.json.JSONObject().apply {
+                        put("haptic", pat); put("led", hue)
+                    })
+                })
+            }
+            val obj = JSONObject(post(url("/api/settings"), map.toString()))
+            onResult(obj.optBoolean("ok", false))
+        } catch (e: Exception) { onError(e.message ?: e.toString()) }
+    }
     // The server fulfills it locally and streams the frame to the glasses.
     fun hud(text: String, onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
         try {
@@ -179,7 +194,20 @@ object CyclopsApi {
         }
     }
 
-    // Hermes-style memory: GET lists both targets (agent + user) with indices.
+    // Conversation transcript: GET /api/transcript -> [ {role, content}, ... ]
+    fun transcript(onResult: (List<Pair<String, String>>) -> Unit,
+                    onError: (String) -> Unit) = thread {
+        try {
+            val arr = JSONArray(get(url("/api/transcript")))
+            val out = mutableListOf<Pair<String, String>>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(Pair(o.optString("role", ""), o.optString("content", "")))
+            }
+            onResult(out)
+        } catch (e: Exception) { onError(e.message ?: e.toString()) }
+    }
+
     // Response: { "agent": [ {text,target}, ... ], "user": [ ... ] }
     fun memory(onResult: (JSONArray, JSONArray) -> Unit, onError: (String) -> Unit) = thread {
         try {
