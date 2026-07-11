@@ -32,6 +32,9 @@ class MainActivity : AppCompatActivity() {
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
 
+        // refresh the home-screen glance widget on app open
+        HudWidgetProvider.push(this)
+
         binding.btnRefresh.setOnClickListener { refresh() }
         binding.btnIngest.setOnClickListener {
             val t = binding.editIngest.text.toString().trim()
