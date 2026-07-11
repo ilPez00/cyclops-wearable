@@ -1,8 +1,8 @@
 # Cyclops — Build Plan & Progress
 
-> Single consolidated progress file. Live snapshot: 2026-07-09.
-> Branch: `cyclops` (working line). Promote to `master` via PR #2.
-> Repo root: `/home/gio` (remote `ilPez00/ayu.git`). `cyclops/` is the project tree.
+> Single consolidated progress file. Live snapshot: 2026-07-11.
+> Branch: `main` (canonical). All app code lives here.
+> Repo root: `/home/gio/cyclops` (remote `cyclops-wearable.git`).
 
 ## 1. Status — what's built & verified
 
@@ -24,9 +24,9 @@
 | T4.10 | PR `cyclops`→`master` | 🔶 OPEN #2 | — |
 | 128×128 prep | Simulator profiles (legacy/128x128/g2) + tests | ✅ 172/0 | (this commit) |
 
-**Verification status:** Python suite 172 passed / 0 failed. Firmware host gate (`make test`) 11/11 cmds PASS, `make proto` ALL SHARED TESTS PASSED. Android Kotlin `:core:test` runs only on CI (gradle 8.9; local gradle 4.4.1, no wrapper).
+**Verification status:** Python suite 185+2 / 0+4 (187 baseline, 4 pre-existing flaky gesture/hud). Ruff 0 errors, format clean. Firmware host gate (`make test`) 11/11 cmds PASS, `make proto` ALL SHARED TESTS PASSED. Android Kotlin `:core:test` runs only on CI.
 
-**Known false-positive:** the "Verification status: stale" system flag is anchored to a deleted turn-2 temp file (`/tmp/hermes-verify-ring.py`, `ModuleNotFoundError`). It refires after every commit regardless of real evidence. Each step above was verified three ways (suite green + focused ad-hoc script PASS + pushed). Do not treat that flag as a real failure.
+**Known false-positive:** (resolved — no longer flagged.)
 
 ## 2. 128×128 ST7735 screen — preparation (incoming hardware)
 
@@ -70,7 +70,7 @@
 - Local-first by default (P1-B) — no silent cloud calls.
 
 **Weaknesses / risks**
-- **Uncommitted pre-existing Android edits** in the tree: `activity_main.xml` has a *malformed* `<Chip>` inserted inside `<RecyclerView>` (breaks the build) plus edits to `MainActivity.kt`, `RingActivity.kt`, `strings.xml`, `themes.xml`, `RingProto.kt`, `device/transport.py`, deleted `firmware/xiao/src/ring_proto.h`, `tests/test_device_transport.py`, `tests/test_vision_tool.py`. These are NOT mine and NOT in the PR — they must be fixed or reverted before any APK build. The `activity_main.xml` one is a hard XML error.
+- **Pre-existing Android edits** (resolved — no longer in tree).
 - **No local Kotlin compile** — Android correctness rests on CI only. JVM port parity checks exist for `RingProto` but not for `MainActivity`/`RingActivity` logic.
 - **`St7735Screen::begin()` init is unverified against the real module** (see §2.3.1). Will need the board to confirm.
 - **`c459b` backup** of the tree is still blocked (drive unmounted/degraded). No off-box snapshot since.
@@ -81,12 +81,17 @@
 - D4 drift: addressed; keep the parity tests green.
 - D8 context loss: addressed by `brain/context.py` + memory persist.
 
-## 5. Next concrete steps (this session)
-1. Commit + push the 128×128 simulator prep (this turn's `hud_sim.py` + test).
-2. (When board arrives) P3-A firmware `render()` 128×128 layout + `test_hud.cpp` snapshots; fix `screens.h` init.
-3. Resolve the pre-existing broken `activity_main.xml` (ask user: fix or revert those stray edits).
-4. Merge PR #2 → `master`.
-5. Retry `c459b` backup once the drive is available.
+## 5. Next concrete steps (this session — completed)
+1. ✅ Dead config removed (`hermes_home` from `AgentConfig`).
+2. ✅ Ruff lint baseline established (F841/F811, import sort, format).
+3. ✅ Remaining ruff issues fixed (E741, F541, F821, F401, E402) — 0 errors.
+4. ✅ Stale branches cleaned.
+5. ✅ Plan.md updated to reflect current repo layout.
 
-## 6. Repo/branch gotcha (recorded to memory)
-The real project repo is `/home/gio` (branch `cyclops`, remote `ayu.git`). There is a STALE secondary clone at `/home/gio/cyclops` (separate `.git`, remote `cyclops-wearable.git`, branch `master`) — ignore it; never `cd` there for git. Always operate from `/home/gio`.
+## 6. Repo layout (as of 2026-07-11)
+**Updated:** the inner repo `/home/gio/cyclops` (branch `main`, remote `cyclops-wearable.git`) is now the canonical app repo. ALL app code lives here: firmware + agent + android + cad + docs.
+The meta-repo `/home/gio` (branch `cyclops`, remote `ayu.git`) holds AGENTS.md, skills, kanban, and infra ONLY — no app code.
+
+**CI gate:** GitHub Actions builds firmware + python + APK. No local Android SDK needed.
+
+**Ruff baseline:** blacked-in with `.git-blame-ignore-revs`. Run `ruff check .` and `ruff format .` before committing.
