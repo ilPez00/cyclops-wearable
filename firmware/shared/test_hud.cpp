@@ -405,7 +405,7 @@ int main() {
         int pxGauge = ps.px;
 
         PixScreen ps2;
-        Hud::drawBatteryIcon(ps2, 2, 54, 80, 80, false);
+        Hud::drawBatteryIcon(ps2, 2, 54, 80, 80, false, 1);
         assert(ps2.rects >= 2 && ps2.fills >= 1); // body + terminal + fill
 
         PixScreen ps3;
