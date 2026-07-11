@@ -119,7 +119,7 @@ struct UiState {
         disp.set_line(0, hdr);
         for (int i=0;i<3 && view_top+i<note_count;++i) {
             int idx=view_top+i; const char* mk = (idx==sel)?"#":" ";
-            char row[DisplayModel::COLS+1]; snprintf(row,sizeof(row),"%s%d %s",mk,idx+1,notes[idx]);
+            char row[40]; snprintf(row,sizeof(row),"%s%d %s",mk,idx+1,notes[idx]);
             disp.set_line(i+1,row);
         }
         if (!screen_on) disp.clear_all();

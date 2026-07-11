@@ -301,11 +301,13 @@ struct Hud {
             case ACT_VOICE_NOTE:
                 if (!consent) { toast("consent off", 2); break; }
                 toast("voice note", 2); cmd(ACT_VOICE_NOTE);
-                if (on_transcribe_toggle) on_transcribe_toggle(); break;
+                if (on_transcribe_toggle) { on_transcribe_toggle(); }
+                break;
             case ACT_VOICE_CMD:
                 if (!consent) { toast("consent off", 2); break; }
                 toast("listening", 2); set_detail(""); push(AGENT); cmd(ACT_VOICE_CMD);
-                if (on_transcribe_toggle) on_transcribe_toggle(); break;
+                if (on_transcribe_toggle) { on_transcribe_toggle(); }
+                break;
             case ACT_CONSENT_TOGGLE:
                 set_consent(!consent); toast(consent ? "consent on" : "consent off", 2); break;
             default: if (act) cmd(act); break;
@@ -444,13 +446,13 @@ struct Hud {
             else { scr.draw_text(0, body, "Cyclops ready"); body++; }
             // LED mapping indicator: per-button hue encoded as a bar on capable panels
             if (scr.w() >= 64) {
-                char li[16];
+                char li[32];
                 int wa = (led_hue[0] * 10) / 360;   // 0..10
                 int wb = (led_hue[1] * 10) / 360;
                 snprintf(li, sizeof(li), "A%d B%d", wa, wb);
                 trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
             }
-            char ln[32];
+            char ln[40];
             snprintf(ln, sizeof(ln), "%dmV %d notes %s", (bead_batt>0?bead_batt:ring_batt),
                      note_count, recording ? "REC" : "");
             trim(ln, cols); scr.draw_text(0, body, ln); body++;
@@ -471,7 +473,7 @@ struct Hud {
         } else if (m == NOTES) {
             for (int i = 0; i < rows-1 && i < note_count; ++i) {
                 const char* mk = (i == note_sel) ? ">" : " ";
-                char ln[32]; snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, notes[i]);
+                char ln[40]; snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, notes[i]);
                 trim(ln, cols); scr.draw_text(0, body+i, ln);
             }
         } else if (m == NOTE_DETAIL || m == TRANSLATE || m == IMAGE_ANALYSIS || m == SSH || m == CAMERA) {
