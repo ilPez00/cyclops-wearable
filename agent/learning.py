@@ -25,6 +25,7 @@ MEMORY.md/USER.md split):
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from typing import Optional
 
@@ -94,9 +95,10 @@ def _review(user_text: str, assistant_text: str, store: MemoryStore, router) -> 
                 if isinstance(fact, str) and fact.strip():
                     if store.append(fact.strip(), target=target) >= 0:
                         written[target] += 1
-    except Exception:
-        # never let learning break the agent
-        pass
+    except Exception as e:
+        # never let learning break the agent — but leave a trace, or failures
+        # (bad key, network down, schema drift) are invisible forever
+        print(f"cyclops-learn: review failed: {e}", file=sys.stderr)
     return written
 
 

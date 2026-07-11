@@ -64,14 +64,10 @@ from .protocol import MAGIC1, MAGIC2, crc16_ccitt_false
 def encode(typ, payload):
     if isinstance(payload, str):
         payload = payload.encode()
-    body = bytes([typ]) + payload
-    crc = crc16_ccitt_false(body)
-    return (
-        bytes([MAGIC1, MAGIC2])
-        + struct.pack("<H", len(payload))
-        + body
-        + struct.pack("<H", crc)
-    )
+    # CRC covers len(2)+type(1)+payload — firmware/Kotlin wire-contract window
+    window = struct.pack("<H", len(payload)) + bytes([typ]) + payload
+    crc = crc16_ccitt_false(window)
+    return bytes([MAGIC1, MAGIC2]) + window + struct.pack("<H", crc)
 
 
 def decode(frame):
