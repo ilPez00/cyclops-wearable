@@ -29,6 +29,13 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // first-run onboarding explains the 2-button model
+        if (OnboardingActivity.shouldShow(this)) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
+
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
 
