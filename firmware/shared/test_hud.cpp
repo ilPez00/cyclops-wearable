@@ -411,12 +411,6 @@ int main() {
         Hud::drawBoot(ps4, 64, 32, 20, 2);
         assert(ps4.px > 0);
 
-<<<<<<< Updated upstream
-        // HEALTH mode on a 128x64 panel actually invokes the pixel helpers
-        Hud hp; hp.init(); hp.push(HEALTH); hp.set_health(74, 96, 88, 90);
-        PixScreen ps5; hp.render(ps5);
-        assert(ps5.px > 0);                       // gauges + batt icon drawn
-=======
         // mode-transition wipe: a vertical bar sweeps on the first render after a
         // mode change (prev_mode member defaults to HOME, so pushing MENU
         // makes the first render draw the wipe column). Deterministic.
@@ -449,7 +443,6 @@ int main() {
             PixScreen psm; hm.render(psm);      // steady MENU -> scroll bar only
             assert(psm.px > 0);                    // menu text + scroll bar drew
         }
->>>>>>> Stashed changes
         (void)pxGauge;
     }
 

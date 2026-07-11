@@ -83,6 +83,8 @@ struct Hud {
     int tele_page = 0;
     char confirm_prompt[32] = ""; uint8_t confirm_action = 0;
     int rec_secs = 0;
+    Mode prev_mode = HOME;    // last-rendered mode, for transition wipe
+    int trans_frame = 0;        // transition wipe frame counter (0..3)
     uint32_t clock = 0;
     bool recording = false, screen_on = true, bt = false, consent = true;
     bool charging = false;            // bead/ring battery charging state
@@ -408,6 +410,15 @@ struct Hud {
                  (clock/3600)%24, (clock/60)%60,
                  recording ? "REC " : "", bt_icon, consent ? "" : " X", low, md);
         scr.set_ink(true); scr.draw_text(0, 0, sb);
+
+        // mode-transition wipe: brief vertical bar sweep on mode change (battery-safe, 4 frames)
+        Mode cur = top();
+        if (cur != prev_mode) { trans_frame = 0; prev_mode = cur; }
+        if (trans_frame < 4 && scr.w() >= 48) {
+            int wx = (trans_frame * scr.w()) / 4;
+            for (int yy = 1; yy < scr.h(); ++yy) scr.draw_pixel(wx, yy, true);
+            ++trans_frame;
+        }
 
         Mode m = top();
         int body = 1;
