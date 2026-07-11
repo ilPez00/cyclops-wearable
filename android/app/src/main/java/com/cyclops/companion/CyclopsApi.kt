@@ -158,6 +158,18 @@ object CyclopsApi {
         } catch (e: Exception) { onError(e.message ?: e.toString()) }
     }
 
+    // Push a glanceable banner to the wearable HUD via /api/hud_cmd (ACT_AGENT=14).
+    // The server fulfills it locally and streams the frame to the glasses.
+    fun hud(text: String, onResult: (String) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/hud_cmd", "a" to "14", "arg" to text)))
+            val action = obj.optString("action", "")
+            onResult(action)
+        } catch (e: Exception) {
+            onError(e.message ?: e.toString())
+        }
+    }
+
     // Pull the current profile (persona, provider, per-tool overrides, ...) from the brain.
     fun getSettings(onResult: (JSONObject) -> Unit, onError: (String) -> Unit) = thread {
         try {

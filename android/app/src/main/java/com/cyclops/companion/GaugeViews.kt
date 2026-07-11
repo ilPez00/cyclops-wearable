@@ -66,8 +66,9 @@ class RadialGaugeView @JvmOverloads constructor(
             duration = 450
             interpolator = DecelerateInterpolator()
             addUpdateListener {
-                animatedValue = it.animatedValue as Float
-                arcPaint.color = GaugeGeometry.tierColor(animatedValue)
+                val v = it.animatedValue as Float
+                this@RadialGaugeView.animatedValue = v
+                arcPaint.color = GaugeGeometry.tierColor(v)
                 invalidate()
             }
             start()

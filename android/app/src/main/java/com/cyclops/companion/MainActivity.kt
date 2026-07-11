@@ -21,6 +21,7 @@ import com.cyclops.companion.databinding.ActivityMainBinding
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private val ctx = this
     private val adapter = NoteAdapter()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,55 +105,6 @@ class MainActivity : AppCompatActivity() {
         }
         scroll.addView(layout)
 
-        fun cardRow(text: String, target: String, index: Int): LinearLayout {
-            val row = LinearLayout(ctx).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 4, 0, 4)
-            }
-            val tv = TextView(ctx).apply {
-                text = "[$target #$index] $text"
-                textSize = 13f
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            }
-            val edit = Button(ctx).apply {
-                text = "✎"; textSize = 12f; setPadding(4, 0, 4, 0)
-                setOnClickListener { editMemoryCard(target, index, text) }
-            }
-            val del = Button(ctx).apply {
-                text = "🗑"; textSize = 12f; setPadding(4, 0, 4, 0)
-                setOnClickListener {
-                    CyclopsApi.memoryEdit("delete", target, index = index,
-                        onResult = { refreshMemory(layout, scroll) },
-                        onError = { toast(it) })
-                }
-            }
-            row.addView(tv); row.addView(edit); row.addView(del)
-            return row
-        }
-
-        fun header(title: String) = TextView(ctx).apply {
-            text = title; textSize = 15f; setPadding(0, 12, 0, 4)
-        }
-
-        fun refreshMemory(root: LinearLayout, _scroll: ScrollView) {
-            root.removeAllViews()
-            CyclopsApi.memory(
-                onResult = { agentArr, userArr ->
-                    root.removeAllViews()
-                    root.addView(header("USER PROFILE (who the user is)"))
-                    for (i in 0 until userArr.length())
-                        root.addView(cardRow(userArr.getJSONObject(i).optString("text", ""), "user", i))
-                    if (userArr.length() == 0) root.addView(TextView(ctx).apply {
-                        text = "(none yet — talk to the brain, or tap Learn)"; textSize = 12f; setPadding(0, 4, 0, 4) })
-                    root.addView(header("AGENT MEMORY (world / environment)"))
-                    for (i in 0 until agentArr.length())
-                        root.addView(cardRow(agentArr.getJSONObject(i).optString("text", ""), "agent", i))
-                    if (agentArr.length() == 0) root.addView(TextView(ctx).apply {
-                        text = "(none yet)"; textSize = 12f; setPadding(0, 4, 0, 4) })
-                },
-                onError = { toast(it) })
-        }
-
         // top action bar: Learn + Add
         val bar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         val learnBtn = Button(ctx).apply {
@@ -217,6 +169,57 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
+    private fun cardRow(body: String, target: String, index: Int, root: LinearLayout, scroll: ScrollView): LinearLayout {
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 4, 0, 4)
+        }
+        val tv = TextView(ctx).apply {
+            text = "[$target #$index] $body"
+            textSize = 13f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val edit = Button(ctx).apply {
+            text = "✎"; textSize = 12f; setPadding(4, 0, 4, 0)
+            setOnClickListener { editMemoryCard(target, index, body) }
+        }
+        val del = Button(ctx).apply {
+            text = "🗑"; textSize = 12f; setPadding(4, 0, 4, 0)
+            setOnClickListener {
+                CyclopsApi.memoryEdit("delete", target, index = index,
+                    onResult = { refreshMemory(root, scroll) },
+                    onError = { toast(it) })
+            }
+        }
+        row.addView(tv); row.addView(edit); row.addView(del)
+        return row
+    }
+
+    private fun header(title: String) = TextView(ctx).apply {
+        text = title; textSize = 15f; setPadding(0, 12, 0, 4)
+    }
+
+    private fun refreshMemory(root: LinearLayout, scroll: ScrollView) {
+        root.removeAllViews()
+        CyclopsApi.memory(
+            onResult = { agentArr, userArr ->
+                root.removeAllViews()
+                root.addView(header("USER PROFILE (who the user is)"))
+                for (i in 0 until userArr.length())
+                    root.addView(cardRow(userArr.getJSONObject(i).optString("text", ""), "user", i, root, scroll))
+                if (userArr.length() == 0) root.addView(TextView(ctx).apply {
+                    text = "(none yet — talk to the brain, or tap Learn)"; textSize = 12f; setPadding(0, 4, 0, 4) })
+                root.addView(header("AGENT MEMORY (world / environment)"))
+                for (i in 0 until agentArr.length())
+                    root.addView(cardRow(agentArr.getJSONObject(i).optString("text", ""), "agent", i, root, scroll))
+                if (agentArr.length() == 0) root.addView(TextView(ctx).apply {
+                    text = "(none yet)"; textSize = 12f; setPadding(0, 4, 0, 4) })
+            },
+            onError = { toast(it) })
+    }
+
+    private fun showSettings() {
         val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
         val ctx = this
         val layout = LinearLayout(this).apply {

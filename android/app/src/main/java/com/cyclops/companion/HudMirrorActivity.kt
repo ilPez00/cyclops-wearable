@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.core.HudFrame
 import com.cyclops.companion.core.HudLayout
+import com.cyclops.companion.databinding.ActivityHudMirrorBinding
 
 /**
  * Live mirror of the wearable HUD on the phone. Polls the brain's status

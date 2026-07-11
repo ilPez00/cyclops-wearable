@@ -11,6 +11,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.core.RingProto
+import com.cyclops.companion.databinding.ActivityRemapBinding
 
 /**
  * Remap the wearable's 2-button x 3-gesture binding grid (A=eye / B=ear).
