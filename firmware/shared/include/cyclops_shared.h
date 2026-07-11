@@ -29,7 +29,10 @@ enum MsgType : uint8_t {
     MSG_CMD=9, MSG_ACK=10,
     MSG_PEER_HELLO=11, MSG_TIME_SYNC=12, MSG_HEALTH_SAMPLE=13,
     MSG_HUD_FRAME=14, MSG_RING_GESTURE=15, MSG_AUDIO_COMPRESSED=16,
-    MSG_CONFIRM=17, MSG_PEER_STATUS=18, MSG_AUDIO_STOP=19, MSG_TTS=20
+    MSG_CONFIRM=17, MSG_PEER_STATUS=18, MSG_AUDIO_STOP=19, MSG_TTS=20,
+    // OTA firmware update over BLE (see ota.h). BEGIN/CHUNK/END are phone->device,
+    // ACK is device->phone for flow-control + verify result.
+    MSG_OTA_BEGIN=21, MSG_OTA_CHUNK=22, MSG_OTA_END=23, MSG_OTA_ACK=24
 };
 
 // Encode a frame. Returns byte count (0 on overflow). cap must be >= 7+plen.
