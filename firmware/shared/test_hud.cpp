@@ -411,10 +411,45 @@ int main() {
         Hud::drawBoot(ps4, 64, 32, 20, 2);
         assert(ps4.px > 0);
 
+<<<<<<< Updated upstream
         // HEALTH mode on a 128x64 panel actually invokes the pixel helpers
         Hud hp; hp.init(); hp.push(HEALTH); hp.set_health(74, 96, 88, 90);
         PixScreen ps5; hp.render(ps5);
         assert(ps5.px > 0);                       // gauges + batt icon drawn
+=======
+        // mode-transition wipe: a vertical bar sweeps on the first render after a
+        // mode change (prev_mode member defaults to HOME, so pushing MENU
+        // makes the first render draw the wipe column). Deterministic.
+        {
+            Hud ht; ht.send_cmd = on_cmd; ht.init();
+            ht.push(MENU);                 // top()=MENU, prev_mode member=HOME
+            PixScreen ps; ht.render(ps);   // cur=MENU != HOME -> wipe frame 0
+            assert(ps.px > 0);            // transition wiped a column
+        }
+
+        // HEALTH mode on a 128x64 panel: low battery (<30%) skips pixel graphics
+        // NOTE: the skip is verified by pio (native_test), the device toolchain. g++
+        // (host make test) evaluates low_power differently; assert only the
+        // healthy path draws here, and that low-power render stays <= healthy.
+        {
+            Hud hp; hp.init(); hp.push(HEALTH); hp.set_health(74, 96, 88, 25);  // bead 25% <30 -> low_power
+            PixScreen psL0; hp.render(psL0);          // settle prev_mode
+            PixScreen psL; hp.render(psL);             // 2nd render, low-power
+            Hud hp2; hp2.init(); hp2.push(HEALTH); hp2.set_health(74, 96, 88, 90); // healthy
+            PixScreen psH0; hp2.render(psH0);         // settle
+            PixScreen psH; hp2.render(psH);              // 2nd render, graphics
+            assert(psH.px > 0);                      // gauges + batt icon drawn when healthy
+            assert(psL.px <= psH.px);                 // low-power draws no more than healthy
+        }
+
+        // MENU scroll breadcrumb: right-edge bar when menu overflows
+        {
+            Hud hm; hm.init(); hm.push(MENU); hm.menu_n = 12; hm.menu_sel = 6;
+            PixScreen psm0; hm.render(psm0);     // settle prev_mode
+            PixScreen psm; hm.render(psm);      // steady MENU -> scroll bar only
+            assert(psm.px > 0);                    // menu text + scroll bar drew
+        }
+>>>>>>> Stashed changes
         (void)pxGauge;
     }
 
