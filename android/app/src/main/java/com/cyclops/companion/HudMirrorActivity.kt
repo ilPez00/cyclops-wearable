@@ -20,6 +20,18 @@ class HudMirrorActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var demo = true
     private var clockSec = 0
+    private var lastUpdateMs = 0L
+    private var isOnline = false
+
+    private fun statusText(): String {
+        val age = if (lastUpdateMs == 0L) 0 else (System.currentTimeMillis() - lastUpdateMs) / 1000
+        return when {
+            demo -> "Demo mode • ${age}s ago"
+            !isOnline -> "Offline • ${age}s ago"
+            age > 2 -> "Live • ${age}s ago ⚠"
+            else -> "Live • ${age}s ago ✓"
+        }
+    }
 
     // rotating demo frame so the mirror is visibly alive without hardware
     private val demoFrames = listOf(
@@ -42,6 +54,7 @@ class HudMirrorActivity : AppCompatActivity() {
             }
             binding.hudMirror.clock = clk
             binding.hudMirror.tick(System.currentTimeMillis())
+            binding.txtHudStatus.text = statusText()
             handler.postDelayed(this, 500)
         }
     }
@@ -54,8 +67,12 @@ class HudMirrorActivity : AppCompatActivity() {
             demo = !demo
             binding.btnHudDemo.text = if (demo) "Live" else "Demo"
             if (!demo) CyclopsApi.status(
-                onResult = { json -> HudFrame.fromStatusJson(json)?.let { binding.hudMirror.frame = it } },
-                onError = { Toast.makeText(this, "status: $it", Toast.LENGTH_SHORT).show() }
+                onResult = { json ->
+                    isOnline = true
+                    lastUpdateMs = System.currentTimeMillis()
+                    HudFrame.fromStatusJson(json)?.let { binding.hudMirror.frame = it }
+                },
+                onError = { isOnline = false; binding.txtHudStatus.text = statusText() }
             )
         }
         handler.post(tick)
