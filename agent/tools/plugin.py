@@ -12,9 +12,8 @@ from ..plugins import PluginRegistry, sync_index
 
 def make_plugin_tool(config: AgentConfig, plugin_dir: str = None,
                       index_url: str = None) -> Tool:
-    plugin_dir = plugin_dir or os.path.join(config.config_dir, "plugins")
+    plugin_dir = plugin_dir or os.path.join(os.path.expanduser(config.config_dir), "plugins")
     index_url = index_url or getattr(config, "plugin_index_url", None)
-    reg = PluginRegistry(plugin_dir)
 
     def run(args: dict) -> str:
         reg = PluginRegistry(plugin_dir)  # re-scan each call (cheap, offline)

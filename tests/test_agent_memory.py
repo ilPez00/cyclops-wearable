@@ -5,7 +5,7 @@
   sees the prior turn injected into its system block (real cross-session recall).
 No network/keys.
 """
-import sys, os, json, tempfile
+import sys, os, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from agent.config import AgentConfig
@@ -16,8 +16,7 @@ from agent.models import ChatResult
 
 def test_memory_recall():
     d = tempfile.mkdtemp()
-    cfg = AgentConfig(hermes_home=d)
-    cfg.memory_root = d   # isolate from shared ~/.cyclops/memory
+    cfg = AgentConfig(memory_root=d)
     ms = MemoryStore(cfg)
     assert ms.recall() == ""                       # empty -> ''
     for i in range(12):
@@ -30,8 +29,7 @@ def test_memory_recall():
 
 def test_agent_persists_across_runs():
     d = tempfile.mkdtemp()
-    cfg = AgentConfig(hermes_home=d, memory_recall=8)
-    cfg.memory_root = d
+    cfg = AgentConfig(memory_root=d, memory_recall=8)
     reg = ToolRegistry()
     reg.register(Tool("echo", "echo", {"type": "object", "properties": {}}, lambda a: "ok"))
 
@@ -56,8 +54,7 @@ def test_agent_persists_across_runs():
 
 def test_persist_offline_safe_on_error():
     d = tempfile.mkdtemp()
-    cfg = AgentConfig(hermes_home=os.path.join(d, "nested", "mem"))  # writable, not yet created
-    cfg.memory_root = os.path.join(d, "nested", "mem")
+    cfg = AgentConfig(memory_root=os.path.join(d, "nested", "mem"))
     ms = MemoryStore(cfg)
     ms.append("x")   # dir auto-created; must not raise
     a = Agent(cfg, router=None, registry=ToolRegistry(), memory=ms)

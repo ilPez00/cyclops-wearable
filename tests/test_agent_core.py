@@ -64,8 +64,7 @@ def test_terminal_tool_guarded():
 
 
 def test_memory_reads_empty_when_absent():
-    cfg = AgentConfig(hermes_home="/no/such", digigio_home="/no/such")
-    cfg.memory_root = tempfile.mkdtemp()   # isolate from shared ~/.cyclops/memory
+    cfg = AgentConfig(digigio_home="/no/such", memory_root=tempfile.mkdtemp())
     mem = MemoryStore(cfg).read()
     assert mem == ""                       # empty -> '' (card store markdown)
 

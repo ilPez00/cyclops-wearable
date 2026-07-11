@@ -69,7 +69,6 @@ def test_memory_writeback():
     cfg = AgentConfig()
     # point memory root at a temp dir to avoid touching ~/.cyclops/memory
     tmp = tempfile.mkdtemp()
-    cfg.hermes_home = tmp
     cfg.memory_root = tmp
     from agent.memory import MemoryStore
     store = MemoryStore(cfg)
