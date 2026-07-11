@@ -23,7 +23,7 @@ class ChatResult:
 
 # --- transport shim (stdlib default; injectable) -------------------------
 def _default_session():
-    from brain.http import stdlib_session
+    from brain.http_session import stdlib_session
     return stdlib_session()
 
 
