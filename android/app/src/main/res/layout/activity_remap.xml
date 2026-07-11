@@ -18,7 +18,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:textSize="12sp"
-        android:textColor="#888"
+        android:textColor="@color/cyclops_secondary"
         android:text="A = eye (ok/photo/video) · B = ear (back/voice-note/voice-cmd). Tap a cell to rebind." />
 
     <HorizontalScrollView
@@ -51,5 +51,5 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:textColor="#888" />
+        android:textColor="@color/cyclops_secondary" />
 </LinearLayout>
