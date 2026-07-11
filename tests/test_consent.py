@@ -34,7 +34,7 @@ def test_capture_blocked_without_consent():
     out = t.run({"action": "capture", "media": "photo"})
     assert "consent OFF" in out
     # hud/notify are NOT gated
-    hud = make_capture_tool(cfg, session=None)  # reuse but action differs
+    make_capture_tool(cfg, session=None)  # reuse but action differs
     from agent.tools.wearable import make_hud_tool
     ht = make_hud_tool(cfg, session=None)
     assert "offline" in ht.run({"text": "hi"})  # hud still works

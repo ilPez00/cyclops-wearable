@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset=utf-8>
+<title>Cyclops</title><style>
+body{font-family:system-ui;background:#0e1116;color:#e6e6e6;margin:0;padding:1rem}
+h1{font-size:1.1rem} .sec{margin-top:1rem} h2{font-size:.9rem;color:#7fd1ff;border-bottom:1px solid #222}
+.note{padding:.3rem .5rem;margin:.2rem 0;background:#161b22;border-radius:6px;font-size:.85rem}
+.due{color:#ffb454;font-size:.75rem} .live{color:#7CFFB2}
+</style></head><body>
+<h1>CYCLOPS <span class=live id=rec></span></h1>
+<div id=last></div>
+<div class=sec><h2>Tasks</h2><div id=task></div></div>
+<div class=sec><h2>Reminders</h2><div id=reminder></div></div>
+<div class=sec><h2>Decisions</h2><div id=decision></div></div>
+<div class=sec><h2>Ideas</h2><div id=idea></div></div>
+<div class=sec><h2>Summary</h2><div id=summary></div></div>
+<script>
+async function load(){
+  const r=await fetch('/api/notes'); const d=await r.json();
+  const by=t=>d.filter(n=>n.type===t);
+  const render=(id,arr)=>document.getElementById(id).innerHTML=arr.map(n=>
+    `<div class=note>${n.text}${n.due?`<span class=due> (due ${n.due})</span>`:''}</div>`).join('');
+  ['task','reminder','decision','idea','summary'].forEach(t=>render(t,by(t)));
+  document.getElementById('last').innerHTML = d.length?`<div class=note>last: ${d[d.length-1].text}</div>`:'';
+}
+setInterval(load,1500); load();
+</script></body></html>

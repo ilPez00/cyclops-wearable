@@ -86,7 +86,7 @@ def test_hud_bridge_live_uses_auto_extractor():
     store = NoteStore(sp)
     br = HudBridge(Cap(), store=store, transcriber=StubTranscriber())
     # simulate transport: text with a clear reminder -> rule extractor stores it
-    res = br.handle_cmd(__import__("json").dumps(
+    br.handle_cmd(__import__("json").dumps(
         {"a": 2, "arg": "Remind me to water the plants by friday"}).encode())
     assert any(n.type == "reminder" for n in store.all())
     os.remove(sp)

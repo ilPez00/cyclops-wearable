@@ -1,7 +1,7 @@
 import sys, os, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from brain.hud_bridge import HudBridge
-from brain.protocol import encode, MSG
+from brain.protocol import MSG
 from brain.protocol_v2 import encode, decode, ACT_TRANSCRIBE_START, ACT_TRANSLATE, ACT_HEALTH, ACT_TELEPROMPTER, ACT_CAMERA, ACT_IMAGE_ANALYSIS, ACT_SSH, ACT_CONFIRM_YES, ACT_PHOTO, ACT_VIDEO, ACT_VOICE_NOTE, ACT_VOICE_CMD, ACT_AGENT
 from brain.transcriber import StubTranscriber
 from brain.store import NoteStore

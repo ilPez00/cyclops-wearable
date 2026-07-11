@@ -99,7 +99,6 @@ class BleOmiSource(OmiAudioSource):
         async def _loop():
             client = BleakClient(self.address)
             await client.connect()
-            loop = asyncio.get_event_loop()
 
             def _handle(_, data: bytearray):
                 if not self.running:

@@ -16,7 +16,7 @@ def make_plugin_tool(config: AgentConfig, plugin_dir: str = None,
     index_url = index_url or getattr(config, "plugin_index_url", None)
 
     def run(args: dict) -> str:
-        reg = PluginRegistry(plugin_dir)  # re-scan each call (cheap, offline)
+        reg = PluginRegistry(plugin_dir)
         action = (args.get("action") or "list").lower()
         if action == "list":
             items = reg.list()

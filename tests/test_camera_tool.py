@@ -56,7 +56,6 @@ def test_fake_camera_analyze_with_vision_session():
 
 
 def test_openglass_camera_offline_returns_none():
-    cfg = AgentConfig()
     cam = OpenGlassCamera("192.168.1.99", 8080, session=None)  # no session
     assert cam.capture() is None
     print("OK OpenGlass camera offline -> None (safe)")

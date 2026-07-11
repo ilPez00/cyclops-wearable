@@ -49,7 +49,7 @@ def test_llm_emits_candidate_notes_with_confidence():
 
 
 def test_fallback_when_no_key():
-    with tempfile.TemporaryDirectory() as d:
+    with tempfile.TemporaryDirectory():
         keys = AiKeys(ai_api_txt="/nope/ai_api.txt", env_paths=[])
         ex = LLMExtractor(keys=keys, client=FakeLLMClient("SHOULD NOT BE USED"))
         notes = ex.extract("Remind me to call Marco by friday")

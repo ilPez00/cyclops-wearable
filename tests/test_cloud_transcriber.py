@@ -57,7 +57,7 @@ def test_openai_fallback_parses_text():
 
 
 def test_no_key_raises():
-    with tempfile.TemporaryDirectory() as d:
+    with tempfile.TemporaryDirectory():
         keys = AiKeys(ai_api_txt="/nope/ai_api.txt", env_paths=[])
         sess = FakeSession({})
         t = CloudTranscriber(keys=keys, audio_provider="groq", session=sess)

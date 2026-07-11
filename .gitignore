@@ -41,3 +41,6 @@ android/core/build/
 
 # local APK build temp
 .apk-tmp/
+
+# Guard against code that creates "~/" literally (unexpanded user home)
+~

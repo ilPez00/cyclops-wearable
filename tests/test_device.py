@@ -15,10 +15,9 @@ def test_battery_percent_and_low():
 def test_gesture_nod_and_shake():
     g = GestureDetector(threshold=0.5, min_crossings=2, window=20)
     # feed a nod: pitch oscillation (y axis)
-    out = None
     for v in [0,0.8,-0.8,0.8,-0.8,0]: 
         r = g.push(0.0, v, 0.0)
-        if r: out = r
+        if r: pass
     # may or may not trigger in short seq; feed shake (x axis) strongly
     g2 = GestureDetector(threshold=0.5, min_crossings=2, window=30)
     out2 = None

@@ -142,7 +142,7 @@ def test_learn_recent_limits_turns():
     router = FakeRouter('{"user":["fact"],"agent":[]}')
     history = [{"role": "user" if i % 2 == 0 else "assistant",
                 "content": f"turn {i}"} for i in range(10)]
-    result = learn_recent(history, store, router=router, limit=2)
+    learn_recent(history, store, router=router, limit=2)
     # limit=2 means at most 2 pairs = 4 messages
     assert router.last_prompt is not None
     assert store.read("user")
