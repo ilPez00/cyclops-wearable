@@ -25,9 +25,32 @@ import kotlin.concurrent.thread
  */
 object CyclopsApi {
 
-    // Persistent base URL (settings screen / defaults). Example: http://192.168.1.50:8080
+    // Brain server base URL, e.g. http://192.168.1.50:8080. Empty until the
+    // user configures it — a fake LAN default just produced connect-timeout
+    // toast spam on every fresh install.
     @Volatile
-    var baseUrl: String = "http://192.168.1.50:8080"
+    var baseUrl: String = ""
+
+    val configured: Boolean get() = baseUrl.isNotBlank()
+
+    /** Load the persisted URL (call once from the launcher activity). */
+    fun load(ctx: android.content.Context) {
+        val prefs = ctx.getSharedPreferences("cyclops", android.content.Context.MODE_PRIVATE)
+        baseUrl = prefs.getString("url", "")?.trim() ?: ""
+    }
+
+    /** Cheap reachability probe of GET /health (short timeouts, never throws).
+     *  Drives the status pill; individual calls no longer toast about the
+     *  network being down — the pill already says so. */
+    fun health(onResult: (Boolean) -> Unit) = thread {
+        val ok = configured && try {
+            val conn = url("/health").openConnection() as HttpURLConnection
+            conn.connectTimeout = 1500
+            conn.readTimeout = 1500
+            try { conn.responseCode in 200..299 } finally { conn.disconnect() }
+        } catch (e: Exception) { false }
+        onMain { onResult(ok) }
+    }
 
     // All requests run on a worker thread; callers update views in their
     // callbacks, so every onResult/onError is posted back to the main looper.
@@ -36,6 +59,7 @@ object CyclopsApi {
     private fun onMain(block: () -> Unit) { mainHandler.post(block) }
 
     private fun url(path: String, vararg params: Pair<String, String>): URL {
+        if (!configured) throw RuntimeException("brain not configured — set the server URL in Settings")
         val sb = StringBuilder(baseUrl.trimEnd('/')).append(path)
         if (params.isNotEmpty()) {
             sb.append('?')
