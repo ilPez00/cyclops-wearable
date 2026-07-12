@@ -24,7 +24,7 @@
 | T4.10 | PR `cyclops`→`master` | 🔶 OPEN #2 | — |
 | 128×128 prep | Simulator profiles (legacy/128x128/g2) + tests | ✅ 172/0 | (this commit) |
 
-**Verification status:** Python suite 185+2 / 0+4 (187 baseline, 4 pre-existing flaky gesture/hud). Ruff 0 errors, format clean. Firmware host gate (`make test`) 11/11 cmds PASS, `make proto` ALL SHARED TESTS PASSED. Android Kotlin `:core:test` runs only on CI.
+**Verification status:** Python suite **214 passed / 0 failed** (190 baseline at loop start → 214 after the factory-loop test cycles; +9 simulator, +6 agent-runtime, +9 NoteStore, +... see §5). Ruff 0 errors, format clean. Firmware host gate (`make test`) 14/14 cmds PASS (warning-free after #29), `make proto` ALL SHARED TESTS PASSED. Android Kotlin `:core:test` runs only on CI (no local SDK).
 
 **Known false-positive:** (resolved — no longer flagged.)
 
@@ -88,7 +88,18 @@
 4. ✅ Stale branches cleaned.
 5. ✅ Plan.md updated to reflect current repo layout.
 
-## 6. Repo layout (as of 2026-07-11)
+## 5b. Factory-loop cycles shipped (2026-07-11 → 07-12)
+All on `cyclops-wearable`, base `main`, CI-green, git worktree per cycle.
+- **#29** `fix(firmware)`: warning-free Hud render (`-Wformat-truncation`/`-Wmisleading-indentation`). MERGED.
+- **#30** `test(firmware)`: Hud render regression harness (per-mode 21×16 grid + determinism). MERGED.
+- **#31** `test(brain)`: `NoteStore` coverage (persist/reload, by_type, keyword+semantic search, markdown). MERGED.
+- **#32** `test(agent)`: `Agent` runtime coverage (tool roundtrip, **context wiring** into system block, progress cb, iteration budget, memory persist). MERGED. Closes the previously-flagged "agent context never populated" gap.
+- **#33** `test(device)`: `DeviceSim` coverage (notes cap/truncate, wheel select+scroll, buttons, gestures, screen render, frame-shape guard). OPEN (CI pending).
+
+## 5c. Deep-analysis re-verification (IMPORTANT)
+A read-only deep-analysis subagent (2026-07-11) claimed several modules had "no tests": `brain/hud_bridge.py`, `agent/learning.py`, `device/transport.py`, `device/ble.py`, and called `android/app/.../CyclopsService.kt` an "incomplete stub". **All five claims were STALE** — every one already had working tests (`test_hud_bridge*.py`, `test_learning.py`, `test_device_transport.py`, `test_device.py`), and `CyclopsService.kt` is a *complete* BLE hub (gattCallback connect→discover→notify, decoder→HudBridge wiring, sendToDevice), only SDK-gated by design (logic lives in tested `:core`). Lesson: trust-but-verify every analysis-claimed gap before building. The real host-verifiable gaps this loop closed were `brain/store.py` and `agent/loop.py` (genuinely untested) + `device/simulator.py`.
+
+## 6. Repo layout (as of 2026-07-12)
 **Updated:** the inner repo `/home/gio/cyclops` (branch `main`, remote `cyclops-wearable.git`) is now the canonical app repo. ALL app code lives here: firmware + agent + android + cad + docs.
 The meta-repo `/home/gio` (branch `cyclops`, remote `ayu.git`) holds AGENTS.md, skills, kanban, and infra ONLY — no app code.
 

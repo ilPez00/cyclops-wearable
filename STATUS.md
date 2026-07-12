@@ -1,4 +1,4 @@
-# Cyclops — STATUS (2026-07-10)
+# Cyclops — STATUS (2026-07-12)
 
 Single source of truth for build state lives in [`docs/00-superplan.md`](docs/00-superplan.md).
 This file is the at-a-glance snapshot.
@@ -11,8 +11,8 @@ This file is the at-a-glance snapshot.
 ## Verification snapshots
 | Gate | Result |
 |------|--------|
-| Python full suite (`tests/run_tests.py tests/test_*.py`) | **187 passed, 0 failed** |
-| Firmware host gate (`make test`) | **14 cmds PASS** |
+| Python full suite (`tests/run_tests.py tests/test_*.py`) | **214 passed, 0 failed** |
+| Firmware host gate (`make test`) | **14 cmds PASS (warning-free after #29)** |
 | Firmware proto gate (`make proto`) | **ALL SHARED TESTS PASSED** |
 | G2 layout parity (Python↔JS) | PASS |
 | Kotlin `:core:test` | CI-only (no local gradle 8.9) |
@@ -31,14 +31,14 @@ Every step this cycle was committed + pushed after passing all three gates.
 ## T4 hardening
 - **CI green**: firmware host gate + full Python suite + firmware build matrix runs on `main` branch.
 - **PR `cyclops→master` promotion**: on hold — `>100MB` legacy binaries on `master` unresolved.
-- **`c459b` backup**: still blocked (drive unmounted/degraded).
+- **CAD**: pendant enclosure v2 (body/cap, v3 antenna variant, STLs).
 
 ## Open / not locally verifiable
 - Real XIAO flash + I2S mic + OLED field test (T1.1) — manual, board-attached.
 - Live Ollama llava vision test (T2.6).
-- Kotlin `:core:test` and Android APK — CI-gated (no local toolchain).
-- End-to-end BLE streaming (brain ↔ wearable) — transport glue pending.
-- `agent/learning.py` has no automated tests.
+- **Android `:app` BLE build** — needs a local Android SDK (currently ABSENT: `ANDROID_HOME` has only `cmake/`+`ndk/`, no cmdline-tools/platforms/build-tools, no `sdkmanager`). The `:app` glue (`CyclopsService.kt`) is implemented but SDK-gated; `:core` (pure-Kotlin, unit-tested: `RingProtoTest` etc.) builds + tests on CI. Installing the SDK + finishing `CyclopsService.connect()` is the next Android step, but it is **runtime-unverifiable without a BLE device/emulator** — per loop rules, Kotlin that can't be runtime-tested is not shipped blind.
+- `agent/learning.py` **now has** `tests/test_learning.py` (was flagged missing — stale).
+- End-to-end BLE streaming (brain ↔ wearable) — transport glue present (`device/ble.py` + `CyclopsService`), device-side needs hardware.
 
 ## Principles (unchanged)
 One brain, thin clients. Offline-first (every tool stubs without network/keys).
