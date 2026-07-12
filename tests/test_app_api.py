@@ -57,6 +57,21 @@ def test_api_notes_and_ingest():
             srv.shutdown()
 
 
+def test_api_status_reflects_brain_state():
+    # HUD mirror polls /api/status; it used to 404 (HUD showed nothing).
+    with tempfile.TemporaryDirectory() as d:
+        store = os.path.join(d, "notes.jsonl")
+        srv, port = _start(store)
+        try:
+            st, body = _get(port, "/api/status")
+            assert st == 200
+            assert body["t"] == 8 and body["online"] is True
+            assert body["mode"] == "HOME" and body["rec"] == 0
+            assert "banner" in body and "notes" in body
+        finally:
+            srv.shutdown()
+
+
 def test_api_extract_returns_candidates_gracefully():
     with tempfile.TemporaryDirectory() as d:
         store = os.path.join(d, "notes.jsonl")

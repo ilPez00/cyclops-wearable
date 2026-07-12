@@ -87,6 +87,9 @@ class HudBridge:
         self._audio_rate = 16000
         self._audio_bits = 16
         self._audio_codec = 0  # AUDIO_CODEC_PCM16; META byte[5] switches it
+        self.last_banner = ""  # last glanceable line, surfaced at /api/status
+        self.mode = "HOME"  # HOME | AGENT | REC — drives the HUD mirror
+        self.recording = False
         self.last_gesture = None
 
     def _emit_text(self, text):
@@ -145,6 +148,8 @@ class HudBridge:
         on the glasses without the device initiating it.
         """
         banner = (text or "").split("\n", 1)[0][:40]
+        self.last_banner = banner
+        self.mode = "AGENT"
         self._emit_text("AGENT: " + banner)
         self._emit_hud(
             HUD_KINDS.index("agent"),
