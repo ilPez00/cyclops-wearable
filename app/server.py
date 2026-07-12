@@ -299,6 +299,18 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps(CostTracker().summary()))
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/experiences":
+            # graded self-review log (AURA/Praxis PDCA); optional ?domain= filter
+            from brain.experiences import ExperienceStore
+
+            dom = parse_qs(p.query).get("domain", [""])[0]
+            store = ExperienceStore()
+            rows = store.for_domain(dom) if dom else store.all()
+            return self._send(200, json.dumps(list(reversed(rows))))
+        if p.path == "/api/domains":
+            from brain.experiences import ExperienceStore
+
+            return self._send(200, json.dumps(ExperienceStore().domains()))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
@@ -329,6 +341,17 @@ class H(BaseHTTPRequestHandler):
             data = json.loads(body or b"{}")
         except Exception:
             data = {}
+        if p.path == "/api/experience":
+            # record a graded experience: {domain, action, grade(0..1), note}
+            from brain.experiences import ExperienceStore
+
+            row = ExperienceStore().record(
+                data.get("domain", "general"),
+                data.get("action", ""),
+                float(data.get("grade", 0.0) or 0.0),
+                data.get("note", ""),
+            )
+            return self._send(200, json.dumps(row))
         if p.path == "/api/vision":
             # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
             # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
