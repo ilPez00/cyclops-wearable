@@ -45,22 +45,35 @@
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Model" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edLocalEndpoint"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Local model endpoint (http://127.0.0.1:11434/v1)"
-            android:inputType="textUri" />
+        <!-- Provider is a pick-list, not a string to memorize. -->
+        <TextView
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Provider"
+            android:textColor="@color/cyclops_secondary"
+            android:layout_marginTop="4dp" />
+        <Spinner
+            android:id="@+id/spProvider"
+            android:layout_width="match_parent" android:layout_height="wrap_content" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edProvider"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Cloud provider (openai / groq / openrouter / …)" />
+        <TextView
+            android:id="@+id/lnkGetKey"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:padding="6dp"
+            android:text="Get an API key ↗"
+            android:textColor="@color/cyclops_primary"
+            android:contentDescription="Open the provider's API-key page in a browser" />
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/edApiKey"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:hint="API key (stored on device only)"
             android:inputType="textPassword" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edLocalEndpoint"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Endpoint (auto-filled for local providers)"
+            android:inputType="textUri" />
 
         <TextView style="@style/SettingsHeader"
             android:id="@+id/hdrPersona"
