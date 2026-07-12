@@ -9,6 +9,8 @@
 #include "hud.h"
 #include "gestures.h"
 #include "adpcm.h"
+#include "ota.h"
+#include <esp_ota_ops.h>
 #include "ring_ble.h"
 #include "sd_log.h"
 #include "imu.h"
@@ -93,8 +95,75 @@ static void IRAM_ATTR wheel_isr() {
     if (a != last) { wheel_ticks += (a == b) ? 1 : -1; last = a; }
 }
 
+// ---- OTA-over-BLE receive path (shared OtaReceiver + esp_ota_* sinks) ----
+// Rationale: the USB-C connector is the board's weakest part (one died
+// 2026-07-12 with a live chip behind a dead port). BLE reflash means a broken
+// connector no longer strands the firmware. Trust model matches the rest of
+// the link (unauthenticated, ~1 m body range — see docs/07 §4).
+static esp_ota_handle_t ota_handle = 0;
+static const esp_partition_t* ota_part = nullptr;
+
+static bool ota_sink_begin(uint32_t size, void*) {
+    ota_part = esp_ota_get_next_update_partition(NULL);
+    if (!ota_part) return false;  // no OTA partition in the table
+    return esp_ota_begin(ota_part, size, &ota_handle) == ESP_OK;
+}
+static bool ota_sink_write(const uint8_t* d, size_t len, void*) {
+    return esp_ota_write(ota_handle, d, len) == ESP_OK;
+}
+static bool ota_sink_finish(bool commit, void*) {
+    if (!commit) { esp_ota_abort(ota_handle); return true; }
+    if (esp_ota_end(ota_handle) != ESP_OK) return false;
+    return esp_ota_set_boot_partition(ota_part) == ESP_OK;
+}
+static cyclops::OtaSink make_ota_sink() {
+    cyclops::OtaSink s;
+    s.begin = ota_sink_begin;
+    s.write = ota_sink_write;
+    s.finish = ota_sink_finish;
+    s.ctx = nullptr;
+    return s;
+}
+static cyclops::OtaReceiver& ota_rx() {
+    static cyclops::OtaReceiver rx(make_ota_sink());
+    return rx;
+}
+
+// Handle one MSG_OTA_* frame: drive the receiver, ACK every message, show
+// progress on the HUD, reboot after a committed END.
+static void on_ota_frame(uint8_t type, const uint8_t* p, size_t n) {
+    uint32_t seq = 0;
+    cyclops::OtaStatus st;
+    if (type == cyclops::MSG_OTA_BEGIN) {
+        st = ota_rx().on_begin(p, n, &seq);
+        if (st == cyclops::OTA_OK) { hud.toast("OTA start", 3); hud.progress = 0; }
+    } else if (type == cyclops::MSG_OTA_CHUNK) {
+        st = ota_rx().on_chunk(p, n, &seq);
+        uint32_t exp = ota_rx().expected();
+        if (st == cyclops::OTA_OK && exp) hud.progress = (int)(100ull * ota_rx().received() / exp);
+    } else {  // MSG_OTA_END
+        st = ota_rx().on_end(&seq);
+    }
+    char ack[48]; int m = cyclops::OtaReceiver::ack_json(ack, sizeof(ack), seq, st);
+    send_frame(cyclops::MSG_OTA_ACK, (const uint8_t*)ack, (size_t)m);
+    if (type == cyclops::MSG_OTA_END && st == cyclops::OTA_OK) {
+        hud.toast("OTA ok, reboot", 2);
+        cyclops::sd_log_line("ota", "commit + reboot");
+        delay(400);  // let the ACK notify flush before the link drops
+        esp_restart();
+    } else if (st != cyclops::OTA_OK) {
+        hud.progress = 0;
+        hud.toast("OTA fail", 3);
+    }
+}
+
 static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
     (void)ctx;
+    if (type == cyclops::MSG_OTA_BEGIN || type == cyclops::MSG_OTA_CHUNK ||
+        type == cyclops::MSG_OTA_END) {
+        on_ota_frame(type, p, n);  // binary payload — must not go through tmp
+        return;
+    }
     char tmp[256]; if (n >= sizeof(tmp)) n = sizeof(tmp)-1;
     memcpy(tmp, p, n); tmp[n] = 0;
     if (type == cyclops::MSG_DISPLAY_CMD || type == cyclops::MSG_NOTE) {
