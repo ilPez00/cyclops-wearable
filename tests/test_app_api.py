@@ -90,6 +90,27 @@ def test_api_vision_offline_safe():
             srv.shutdown()
 
 
+def test_api_feed_aggregates_notes():
+    # Unified activity stream: notes appear as feed events, newest first.
+    with tempfile.TemporaryDirectory() as d:
+        store = os.path.join(d, "notes.jsonl")
+        srv, port = _start(store)
+        try:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/ingest?text="
+                + urllib.parse.quote("call Marco by friday"),
+                timeout=5,
+            ).read()
+            st, body = _get(port, "/api/feed")
+            assert st == 200 and isinstance(body, list)
+            assert body, "feed should contain the ingested note"
+            e = body[0]
+            assert "ts" in e and "kind" in e and "message" in e
+            assert any("Marco" in x["message"] for x in body)
+        finally:
+            srv.shutdown()
+
+
 def test_api_extract_returns_candidates_gracefully():
     with tempfile.TemporaryDirectory() as d:
         store = os.path.join(d, "notes.jsonl")

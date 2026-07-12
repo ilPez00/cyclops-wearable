@@ -86,6 +86,44 @@ class H(BaseHTTPRequestHandler):
                 if isinstance(m, dict)
             ]
             return self._send(200, json.dumps(out))
+        if p.path == "/api/feed":
+            # Unified reverse-chron activity stream (AURA sync-feed idea):
+            # merge the events Cyclops already produces — notes, agent turns,
+            # the last HUD banner — into one time-sorted list. Pure aggregation
+            # over sources that already exist; nothing new is stored.
+            limit = int((parse_qs(p.query).get("limit", ["50"])[0]) or 50)
+            events = []
+            try:
+                if pipeline is not None and getattr(pipeline, "store", None):
+                    for n in pipeline.store.all():
+                        events.append(
+                            {
+                                "ts": getattr(n, "created", "") or "",
+                                "kind": getattr(n, "type", "note"),
+                                "message": getattr(n, "text", ""),
+                            }
+                        )
+            except Exception:
+                pass
+            try:
+                with _AGENT_LOCK:
+                    hist = list(getattr(agent, "history", [])) if agent is not None else []
+                for m in hist:
+                    if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
+                        c = m.get("content", "")
+                        if isinstance(c, str) and c.strip():
+                            events.append(
+                                {"ts": "", "kind": m["role"], "message": c[:200]}
+                            )
+            except Exception:
+                pass
+            if bridge is not None and getattr(bridge, "last_banner", ""):
+                events.append(
+                    {"ts": "", "kind": "hud", "message": bridge.last_banner}
+                )
+            # newest first: dated events by timestamp desc, undated keep order
+            events.sort(key=lambda e: e.get("ts") or "", reverse=True)
+            return self._send(200, json.dumps(events[:limit]))
         if p.path == "/api/extract":
             # LLM-aware extraction of arbitrary text -> candidate notes (premortem #5)
             q = parse_qs(p.query)

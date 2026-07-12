@@ -48,6 +48,10 @@
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
+            android:name=".FeedActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
             android:name=".VisionActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
