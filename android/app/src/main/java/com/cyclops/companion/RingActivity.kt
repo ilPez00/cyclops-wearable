@@ -57,6 +57,8 @@ class RingActivity : AppCompatActivity() {
         binding = ActivityRingBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.btnRingConnect.setOnClickListener { toggleConnect() }
+        binding.gaugeHr.unit = "bpm"
+        binding.gaugeSpo2.unit = "SpO2 %"
         updateStatus(getString(R.string.ring_idle))
     }
 
@@ -165,6 +167,7 @@ class RingActivity : AppCompatActivity() {
         ) {
             runOnUiThread { updateStatus("Linked — requesting battery + live HR/SpO2") }
             queueStartPackets()
+            startKeepalive()
         }
 
         @Suppress("MissingPermission")
@@ -188,6 +191,26 @@ class RingActivity : AppCompatActivity() {
     // command ever reached the ring. Queue + drain on onCharacteristicWrite.
     private val txQueue = ArrayDeque<ByteArray>()
     private var writeInFlight = false
+
+    // The real-time stream needs periodic CONTINUE (action=3) or many ring
+    // firmwares stop it after a few seconds — the "battery works but the
+    // gauges never move" failure.
+    private val keepalive = object : Runnable {
+        override fun run() {
+            if (gatt == null) return
+            synchronized(txQueue) {
+                txQueue.add(RingProto.continueRealTime(RingProto.RT_HEART_RATE))
+                txQueue.add(RingProto.continueRealTime(RingProto.RT_SPO2))
+            }
+            drainQueue()
+            handler.postDelayed(this, 2000)
+        }
+    }
+
+    private fun startKeepalive() {
+        handler.removeCallbacks(keepalive)
+        handler.postDelayed(keepalive, 2000)
+    }
 
     private fun queueStartPackets() {
         synchronized(txQueue) {
@@ -214,6 +237,13 @@ class RingActivity : AppCompatActivity() {
 
     private fun onSample(s: RingSample) {
         runOnUiThread {
+            // nonzero err with no value = ring answering but not measuring:
+            // tell the human what to do instead of showing silent dashes
+            if (s.err != 0 && s.hr == 0 && s.spo2 == 0) {
+                updateStatus("Linked — wear the ring snugly to start measuring")
+            } else if (s.hr != 0 || s.spo2 != 0) {
+                updateStatus("Live — streaming HR/SpO2")
+            }
             if (s.hr != 0) {
                 binding.gaugeHr.setValue(s.hr / 200f, GaugeGeometry.healthLabel(s.hr))
             } else {
@@ -234,6 +264,7 @@ class RingActivity : AppCompatActivity() {
 
     @Suppress("MissingPermission")
     private fun disconnect() {
+        handler.removeCallbacks(keepalive)
         gatt?.let { it.disconnect(); it.close() }
         gatt = null
         scanner?.stopScan(scanCb); scanner = null
