@@ -1,0 +1,6 @@
+# Prerecorded transcript fixtures for the CyclUno wired demo (one take per line).
+remember to order the encoder knobs tomorrow
+decision: cycluno uses the wired link until radios arrive
+idea: reuse the xiao hud frames on the uno oled
+call the machine shop about the pendant enclosure friday
+summary: wired pipeline works end to end on the uno
