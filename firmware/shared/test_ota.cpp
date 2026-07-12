@@ -182,6 +182,29 @@ int main() {
         printf("PASS ota crc32 check value (%08x)\n", c);
     }
 
+
+    // ---- 11. zero-size BEGIN rejected (no destructive erase) ----
+    {
+        MemFlash m; OtaSink sk = make_sink(&m); OtaReceiver rx(sk);
+        uint8_t beg[12]; pack_begin(beg, 0, img_crc, 128);
+        uint32_t ack;
+        assert(rx.on_begin(beg, 12, &ack) == OTA_SIZE_MISMATCH);
+        assert(!rx.active());
+        assert(!m.finished);   // sink never began -> nothing erased
+        printf("PASS ota zero-size begin rejected\n");
+    }
+
+    // ---- 12. oversized BEGIN rejected (anti-brick guard) ----
+    {
+        MemFlash m; OtaSink sk = make_sink(&m); OtaReceiver rx(sk, 1024); // 1 KiB limit
+        uint8_t beg[12]; pack_begin(beg, 999999, img_crc, 128);
+        uint32_t ack;
+        assert(rx.on_begin(beg, 12, &ack) == OTA_TOO_BIG);
+        assert(!rx.active());
+        assert(!m.finished);   // sink never began
+        printf("PASS ota oversized begin rejected\n");
+    }
+
     printf("ALL OTA TESTS PASSED\n");
     return 0;
 }

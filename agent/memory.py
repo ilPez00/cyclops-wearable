@@ -55,6 +55,14 @@ class MemoryStore:
         )
         self.user_file = self.root / (getattr(config, "user_file", None) or "USER.md")
         self.max_chars = int(getattr(config, "memory_max_chars", MAX_CARD_CHARS))
+        # Hard cap on card COUNT per target. Without it the learning loop
+        # (learning.py, one append per turn) grows the store without bound.
+        # When exceeded, oldest cards are evicted FIFO so newer facts win and
+        # the per-session injection cost stays flat.
+        self.max_cards = int(getattr(config, "memory_max_cards", 200))
+        # Exact-text dedup: the learning loop can emit the same fact across
+        # turns; skip re-appending an identical card (cheap, no semantic merge).
+        self.dedup = bool(getattr(config, "memory_dedup", True))
         self._lock = threading.Lock()  # serialize reads/writes per process
 
     # -- file <-> cards -----------------------------------------------------
@@ -102,7 +110,14 @@ class MemoryStore:
         return "\n§\n".join(cards)
 
     def append(self, text: str, target: str = "agent") -> int:
-        """Append one card. Returns the new card index (or -1 on empty)."""
+        """Append one card. Returns the new card index (or -1 on empty/dup).
+
+        Bounds growth two ways so the learning loop can't grow the store
+        without limit:
+          * exact-text dedup (skip if an identical card already exists), and
+          * FIFO eviction when the card COUNT exceeds `max_cards` (oldest out).
+        Position indexing of the *remaining* cards stays 0-based and correct.
+        """
         text = (text or "").strip()
         if not text:
             return -1
@@ -111,7 +126,12 @@ class MemoryStore:
             text = text[: self.max_chars - 1].rstrip() + "…"
         with self._lock:
             cards = self._read_cards(self._path(target))
+            if self.dedup and text in cards:
+                return cards.index(text)  # already known -> return its index
             cards.append(text)
+            # FIFO evict oldest if over the count budget.
+            if self.max_cards and len(cards) > self.max_cards:
+                del cards[0 : len(cards) - self.max_cards]
             self._write_cards(self._path(target), cards)
             return len(cards) - 1
 
@@ -151,6 +171,7 @@ class MemoryStore:
             return {
                 "agent": len(self._read_cards(self.agent_file)),
                 "user": len(self._read_cards(self.user_file)),
+                "max_cards": self.max_cards,
             }
 
 
