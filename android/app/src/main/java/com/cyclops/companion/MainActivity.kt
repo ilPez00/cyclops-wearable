@@ -44,6 +44,14 @@ class MainActivity : AppCompatActivity() {
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
 
+        // raw ingest/extract are developer plumbing, not the product surface
+        binding.btnDevToggle.setOnClickListener {
+            val show = binding.devPanel.visibility != android.view.View.VISIBLE
+            binding.devPanel.visibility =
+                if (show) android.view.View.VISIBLE else android.view.View.GONE
+            binding.btnDevToggle.text = if (show) "▾ Dev tools" else "▸ Dev tools"
+        }
+
         // refresh the home-screen glance widget on app open
         HudWidgetProvider.push(this)
 
