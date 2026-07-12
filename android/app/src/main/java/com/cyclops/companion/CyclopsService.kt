@@ -2,6 +2,7 @@ package com.cyclops.companion
 
 import android.app.Service
 import android.bluetooth.*
+import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import com.cyclops.companion.core.CyclopsProto
@@ -23,6 +24,7 @@ class CyclopsService : Service() {
     companion object {
         val SRVC_UUID = UUID.fromString("4fafc201-1fb5-459e-8fcc-c5c9c331914b")
         val NOTE_UUID = UUID.fromString("beb5483e-36e1-4688-b7f5-ea07361b26a8")
+        const val EXTRA_MAC = "com.cyclops.companion.extra.MAC"
     }
 
     private lateinit var bluetoothGatt: BluetoothGatt
@@ -59,6 +61,23 @@ class CyclopsService : Service() {
                 decoder.feed(characteristic.value ?: return)
             }
         }
+    }
+
+    private var adapter: BluetoothAdapter? = null
+
+    /** Initiate a GATT connection to the wearable at [mac].
+     * The caller must already hold BLUETOOTH_CONNECT (API 31+);
+     * the activity requests it before starting this service. */
+    fun connect(mac: String) {
+        val mgr = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return
+        adapter = mgr.adapter
+        val device = adapter?.getRemoteDevice(mac) ?: return
+        bluetoothGatt = device.connectGatt(this, false, gattCallback)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.getStringExtra(EXTRA_MAC)?.let { connect(it) }
+        return START_STICKY
     }
 
     private fun sendToDevice(frame: ByteArray) {
