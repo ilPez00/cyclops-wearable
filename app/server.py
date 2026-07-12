@@ -371,6 +371,17 @@ class H(BaseHTTPRequestHandler):
             from brain.dreams import DreamStore
 
             return self._send(200, json.dumps(DreamStore().active()))
+        if p.path == "/api/entities":
+            # deduplicated registry of seen things (AURA EntityStore)
+            from brain.entities import EntityStore
+
+            etype = parse_qs(p.query).get("type", [""])[0]
+            return self._send(200, json.dumps(EntityStore().all(etype)))
+        if p.path == "/api/entities/search":
+            from brain.entities import EntityStore
+
+            q = parse_qs(p.query).get("q", [""])[0]
+            return self._send(200, json.dumps(EntityStore().search(q)))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
@@ -423,6 +434,14 @@ class H(BaseHTTPRequestHandler):
             return self._send(
                 200, json.dumps({"ok": DreamStore().dismiss(data.get("id", ""))})
             )
+        if p.path == "/api/entity":
+            # upsert-and-increment a seen entity: {name, type, note}
+            from brain.entities import EntityStore
+
+            r = EntityStore().touch(
+                data.get("name", ""), data.get("type", "thing"), data.get("note", "")
+            )
+            return self._send(200, json.dumps(r))
         if p.path == "/api/vision":
             # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
             # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
