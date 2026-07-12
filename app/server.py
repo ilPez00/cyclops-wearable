@@ -283,6 +283,23 @@ class H(BaseHTTPRequestHandler):
             data = json.loads(body or b"{}")
         except Exception:
             data = {}
+        if p.path == "/api/vision":
+            # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
+            # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
+            try:
+                from agent.tools.vision import make_vision_tool
+
+                cfg = AgentConfig.load(env=dict(os.environ))
+                tool = make_vision_tool(cfg)
+                out = tool.run(
+                    {
+                        "image": data.get("image", ""),
+                        "prompt": data.get("prompt", "Describe this image concisely."),
+                    }
+                )
+                return self._send(200, json.dumps({"result": out}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
         if p.path == "/api/settings":
             # merge + persist the profile (persona, provider, per-tool overrides, ...)
             cfg = (

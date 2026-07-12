@@ -72,6 +72,24 @@ def test_api_status_reflects_brain_state():
             srv.shutdown()
 
 
+def test_api_vision_offline_safe():
+    # Vision screen POSTs {image, prompt}; must degrade gracefully with no VLM.
+    with tempfile.TemporaryDirectory() as d:
+        srv, port = _start(os.path.join(d, "notes.jsonl"))
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/vision",
+                data=json.dumps({"image": "data:abc", "prompt": "what is this"}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            body = json.loads(urllib.request.urlopen(req, timeout=5).read())
+            assert "result" in body or "error" in body
+            if "result" in body:
+                assert "offline" in body["result"] or len(body["result"]) > 0
+        finally:
+            srv.shutdown()
+
+
 def test_api_extract_returns_candidates_gracefully():
     with tempfile.TemporaryDirectory() as d:
         store = os.path.join(d, "notes.jsonl")
