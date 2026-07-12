@@ -190,15 +190,14 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
+        <!-- Transport is resolved automatically (cable > BLE > wifi); the
+             manual override lives in Settings for debugging. -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Transport"
-            android:textColor="#ccc" />
-        <Spinner
-            android:id="@+id/spinTransport"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:text="link: auto"
+            android:textSize="12sp"
+            android:textColor="@color/cyclops_secondary" />
     </LinearLayout>
 
     <Button

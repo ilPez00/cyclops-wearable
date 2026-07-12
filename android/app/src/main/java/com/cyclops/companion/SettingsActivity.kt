@@ -101,7 +101,7 @@ class SettingsActivity : AppCompatActivity() {
         ).also { ad ->
             ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.spTransport.adapter = ad
-            val cur = get("transport").ifEmpty { "wifi" }
+            val cur = get("transport").ifEmpty { "auto" }
             val idx = (0 until binding.spTransport.count)
                 .indexOfFirst { binding.spTransport.getItemAtPosition(it) == cur }
             if (idx >= 0) binding.spTransport.setSelection(idx)

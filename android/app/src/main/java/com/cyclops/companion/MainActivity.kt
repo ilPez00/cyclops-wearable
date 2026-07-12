@@ -87,7 +87,8 @@ class MainActivity : AppCompatActivity() {
             val t = binding.editAsk.text.toString().trim()
             if (t.isNotEmpty()) {
                 val local = binding.swLocal.isChecked
-                val transport = binding.spinTransport.selectedItem?.toString() ?: "wifi"
+                val transport = getSharedPreferences("cyclops", MODE_PRIVATE)
+                    .getString("transport", "auto") ?: "auto"
                 val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
                 val persona = prefs.getString("persona", "") ?: ""
                 val provider = prefs.getString("provider", "") ?: ""
@@ -115,14 +116,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnHud.setOnClickListener { startActivity(Intent(this, HudMirrorActivity::class.java)) }
         binding.btnRemap.setOnClickListener { startActivity(Intent(this, RemapActivity::class.java)) }
         binding.btnTranscript.setOnClickListener { startActivity(Intent(this, TranscriptActivity::class.java)) }
-
-        // transport selector (wifi / bt / cable)
-        ArrayAdapter.createFromResource(
-            this, R.array.transports, android.R.layout.simple_spinner_item
-        ).also { ad ->
-            ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            binding.spinTransport.adapter = ad
-        }
 
         refresh()
     }

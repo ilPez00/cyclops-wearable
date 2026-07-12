@@ -20,8 +20,9 @@
     <string name="ring_note">Reads HR / SpO2 / battery over BLE (NUS). No pairing. Keep the ring within ~1 m. Data stays on-device unless you forward it.</string>
     <string name="memory">Memory</string>
     <string-array name="transports">
+        <item>auto</item>
         <item>wifi</item>
-        <item>bt</item>
+        <item>ble</item>
         <item>cable</item>
     </string-array>
 </resources>

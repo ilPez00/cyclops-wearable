@@ -54,6 +54,43 @@ def test_build_transport_unknown():
         pass
 
 
+def test_resolve_transport_auto():
+    import os
+
+    from device.transport import resolve_transport
+
+    saved = os.environ.pop("CYCLOPS_TRANSPORT", None)
+    saved_tty = os.environ.pop("CYCLOPS_CABLE_TTY", None)
+    saved_ble = os.environ.pop("CYCLOPS_BLE_NAME", None)
+    try:
+        # explicit env override always wins
+        os.environ["CYCLOPS_TRANSPORT"] = "wifi"
+        assert resolve_transport() == "wifi"
+        del os.environ["CYCLOPS_TRANSPORT"]
+
+        # a present tty -> cable
+        import tempfile
+
+        with tempfile.NamedTemporaryFile() as f:
+            assert resolve_transport(tty=f.name) == "cable"
+
+        # a configured BLE name with no cable -> ble (no ttyACM/USB in CI)
+        import glob
+
+        if not (glob.glob("/dev/ttyACM*") or glob.glob("/dev/ttyUSB*")):
+            assert resolve_transport(name="CyclopsXIAO") == "ble"
+            # nothing configured -> wifi fallback
+            assert resolve_transport() == "wifi"
+    finally:
+        for k, v in (
+            ("CYCLOPS_TRANSPORT", saved),
+            ("CYCLOPS_CABLE_TTY", saved_tty),
+            ("CYCLOPS_BLE_NAME", saved_ble),
+        ):
+            if v is not None:
+                os.environ[k] = v
+
+
 def test_device_tool_routes_hud_over_fake():
     cfg = AgentConfig()
     f = FakeTransport()
