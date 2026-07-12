@@ -26,6 +26,7 @@ class AgentConfig:
     inference_mode: str = "auto"  # auto|offline|local|cloud (resolved by resolve_mode)
     local_base_url: str = "http://127.0.0.1:11434/v1"  # ollama default
     local_model: str = "llama3.1"
+    gguf_model_path: str = ""  # a .gguf file -> true offline inference (llama-cpp)
     local_vision_model: str = "llava"
     local_stt: str = "http://127.0.0.1:11434"
     vision_model: str = ""  # cloud vision model override

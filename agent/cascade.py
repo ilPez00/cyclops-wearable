@@ -48,12 +48,15 @@ def backoff_for(status: int) -> float:
 class CascadingRouter:
     """Wraps a ModelRouter; iterates providers, skipping ones on cooldown."""
 
-    def __init__(self, config, session=None, keys=None, order=None):
+    def __init__(self, config, session=None, keys=None, order=None, gguf=None):
         self.cfg = config
         self.router = ModelRouter(config, session=session)
         self._keys = keys
         self.order = order or list(DEFAULT_ORDER)
         self._dead_until: dict[str, float] = {}
+        # optional last-resort GGUF slot (true offline inference); only used
+        # when configured, and always tried AFTER cloud providers
+        self._gguf = gguf
 
     def _providers(self) -> list[str]:
         """Configured providers in try-order (only ones with a key/endpoint)."""
@@ -92,23 +95,43 @@ class CascadingRouter:
                 last = e
                 self._dead_until[name] = time.time() + backoff_for(e.status)
                 continue
+        # cloud exhausted (or all on cooldown) -> fall back to local GGUF
+        if self._gguf is not None:
+            try:
+                return self._gguf.chat(messages, **kw)
+            except ModelError as e:
+                last = last or e
         if last is not None:
             raise last
-        # every provider was on cooldown — try the soonest-reviving one anyway
+        # every provider was on cooldown and no GGUF — try soonest-reviving
         soonest = min(providers, key=lambda n: self._dead_until.get(n, 0.0))
         return self.router.chat(messages, provider=soonest, **kw)
 
 
 def build_router(config, session=None, keys=None):
-    """Return a CascadingRouter when >1 provider has keys, else a plain
-    ModelRouter — matches pika's `hasAnyKey()` gate."""
+    """Return a CascadingRouter when several providers have keys OR a GGUF
+    model is configured (offline fallback), else a plain ModelRouter."""
     k = keys
     if k is None:
         from brain.aikeys import AiKeys
 
         k = AiKeys()
-    if len(k.available()) > 1 and getattr(config, "cascade_enabled", True):
-        return CascadingRouter(config, session=session, keys=k)
+    # optional last-resort local model (true offline inference)
+    gguf = None
+    try:
+        from brain import gguf_backend
+
+        if gguf_backend.available(config):
+            gguf = gguf_backend.GgufRouter(
+                model_path=getattr(config, "gguf_model_path", "")
+            )
+    except Exception:
+        gguf = None
+    engage = (len(k.available()) > 1 or gguf is not None) and getattr(
+        config, "cascade_enabled", True
+    )
+    if engage:
+        return CascadingRouter(config, session=session, keys=k, gguf=gguf)
     return ModelRouter(config, session=session)
 
 
