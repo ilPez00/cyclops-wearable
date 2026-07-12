@@ -291,6 +291,14 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"learned": written}))
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/cost":
+            # Per-provider token + estimated USD spend (merlin CostTracker).
+            try:
+                from agent.cost import CostTracker
+
+                return self._send(200, json.dumps(CostTracker().summary()))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
