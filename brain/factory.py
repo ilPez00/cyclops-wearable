@@ -56,10 +56,19 @@ def build_pipeline(
     keys: AiKeys | None = None,
     session=None,
     llm_provider: str = "groq",
+    vault=None,
 ):
-    """Return a Pipeline wired with the best available transcriber + extractor."""
+    """Return a Pipeline wired with the best available transcriber + extractor.
+
+    `vault`: brain.obsidian.ObsidianVault to mirror notes into; defaults to
+    the CYCLOPS_OBSIDIAN_VAULT env var (unset = no mirroring).
+    """
+    from .obsidian import vault_from_env
+
     keys = keys or AiKeys()
-    store = NoteStore(store_path or "~/.cyclops/notes.jsonl")
+    if vault is None:
+        vault = vault_from_env()
+    store = NoteStore(store_path or "~/.cyclops/notes.jsonl", vault=vault)
     trans = build_transcriber(keys, session)
     extr = build_extractor(keys, session, llm_provider)
     return Pipeline(store, transcriber=trans, extractor=extr)
