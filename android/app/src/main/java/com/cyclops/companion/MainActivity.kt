@@ -41,6 +41,21 @@ class MainActivity : AppCompatActivity() {
         CyclopsApi.load(this)
         binding.txtStatus.setOnClickListener { showSettings() }
 
+        // no URL yet -> try LAN auto-discovery once instead of making the
+        // user find and type an IP (brain answers on udp/19871)
+        if (!CyclopsApi.configured) {
+            BrainDiscovery.find { url ->
+                if (url != null && !CyclopsApi.configured) {
+                    getSharedPreferences("cyclops", MODE_PRIVATE)
+                        .edit().putString("url", url).apply()
+                    CyclopsApi.baseUrl = url
+                    toast("brain found at $url")
+                    updateStatusPill()
+                    refresh()
+                }
+            }
+        }
+
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
 
@@ -285,6 +300,18 @@ class MainActivity : AppCompatActivity() {
                 layout.addView(this)
             }
         val urlEd = field("Brain server URL", "url").apply { setText(CyclopsApi.baseUrl) }
+        Button(this).apply {
+            text = "Find brain on this network"
+            setOnClickListener {
+                text = "Searching…"; isEnabled = false
+                BrainDiscovery.find { found ->
+                    isEnabled = true; text = "Find brain on this network"
+                    if (found != null) urlEd.setText(found)
+                    else toast("no brain answered on this network")
+                }
+            }
+            layout.addView(this)
+        }
         field("Local model endpoint (e.g. http://127.0.0.1:11434/v1)", "local_endpoint")
         field("Cloud provider (openai/groq/openrouter/...)", "provider")
         val keyEd = field("API key (stored on device only)", "api_key", secret = true)
