@@ -38,9 +38,10 @@ def _default_session():
 
 
 class ModelRouter:
-    def __init__(self, config: AgentConfig, session=None):
+    def __init__(self, config: AgentConfig, session=None, cost_tracker=None):
         self.cfg = config
         self.session = session or _default_session()
+        self.cost_tracker = cost_tracker
 
     def chat(
         self,
@@ -103,6 +104,18 @@ class ModelRouter:
             raise ModelError(f"model response error: {e} ({data})", status=status)
         text = msg.get("content") or ""
         tool_calls = msg.get("tool_calls") or []
+        # tally spend if a tracker is wired (usage is OpenAI-compatible shape)
+        if self.cost_tracker is not None:
+            try:
+                u = data.get("usage") or {}
+                self.cost_tracker.record(
+                    provider or self.cfg.provider or "",
+                    model,
+                    int(u.get("prompt_tokens", 0)),
+                    int(u.get("completion_tokens", 0)),
+                )
+            except Exception:
+                pass  # accounting must never break a completion
         return ChatResult(text=text, tool_calls=tool_calls, raw=data)
 
     def _resolve_model(self, provider: str | None = None) -> str:
