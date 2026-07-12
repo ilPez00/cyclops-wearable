@@ -52,14 +52,23 @@ def test_ble_source_import_safe():
     # constructing BleOmiSource must not import bleak at module load
     s = BleOmiSource(address="AA:BB:CC:DD:EE:FF")
     assert s.address == "AA:BB:CC:DD:EE:FF"
-    # running without bleak installed raises a clear error (not a crash)
     try:
-        s.start(lambda p: None)
-        raised = False
-    except RuntimeError as e:
-        raised = "bleak" in str(e)
-    assert raised, "BleOmiSource should explain missing bleak"
-    print("OK BleOmiSource import-safe + clear error when stack missing")
+        import bleak  # noqa: F401
+    except ImportError:
+        # running without bleak installed raises a clear error (not a crash)
+        try:
+            s.start(lambda p: None)
+            raised = False
+        except RuntimeError as e:
+            raised = "bleak" in str(e)
+        assert raised, "BleOmiSource should explain missing bleak"
+        print("OK BleOmiSource import-safe + clear error when stack missing")
+        return
+    # bleak IS installed (dev box with a radio): starting would do a real BLE
+    # connect to the bogus address — slow and environment-dependent. The
+    # import-safety contract (no bleak at module load) is already proven by
+    # constructing the source above, so stop here.
+    print("OK BleOmiSource import-safe (bleak present; skipping radio path)")
 
 
 if __name__ == "__main__":
