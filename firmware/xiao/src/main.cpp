@@ -40,15 +40,14 @@ static cyclops::Transparent151I2CScreen screen(0, 0, 0, 0, 0, 0, -1);
 #define PIN_BTN_A  3
 #define PIN_BTN_B  5   // was 4 (aliased WHEEL_B); GPIO5 is free on XIAO S3
 
-// I2S mic pins (XIAO S3 onboard mic pads; free, no screen conflict)
-#ifndef MIC_BCLK
-#define MIC_BCLK 40
+// Onboard mic (XIAO S3 Sense MSM261D) is a PDM mic: clock GPIO42, data GPIO41.
+// Verified on metal 2026-07-12 — standard I2S on 40/41/42 reads silence, and
+// GPIO40 is the camera's SCCB SDA. PDM mode is the only correct config here.
+#ifndef MIC_PDM_CLK
+#define MIC_PDM_CLK 42
 #endif
-#ifndef MIC_WS
-#define MIC_WS 41
-#endif
-#ifndef MIC_DIN
-#define MIC_DIN 42
+#ifndef MIC_PDM_DATA
+#define MIC_PDM_DATA 41
 #endif
 #define MIC_RATE 16000
 #define MIC_BUF_SAMPLES 256
@@ -105,6 +104,24 @@ static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
         hud.on_health_sample(tmp);  // P2-C relay
         cyclops::sd_log_line("health", tmp);
     }
+    else if (type == cyclops::MSG_CMD) {
+        // Phone -> wearable action, same {"a":<ACT_*>,"arg":...} shape the
+        // wearable emits. Lets the brain drive capture/menu remotely instead
+        // of only reacting to on-device input.
+        const char* av = strstr(tmp, "\"a\":");
+        if (av) {
+            int a = atoi(av + 4);
+            if (a == cyclops::ACT_TRANSCRIBE_START) {
+                // Same consent gate as on-device capture (on_nod/do_action):
+                // remote start must not bypass Consent Mode.
+                if (!capturing && !hud.consent) { hud.toast("consent off", 2); }
+                else if (capturing) stop_capture();
+                else start_capture();
+            } else {
+                hud.do_action((uint8_t)a);
+            }
+        }
+    }
 }
 
 static void ui_apply_display(const char* json) {
@@ -128,6 +145,11 @@ class SrvCb : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer*) override { hud.bt = false; }
 };
 
+// One full 256-sample read is 512 B — that never fit send_frame's buffer
+// (encode_frame returns 0 when cap < 7+plen), so audio silently NEVER left
+// the device. Slice reads into BLE-notify-sized frames instead.
+static constexpr size_t AUDIO_SLICE = 240;  // payload bytes per MSG_AUDIO_CHUNK
+
 static void audio_task(void*) {
     int16_t samples[MIC_BUF_SAMPLES];
     size_t rd;
@@ -138,7 +160,11 @@ static void audio_task(void*) {
             // connected to receive it. Sending into the void wastes the BLE
             // queue and battery; drop the chunk instead. (D)
             if (hud.bt) {
-                send_frame(cyclops::MSG_AUDIO_CHUNK, (uint8_t*)samples, rd);
+                const uint8_t* p = (const uint8_t*)samples;
+                for (size_t off = 0; off < rd; off += AUDIO_SLICE) {
+                    size_t n = rd - off < AUDIO_SLICE ? rd - off : AUDIO_SLICE;
+                    send_frame(cyclops::MSG_AUDIO_CHUNK, p + off, n);
+                }
             } else {
                 cyclops::audio_dropped++;  // no consumer -> drop
             }
@@ -150,7 +176,7 @@ static void audio_task(void*) {
 static void start_capture() {
     if (capturing) return;
     i2s_config_t cfg = {};
-    cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX);
+    cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM);
     cfg.sample_rate = MIC_RATE;
     cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
     cfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;
@@ -158,8 +184,10 @@ static void start_capture() {
     cfg.intr_alloc_flags = 0;
     cfg.dma_buf_count = 4; cfg.dma_buf_len = MIC_BUF_SAMPLES;
     i2s_pin_config_t pins = {};
-    pins.bck_io_num = MIC_BCLK; pins.ws_io_num = MIC_WS;
-    pins.data_in_num = MIC_DIN; pins.data_out_num = I2S_PIN_NO_CHANGE;
+    // PDM RX: ws pin carries the PDM clock, data_in the PDM bitstream.
+    pins.mck_io_num = I2S_PIN_NO_CHANGE;
+    pins.bck_io_num = I2S_PIN_NO_CHANGE; pins.ws_io_num = MIC_PDM_CLK;
+    pins.data_in_num = MIC_PDM_DATA; pins.data_out_num = I2S_PIN_NO_CHANGE;
     i2s_driver_install((i2s_port_t)0, &cfg, 0, NULL);
     i2s_set_pin((i2s_port_t)0, &pins);
     capturing = true;
@@ -256,7 +284,7 @@ void loop() {
 #endif
     if (millis()-last_hb > 5000) {
         last_hb = millis();
-        char s[80]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
+        char s[160]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
         Serial.printf("[hb] %s rec=%d bt=%d mode=%s drop=%lu\n", s, hud.recording,
                       hud.bt, hud.mode_name(hud.top()), cyclops::audio_dropped);
     }

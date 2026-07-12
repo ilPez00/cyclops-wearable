@@ -552,6 +552,19 @@ int main() {
         bool nav_ok=false; for (int i=0;i<24;++i) if (strchr(a[i], 0x18)) { nav_ok=true; break; }
         assert(nav_ok);
 
+        // STATUS_JSON CLAMP: an undersized buffer must return the WRITTEN
+        // length (cap-1), never snprintf's would-be length — callers put the
+        // returned count on the wire (regression: 98-byte frames with \x00
+        // garbage past the truncated JSON, seen live over BLE 2026-07-12).
+        Hud hs; hs.send_cmd = on_cmd; hs.init();
+        hs.toast("a fairly long toast message", 5);
+        char big[160]; int full = hs.status_json(big, sizeof(big));
+        assert(full > 0 && full < (int)sizeof(big));
+        assert(big[full - 1] == '}');            // complete JSON
+        char tiny[40]; int cut = hs.status_json(tiny, sizeof(tiny));
+        assert(cut == (int)sizeof(tiny) - 1);    // clamped to written bytes
+        assert((int)strlen(tiny) == cut);        // count matches the buffer
+
         // DETERMINISM: two renders of the same state are byte-identical.
         Hud hd; hd.send_cmd = on_cmd; hd.init();
         hd.on_select(); hd.menu_sel = 0; hd.on_select();

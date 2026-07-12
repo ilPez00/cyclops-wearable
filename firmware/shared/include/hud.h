@@ -105,12 +105,17 @@ struct Hud {
     // keeping the v1 keys (batt/chg/rec/bt/hr) so older parsers still work.
     int status_json(char* out, size_t cap) const {
         const char* m = mode_name(top());
-        return snprintf(out, cap,
+        int n = snprintf(out, cap,
             "{\"t\":8,\"batt\":%u,\"chg\":%d,\"rec\":%d,\"bt\":%d,\"hr\":%d,"
             "\"spo2\":%d,\"mode\":\"%s\",\"prog\":%d,\"recs\":%d,\"toast\":\"%s\"}",
             (unsigned)bead_batt, charging?1:0, recording?1:0, bt?1:0, hr,
             spo2, m, progress, rec_secs,
             toast_ttl > 0 ? toast_msg : "");
+        // snprintf returns the WOULD-BE length; callers put `n` bytes on the
+        // wire, so an undersized buffer used to leak `n - cap` bytes of
+        // garbage past the truncated JSON. Clamp to what was written.
+        if (n < 0) return 0;
+        return n >= (int)cap ? (int)cap - 1 : n;
     }
 
     void init() { sp = 0; push(HOME); note_count = 0; menu_sel = 0; hud_len = 0; toast_ttl = 0; }
