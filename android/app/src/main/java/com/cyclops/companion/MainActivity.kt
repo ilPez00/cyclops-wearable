@@ -41,6 +41,29 @@ class MainActivity : AppCompatActivity() {
         CyclopsApi.load(this)
         binding.txtStatus.setOnClickListener { showSettings() }
 
+        // Hamburger nav drawer (chat / vision / memory / …) via the toolbar.
+        setSupportActionBar(binding.toolbar)
+        val toggle = androidx.appcompat.app.ActionBarDrawerToggle(
+            this, binding.drawerLayout, binding.toolbar,
+            android.R.string.ok, android.R.string.cancel
+        )
+        binding.drawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
+        binding.navView.setNavigationItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_chat -> binding.editAsk.requestFocus()
+                R.id.nav_vision -> startActivity(Intent(this, VisionActivity::class.java))
+                R.id.nav_memory -> startActivity(Intent(this, MemoryActivity::class.java))
+                R.id.nav_hud -> startActivity(Intent(this, HudMirrorActivity::class.java))
+                R.id.nav_ring -> startActivity(Intent(this, RingActivity::class.java))
+                R.id.nav_transcript -> startActivity(Intent(this, TranscriptActivity::class.java))
+                R.id.nav_remap -> startActivity(Intent(this, RemapActivity::class.java))
+                R.id.nav_settings -> showSettings()
+            }
+            binding.drawerLayout.closeDrawers()
+            true
+        }
+
         // no URL yet -> try LAN auto-discovery once instead of making the
         // user find and type an IP (brain answers on udp/19871)
         if (!CyclopsApi.configured) {
@@ -70,7 +93,6 @@ class MainActivity : AppCompatActivity() {
         // refresh the home-screen glance widget on app open
         HudWidgetProvider.push(this)
 
-        binding.btnRefresh.setOnClickListener { refresh() }
         binding.btnIngest.setOnClickListener {
             val t = binding.editIngest.text.toString().trim()
             if (t.isNotEmpty()) CyclopsApi.ingest(t,
@@ -87,7 +109,8 @@ class MainActivity : AppCompatActivity() {
             val t = binding.editAsk.text.toString().trim()
             if (t.isNotEmpty()) {
                 val local = binding.swLocal.isChecked
-                val transport = binding.spinTransport.selectedItem?.toString() ?: "wifi"
+                val transport = getSharedPreferences("cyclops", MODE_PRIVATE)
+                    .getString("transport", "auto") ?: "auto"
                 val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
                 val persona = prefs.getString("persona", "") ?: ""
                 val provider = prefs.getString("provider", "") ?: ""
@@ -108,20 +131,6 @@ class MainActivity : AppCompatActivity() {
                         binding.txtHud.text = "HUD: error"
                     })
             }
-        }
-        binding.btnSettings.setOnClickListener { showSettings() }
-        binding.btnMemory.setOnClickListener { startActivity(Intent(this, MemoryActivity::class.java)) }
-        binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
-        binding.btnHud.setOnClickListener { startActivity(Intent(this, HudMirrorActivity::class.java)) }
-        binding.btnRemap.setOnClickListener { startActivity(Intent(this, RemapActivity::class.java)) }
-        binding.btnTranscript.setOnClickListener { startActivity(Intent(this, TranscriptActivity::class.java)) }
-
-        // transport selector (wifi / bt / cable)
-        ArrayAdapter.createFromResource(
-            this, R.array.transports, android.R.layout.simple_spinner_item
-        ).also { ad ->
-            ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            binding.spinTransport.adapter = ad
         }
 
         refresh()

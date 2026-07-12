@@ -47,6 +47,11 @@
             android:name=".TranscriptActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+        <activity
+            android:name=".VisionActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="portrait" />
 
         <!-- BLE hub: pumps wearable frames into HudBridge, forwards
              display frames back to the device. Started by the app

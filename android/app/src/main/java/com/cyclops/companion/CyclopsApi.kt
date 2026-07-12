@@ -105,6 +105,22 @@ object CyclopsApi {
         }
     }
 
+    fun vision(
+        imageDataUri: String, prompt: String,
+        onResult: (String) -> Unit, onError: (String) -> Unit
+    ) = thread {
+        try {
+            val payload = JSONObject()
+                .put("image", imageDataUri)
+                .put("prompt", prompt.ifEmpty { "Describe this image concisely." })
+            val resp = JSONObject(post(url("/api/vision"), payload.toString()))
+            val out = resp.optString("result", resp.optString("error", "(no result)"))
+            onMain { onResult(out) }
+        } catch (e: Exception) {
+            onMain { onError(e.message ?: e.toString()) }
+        }
+    }
+
     fun notes(onResult: (List<Note>) -> Unit, onError: (String) -> Unit) = thread {
         try {
             val arr = JSONArray(get(url("/api/notes")))

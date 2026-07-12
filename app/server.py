@@ -253,6 +253,26 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"learned": written}))
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/status":
+            # Glanceable HUD state for the companion mirror (and the wearable
+            # status frame shape, t=8). Reflects the brain's own view when no
+            # device is streaming, so the HUD mirror is never a dead demo.
+            note_count = 0
+            try:
+                if pipeline is not None and getattr(pipeline, "store", None):
+                    note_count = len(pipeline.store.all())
+            except Exception:
+                pass
+            b = bridge
+            st = {
+                "t": 8,
+                "rec": 1 if (b and b.recording) else 0,
+                "mode": (b.mode if b else "HOME"),
+                "notes": note_count,
+                "banner": (b.last_banner if b else ""),
+                "online": True,
+            }
+            return self._send(200, json.dumps(st))
         self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
@@ -263,6 +283,23 @@ class H(BaseHTTPRequestHandler):
             data = json.loads(body or b"{}")
         except Exception:
             data = {}
+        if p.path == "/api/vision":
+            # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
+            # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
+            try:
+                from agent.tools.vision import make_vision_tool
+
+                cfg = AgentConfig.load(env=dict(os.environ))
+                tool = make_vision_tool(cfg)
+                out = tool.run(
+                    {
+                        "image": data.get("image", ""),
+                        "prompt": data.get("prompt", "Describe this image concisely."),
+                    }
+                )
+                return self._send(200, json.dumps({"result": out}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
         if p.path == "/api/settings":
             # merge + persist the profile (persona, provider, per-tool overrides, ...)
             cfg = (

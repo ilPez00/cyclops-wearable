@@ -242,8 +242,36 @@ class SerialFrameReader:
         self.feed(data.decode("utf-8", "replace"))
 
 
+def resolve_transport(config=None, **kw) -> str:
+    """Pick the best available link to the wearable, so the user doesn't have to.
+
+    Priority: a present USB/serial cable (lowest latency, most reliable) >
+    a configured BLE wearable > wifi to the brain host. Env override
+    CYCLOPS_TRANSPORT wins for debugging.
+    """
+    forced = os.environ.get("CYCLOPS_TRANSPORT", "").strip()
+    if forced:
+        return forced
+    # cable: a serial tty is wired up
+    tty = kw.get("tty", "") or os.environ.get("CYCLOPS_CABLE_TTY", "")
+    if tty and os.path.exists(tty):
+        return "cable"
+    import glob
+
+    if glob.glob("/dev/ttyACM*") or glob.glob("/dev/ttyUSB*"):
+        return "cable"
+    # ble: a wearable name/mac is configured
+    if kw.get("mac") or kw.get("name") or os.environ.get("CYCLOPS_BLE_NAME"):
+        return "ble"
+    # fall back to the LAN link to the brain
+    return "wifi"
+
+
 def build_transport(kind: str, config=None, session=None, **kw) -> Transport:
-    """Factory: pick a transport by name. `config` is an AgentConfig for wifi."""
+    """Factory: pick a transport by name. `config` is an AgentConfig for wifi.
+    `kind="auto"` resolves the best available link (see resolve_transport)."""
+    if kind == "auto":
+        kind = resolve_transport(config=config, **kw)
     if kind == "wifi":
         if config is None:
             raise ValueError("wifi transport needs a config")
