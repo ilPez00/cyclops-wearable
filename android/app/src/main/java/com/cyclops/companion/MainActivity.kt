@@ -36,6 +36,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // restore the persisted brain URL before any call fires (previously
+        // only the settings dialog set it, so cold starts hit a fake default)
+        CyclopsApi.load(this)
+        binding.txtStatus.setOnClickListener { showSettings() }
+
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
 
@@ -97,13 +102,38 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
+    override fun onResume() {
+        super.onResume()
+        updateStatusPill()
+    }
+
+    /** Status pill: not configured / online / offline. Carries the connection
+     *  state so per-call error toasts don't have to. Tap -> Settings. */
+    private fun updateStatusPill() {
+        if (!CyclopsApi.configured) {
+            binding.txtStatus.text = "● brain: not set — tap"
+            binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+            return
+        }
+        binding.txtStatus.text = "● checking…"
+        binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+        CyclopsApi.health { ok ->
+            binding.txtStatus.text = if (ok) "● brain online" else "● brain offline"
+            binding.txtStatus.setTextColor(
+                android.graphics.Color.parseColor(if (ok) "#7CFFB2" else "#FF6E6E"))
+        }
+    }
+
     private fun refresh() {
+        updateStatusPill()
         CyclopsApi.notes(
             onResult = {
                 adapter.setNotes(it)
                 binding.txtEmpty.visibility = if (it.isEmpty()) TextView.VISIBLE else TextView.GONE
             },
-            onError = { toast(it); binding.txtEmpty.visibility = TextView.VISIBLE }
+            // no toast here: the pill already shows offline/not-configured; a
+            // toast per background call was pure spam on a fresh install
+            onError = { binding.txtEmpty.visibility = TextView.VISIBLE }
         )
     }
 
@@ -329,7 +359,15 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private var lastToastMsg = ""
+    private var lastToastAt = 0L
+
+    /** Rate-limited toast: identical messages are suppressed for 30 s so a
+     *  flaky link can't stack an endless queue of failure toasts. */
     private fun toast(msg: String) {
+        val now = System.currentTimeMillis()
+        if (msg == lastToastMsg && now - lastToastAt < 30_000) return
+        lastToastMsg = msg; lastToastAt = now
         android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
     }
 

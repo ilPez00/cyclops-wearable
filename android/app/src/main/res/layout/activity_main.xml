@@ -5,6 +5,7 @@
     android:orientation="vertical"
     android:padding="12dp">
 
+    <!-- Title row: app name + connection status pill (tap = settings). -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,6 +24,30 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/txtStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="●"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#9E9E9E"
+            android:contentDescription="Brain connection status — tap for settings" />
+    </LinearLayout>
+
+    <!-- Nav buttons overflowed off-screen as a fixed row; let them scroll. -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <Button
             android:id="@+id/btnSettings"
@@ -73,6 +98,7 @@
             android:layout_height="wrap_content"
             android:text="@string/refresh" />
     </LinearLayout>
+    </HorizontalScrollView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/listNotes"
