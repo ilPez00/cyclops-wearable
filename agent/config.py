@@ -39,6 +39,10 @@ class AgentConfig:
     # ~/.hermes/MEMORY.md / USER.md.
     memory_root: str = "~/.cyclops/memory"
     memory_max_chars: int = 240  # per-card char budget (Hermes-style, cache-cheap)
+    memory_max_cards: int = 200  # hard cap on card COUNT per target (FIFO evict oldest)
+    memory_dedup: bool = (
+        True  # skip re-appending an identical card (learning-loop spam guard)
+    )
     memory_recall: int = 8  # how many persisted turns to inject as context
     config_dir: str = "~/.config/cyclops"  # P2-A: plugin registry root
     plugin_index_url: str = ""  # P2-A: marketplace index (empty = offline)
