@@ -108,10 +108,21 @@
     </LinearLayout>
 
     <Button
+        style="@style/Widget.Cyclops.Button.Primary"
         android:id="@+id/btnOnboardNext"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="Next" />
+
+    <TextView
+        android:id="@+id/btnOnboardSkip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:padding="12dp"
+        android:text="Skip"
+        android:textColor="@color/cyclops_secondary"
+        android:contentDescription="Skip the intro" />
 
 </LinearLayout>

@@ -48,7 +48,12 @@ class MemoryActivity : AppCompatActivity() {
                 all = list
                 runOnUiThread { applyFilter() }
             },
-            onError = { runOnUiThread { binding.txtMemoryEmpty.visibility = android.view.View.VISIBLE } }
+            onError = { msg ->
+                runOnUiThread {
+                    binding.txtMemoryEmpty.text = "Couldn't load memory: $msg"
+                    binding.txtMemoryEmpty.visibility = android.view.View.VISIBLE
+                }
+            }
         )
     }
 

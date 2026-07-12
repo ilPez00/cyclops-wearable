@@ -25,6 +25,11 @@ class TranscriptActivity : AppCompatActivity() {
         load()
     }
 
+    override fun onResume() {
+        super.onResume()
+        load()  // conversation moves while this screen is away
+    }
+
     private fun load() {
         CyclopsApi.transcript(
             onResult = { list ->

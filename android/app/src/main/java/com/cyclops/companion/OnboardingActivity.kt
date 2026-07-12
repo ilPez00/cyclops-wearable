@@ -20,6 +20,7 @@ class OnboardingActivity : AppCompatActivity() {
         setContentView(binding.root)
         show(0)
         binding.btnOnboardNext.setOnClickListener { next() }
+        binding.btnOnboardSkip.setOnClickListener { finishOnboarding() }
     }
 
     private fun show(p: Int) {
@@ -34,11 +35,15 @@ class OnboardingActivity : AppCompatActivity() {
         if (page < pages - 1) {
             show(page + 1)
         } else {
-            getSharedPreferences("cyclops", MODE_PRIVATE)
-                .edit().putBoolean("onboarded", true).apply()
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+            finishOnboarding()
         }
+    }
+
+    private fun finishOnboarding() {
+        getSharedPreferences("cyclops", MODE_PRIVATE)
+            .edit().putBoolean("onboarded", true).apply()
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
     }
 
     companion object {
