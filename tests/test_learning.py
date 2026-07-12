@@ -161,6 +161,54 @@ def test_learn_recent_limits_turns():
     assert store.read("user")
 
 
+# -- gaps found while hardening (2026-07-12) ----------------------------
+
+
+class RaisingRouter:
+    """Router whose complete() always raises (dead key / network down)."""
+
+    def complete(self, messages, **_kw):
+        raise RuntimeError("api down")
+
+
+def test_learn_from_turn_router_error_never_raises():
+    d = tempfile.mkdtemp()
+    cfg = AgentConfig(memory_root=d)
+    store = MemoryStore(cfg)
+    result = learn_from_turn(
+        "hi", "hello", store, router=RaisingRouter(), async_ok=False
+    )
+    assert result == {"user": 0, "agent": 0}
+    assert store.read() == ""  # nothing half-written
+
+
+def test_learn_from_turn_async_write_lands():
+    import time
+
+    d = tempfile.mkdtemp()
+    cfg = AgentConfig(memory_root=d)
+    store = MemoryStore(cfg)
+    router = FakeRouter('{"user":["async fact"],"agent":[]}')
+    assert learn_from_turn("hi", "hello", store, router=router, async_ok=True) == {}
+    deadline = time.time() + 5
+    while time.time() < deadline and store.counts()["user"] == 0:
+        time.sleep(0.05)
+    assert store.counts()["user"] == 1, "daemon thread should persist the card"
+
+
+def test_learn_recent_handles_block_content():
+    d = tempfile.mkdtemp()
+    cfg = AgentConfig(memory_root=d)
+    store = MemoryStore(cfg)
+    router = FakeRouter('{"user":["fact"],"agent":[]}')
+    history = [
+        {"role": "user", "content": [{"text": "q1"}, {"text": "q1b"}]},
+        {"role": "assistant", "content": "a1"},
+    ]
+    result = learn_recent(history, store, router=router)
+    assert result["user"] >= 1  # block-style content flattened, not skipped
+
+
 if __name__ == "__main__":
     test_extract_plain_json()
     test_extract_fenced_json()
@@ -176,4 +224,7 @@ if __name__ == "__main__":
     test_learn_recent_empty_on_no_router()
     test_learn_recent_pairs_user_assistant_turns()
     test_learn_recent_limits_turns()
+    test_learn_from_turn_router_error_never_raises()
+    test_learn_from_turn_async_write_lands()
+    test_learn_recent_handles_block_content()
     print("PASS tests/test_learning.py")
