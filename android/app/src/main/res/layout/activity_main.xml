@@ -202,6 +202,7 @@
     </LinearLayout>
 
     <Button
+        style="@style/Widget.Cyclops.Button.Primary"
         android:id="@+id/btnAsk"
         android:contentDescription="Ask the brain"
         android:layout_width="match_parent"
@@ -214,8 +215,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:padding="8dp"
-        android:background="#0A2A33"
+        android:padding="12dp"
+        android:background="@drawable/bg_hud_banner"
         android:textColor="#7CFFB2"
         android:textStyle="bold"
         android:textSize="13sp"
@@ -225,8 +226,11 @@
         android:id="@+id/txtChat"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="#00E5FF"
-        android:textIsSelectable="true" />
+        android:layout_marginTop="6dp"
+        android:padding="12dp"
+        android:background="@drawable/bg_panel"
+        android:textColor="@color/cyclops_on_surface"
+        android:textIsSelectable="true"
+        android:visibility="gone" />
 
 </LinearLayout>
