@@ -123,7 +123,9 @@ class CyclopsService : Service() {
 
     private fun drainTx() {
         val ch = noteChar ?: return
-        val frame = synchronized(txQueue) { txQueue.removeFirstOrNull() } ?: return
+        // java.util.ArrayDeque (the * import wins over kotlin's): poll() is
+        // its null-on-empty dequeue
+        val frame = synchronized(txQueue) { txQueue.poll() } ?: return
         ch.value = frame
         if (!bluetoothGatt.writeCharacteristic(ch)) {
             // write refused (busy/link down): requeue at the front, the next
