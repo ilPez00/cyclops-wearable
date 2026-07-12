@@ -234,7 +234,15 @@ class Agent:
             )
         if skills_blk:
             parts.append(skills_blk)
-        rec = self.memory.recall(limit=self.cfg.memory_recall or 8)
+        # rank recalled cards against the latest user turn so the agent sees
+        # the relevant memory, not just the newest (RAG, offline lexical)
+        q = ""
+        for m in reversed(self.history):
+            if m.get("role") == "user":
+                c = m.get("content")
+                q = c if isinstance(c, str) else ""
+                break
+        rec = self.memory.recall(limit=self.cfg.memory_recall or 8, query=q)
         if rec:
             parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
         if self.context is not None:
