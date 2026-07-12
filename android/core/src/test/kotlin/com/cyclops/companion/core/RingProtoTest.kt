@@ -67,4 +67,35 @@ class RingProtoTest {
         assertEquals("6e400002-b5a3-f393-e0a9-e50e24dcca9e", RingProto.RX.toString())
         assertEquals("6e400003-b5a3-f393-e0a9-e50e24dcca9e", RingProto.TX.toString())
     }
+
+    @Test
+    fun realTimeErrorByteSurfacesNotWornState() {
+        // byte[2]=err (device/colmi_r02.py parse_real_time): nonzero + zero
+        // value = ring answering but not measuring — must reach the caller
+        val pkt = ByteArray(16)
+        pkt[0] = RingProto.CMD_START_REAL_TIME.toByte()
+        pkt[1] = RingProto.RT_HEART_RATE.toByte()
+        pkt[2] = 1  // not worn
+        pkt[3] = 0
+        pkt[15] = RingProto.crc(pkt)
+        val s = RingProto.parse(pkt)!!
+        assertEquals(1, s.err)
+        assertEquals(0, s.hr)
+
+        pkt[2] = 0; pkt[3] = 72; pkt[15] = RingProto.crc(pkt)
+        val ok = RingProto.parse(pkt)!!
+        assertEquals(0, ok.err)
+        assertEquals(72, ok.hr)
+    }
+
+    @Test
+    fun continuePacketUsesAction3() {
+        // DataAction.CONTINUE=3 (colmi.puxtril.com) — the keepalive without
+        // which ring firmwares stop the real-time stream after seconds
+        val p = RingProto.continueRealTime(RingProto.RT_SPO2)
+        assertEquals(RingProto.CMD_START_REAL_TIME.toByte(), p[0])
+        assertEquals(RingProto.RT_SPO2.toByte(), p[1])
+        assertEquals(3.toByte(), p[2])
+        assertEquals(RingProto.crc(p), p[15])
+    }
 }

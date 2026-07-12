@@ -44,6 +44,10 @@ object RingProto {
     fun batteryPacket(): ByteArray = makePacket(byteArrayOf(CMD_BATTERY.toByte()))
     fun startRealTime(kind: Int): ByteArray =
         makePacket(byteArrayOf(CMD_START_REAL_TIME.toByte(), kind.toByte(), 1))
+    /** action=3 CONTINUE keepalive — without it many ring firmwares stop the
+     *  real-time stream after a few seconds (colmi.puxtril.com DataAction). */
+    fun continueRealTime(kind: Int): ByteArray =
+        makePacket(byteArrayOf(CMD_START_REAL_TIME.toByte(), kind.toByte(), 3))
     fun stopRealTime(kind: Int): ByteArray =
         makePacket(byteArrayOf(CMD_STOP_REAL_TIME.toByte(), kind.toByte(), 0, 0))
 
@@ -57,11 +61,14 @@ object RingProto {
             CMD_BATTERY -> RingSample(battery = p[1].toInt() and 0xFF,
                 charging = p[2] != 0.toByte())
             CMD_START_REAL_TIME -> {
+                // byte[1]=kind, byte[2]=error (nonzero: not worn / warming up),
+                // byte[3]=value — mirrors device/colmi_r02.py parse_real_time
                 val kind = p[1].toInt() and 0xFF
+                val err = p[2].toInt() and 0xFF
                 val v = p[3].toInt() and 0xFF
                 when (kind) {
-                    RT_HEART_RATE -> RingSample(hr = v)
-                    RT_SPO2 -> RingSample(spo2 = v)
+                    RT_HEART_RATE -> RingSample(hr = v, err = err)
+                    RT_SPO2 -> RingSample(spo2 = v, err = err)
                     else -> null
                 }
             }
@@ -74,5 +81,8 @@ data class RingSample(
     val hr: Int = 0,
     val spo2: Int = 0,
     val battery: Int = 0,
-    val charging: Boolean = false
+    val charging: Boolean = false,
+    /** real-time error code: 0 = ok, nonzero = no reading (ring not worn /
+     *  sensor warming up). Callers should show guidance, not silence. */
+    val err: Int = 0
 )
