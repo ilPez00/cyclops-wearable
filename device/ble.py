@@ -104,6 +104,97 @@ class FlakyBleBackend(BleBackend):
         self.connected = False
 
 
+class BleakBackend(BleBackend):
+    """Real GATT central via `bleak` (import-safe: bleak loads on connect()).
+
+    Runs the asyncio BLE client on a daemon thread and bridges it to the
+    synchronous BleBackend interface BleLink expects. Writes are marshalled
+    onto the client's event loop; notifications call ``on_bytes`` from the
+    BLE thread (single producer, so the Decoder sees ordered bytes).
+    Verified live against the XIAO firmware on 2026-07-12.
+    """
+
+    def __init__(self, name=DEVICE_NAME, address="", srvc=SRVC_UUID, note=NOTE_UUID):
+        self.name = name
+        self.address = address
+        self.srvc = srvc
+        self.note = note
+        self.connected = False
+        self.on_bytes = None
+        self._loop = None
+        self._client = None
+        self._thread = None
+
+    def connect(self, on_bytes, timeout=20):
+        import asyncio
+        import threading
+
+        try:
+            from bleak import BleakClient, BleakScanner
+        except Exception as e:  # pragma: no cover - import guard
+            raise RuntimeError("bleak not installed: `pip install bleak`") from e
+
+        self.on_bytes = on_bytes
+        ready = threading.Event()
+        err: list[Exception] = []
+
+        async def _run():
+            try:
+                target = self.address
+                if not target:
+                    dev = await BleakScanner.find_device_by_name(
+                        self.name, timeout=timeout
+                    )
+                    if dev is None:
+                        raise RuntimeError(f"BLE device {self.name!r} not found")
+                    target = dev
+                self._client = BleakClient(target)
+                await self._client.connect()
+                await self._client.start_notify(
+                    self.note, lambda _, d: self.on_bytes and self.on_bytes(bytes(d))
+                )
+                self.connected = True
+                ready.set()
+                while self.connected:
+                    await asyncio.sleep(0.05)
+                await self._client.stop_notify(self.note)
+                await self._client.disconnect()
+            except Exception as e:
+                err.append(e)
+                ready.set()
+
+        def _thread_main():
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._loop.run_until_complete(_run())
+
+        self._thread = threading.Thread(
+            target=_thread_main, name="cyclops-ble", daemon=True
+        )
+        self._thread.start()
+        if not ready.wait(timeout=timeout + 5) or err:
+            self.connected = False
+            raise err[0] if err else RuntimeError("BLE connect timed out")
+        return True
+
+    def write(self, data: bytes):
+        import asyncio
+
+        if not (self.connected and self._client and self._loop):
+            raise RuntimeError("write before connect")
+        fut = asyncio.run_coroutine_threadsafe(
+            self._client.write_gatt_char(self.note, bytes(data), response=False),
+            self._loop,
+        )
+        fut.result(timeout=10)
+        return len(data)
+
+    def disconnect(self):
+        self.connected = False  # signals the loop to unwind + disconnect
+        if self._thread:
+            self._thread.join(timeout=5)
+
+
 class BleLink:
     """GATT-central link: pairs, subscribes to NOTIFY, decodes v2 wire frames
     (``AA 55 <len> <typ><payload> <crc>`` — see ``brain.protocol``) and dispatches
@@ -253,6 +344,7 @@ __all__ = [
     "BleBackend",
     "FakeBleBackend",
     "FlakyBleBackend",
+    "BleakBackend",
     "BleLink",
     "BleTransport",
     "SRVC_UUID",
