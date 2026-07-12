@@ -43,6 +43,14 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- BLE hub: pumps wearable frames into HudBridge, forwards
+             display frames back to the device. Started by the app
+             with EXTRA_MAC once BLUETOOTH_CONNECT is granted. -->
+        <service
+            android:name=".CyclopsService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
         <activity
             android:name=".MemoryActivity"
             android:exported="false"
