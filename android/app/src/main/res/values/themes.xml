@@ -3,4 +3,13 @@
         <item name="colorPrimary">#00E5FF</item>
         <item name="android:statusBarColor">#001015</item>
     </style>
+
+    <!-- Section header inside the settings screen. -->
+    <style name="SettingsHeader">
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">#00E5FF</item>
+        <item name="android:paddingTop">20dp</item>
+        <item name="android:paddingBottom">6dp</item>
+    </style>
 </resources>
