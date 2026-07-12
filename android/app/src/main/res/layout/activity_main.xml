@@ -116,6 +116,25 @@
         android:gravity="center"
         android:textColor="@color/cyclops_secondary" />
 
+    <!-- Dev tools (raw ingest/extract) are not the product surface: they made
+         the home screen read like a debug panel. Collapsed by default. -->
+    <TextView
+        android:id="@+id/btnDevToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:text="▸ Dev tools"
+        android:textSize="12sp"
+        android:textColor="@color/cyclops_secondary"
+        android:contentDescription="Show or hide raw ingest and extract fields" />
+
+    <LinearLayout
+        android:id="@+id/devPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/editIngest"
         android:layout_width="match_parent"
@@ -143,7 +162,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/extract" />
+    </LinearLayout>
 
+    <!-- Primary interaction: ask the brain. Kept above the ask bar so the
+         answer + HUD banner sit directly over where you type. -->
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/editAsk"
         android:layout_width="match_parent"
