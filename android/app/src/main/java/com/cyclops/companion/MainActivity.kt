@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         binding.navView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_chat -> binding.editAsk.requestFocus()
+                R.id.nav_feed -> startActivity(Intent(this, FeedActivity::class.java))
                 R.id.nav_vision -> startActivity(Intent(this, VisionActivity::class.java))
                 R.id.nav_memory -> startActivity(Intent(this, MemoryActivity::class.java))
                 R.id.nav_hud -> startActivity(Intent(this, HudMirrorActivity::class.java))

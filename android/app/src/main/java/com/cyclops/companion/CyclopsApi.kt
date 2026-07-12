@@ -256,6 +256,21 @@ object CyclopsApi {
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
+    data class FeedEvent(val ts: String, val kind: String, val message: String)
+
+    fun feed(onResult: (List<FeedEvent>) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val arr = JSONArray(get(url("/api/feed")))
+            val out = mutableListOf<FeedEvent>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(FeedEvent(
+                    o.optString("ts", ""), o.optString("kind", ""), o.optString("message", "")))
+            }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
     // Response: { "agent": [ {text,target}, ... ], "user": [ ... ] }
     fun memory(onResult: (JSONArray, JSONArray) -> Unit, onError: (String) -> Unit) = thread {
         try {
