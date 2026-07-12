@@ -96,12 +96,14 @@ class MainActivity : AppCompatActivity() {
                 CyclopsApi.agent(t, local, transport, persona, provider, endpoint, apiKey,
                     onResult = { reply, calls, steps ->
                         val stepTxt = if (steps.isEmpty()) "" else "\n• " + steps.joinToString("\n• ")
+                        binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain ($calls tools): $reply$stepTxt"
                         // glanceable banner the wearable would show (first line)
                         binding.txtHud.text = "HUD: ${reply.split("\n").first().take(60)}"
                         binding.editAsk.text?.clear()
                     },
                     onError = {
+                        binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain: (unavailable) $it"
                         binding.txtHud.text = "HUD: error"
                     })

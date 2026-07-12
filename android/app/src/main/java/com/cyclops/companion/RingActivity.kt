@@ -41,6 +41,16 @@ class RingActivity : AppCompatActivity() {
     private var gatt: BluetoothGatt? = null
     private var txChar: BluetoothGattCharacteristic? = null
     private var rxChar: BluetoothGattCharacteristic? = null
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    companion object {
+        // Client Characteristic Configuration Descriptor — must be written to
+        // make the peripheral actually send notifications.
+        val CCCD_UUID: java.util.UUID =
+            java.util.UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        const val SCAN_TIMEOUT_MS = 15_000L
+        const val PERM_REQ = 1
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +82,29 @@ class RingActivity : AppCompatActivity() {
         }
         @Suppress("MissingPermission")
         scanner?.startScan(scanCb)
+        // a scan that finds nothing must end in a message, not burn battery
+        handler.postDelayed({
+            if (scanner != null && gatt == null) {
+                @Suppress("MissingPermission")
+                scanner?.stopScan(scanCb); scanner = null
+                updateStatus("No ring found nearby — is it charged and close?")
+            }
+        }, SCAN_TIMEOUT_MS)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != PERM_REQ) return
+        // the old code dropped this callback: granting did nothing until a
+        // second tap, and a past denial made the button silently dead
+        if (grantResults.isNotEmpty() &&
+            grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+            connect()
+        } else {
+            updateStatus("Bluetooth permission denied — allow it in system settings")
+        }
     }
 
     private val scanCb = object : ScanCallback() {
@@ -110,11 +143,35 @@ class RingActivity : AppCompatActivity() {
             txChar = svc.getCharacteristic(RingProto.TX) ?: run {
                 runOnUiThread { updateStatus("TX characteristic missing") }; return
             }
+            // Enabling notifications is TWO steps on Android: the local flag
+            // AND writing the CCCD (0x2902) so the RING starts notifying.
+            // Without the descriptor write it reports "linked" but never
+            // sends a byte — the exact "connected yet dead gauges" failure.
             g.setCharacteristicNotification(txChar, true)
+            val cccd = txChar?.getDescriptor(CCCD_UUID)
+            if (cccd != null) {
+                cccd.value = android.bluetooth.BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                g.writeDescriptor(cccd)
+                runOnUiThread { updateStatus("Linked — enabling live stream") }
+            } else {
+                // no CCCD on this firmware: try commanding it anyway
+                queueStartPackets()
+            }
+        }
+
+        @Suppress("MissingPermission")
+        override fun onDescriptorWrite(
+            g: BluetoothGatt?, d: android.bluetooth.BluetoothGattDescriptor?, status: Int
+        ) {
             runOnUiThread { updateStatus("Linked — requesting battery + live HR/SpO2") }
-            sendPacket(RingProto.batteryPacket())
-            sendPacket(RingProto.startRealTime(RingProto.RT_HEART_RATE))
-            sendPacket(RingProto.startRealTime(RingProto.RT_SPO2))
+            queueStartPackets()
+        }
+
+        @Suppress("MissingPermission")
+        override fun onCharacteristicWrite(
+            g: BluetoothGatt?, ch: BluetoothGattCharacteristic?, status: Int
+        ) {
+            drainQueue()  // one in-flight GATT write at a time
         }
 
         @Suppress("MissingPermission")
@@ -126,12 +183,33 @@ class RingActivity : AppCompatActivity() {
         }
     }
 
+    // Android GATT silently drops a writeCharacteristic issued while another
+    // is in flight — the old code fired three back-to-back, so only the first
+    // command ever reached the ring. Queue + drain on onCharacteristicWrite.
+    private val txQueue = ArrayDeque<ByteArray>()
+    private var writeInFlight = false
+
+    private fun queueStartPackets() {
+        synchronized(txQueue) {
+            txQueue.clear()
+            txQueue.add(RingProto.batteryPacket())
+            txQueue.add(RingProto.startRealTime(RingProto.RT_HEART_RATE))
+            txQueue.add(RingProto.startRealTime(RingProto.RT_SPO2))
+        }
+        drainQueue()
+    }
+
     @Suppress("MissingPermission")
-    private fun sendPacket(pkt: ByteArray) {
+    private fun drainQueue() {
         val rx = rxChar ?: return
+        val pkt = synchronized(txQueue) {
+            if (txQueue.isEmpty()) { writeInFlight = false; return }
+            txQueue.removeFirst()
+        }
+        writeInFlight = true
         rx.value = pkt
         rx.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-        gatt?.writeCharacteristic(rx)
+        if (gatt?.writeCharacteristic(rx) != true) writeInFlight = false
     }
 
     private fun onSample(s: RingSample) {
@@ -195,7 +273,7 @@ class RingActivity : AppCompatActivity() {
             arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         else
             arrayOf(Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN)
-        ActivityCompat.requestPermissions(this, needed, 1)
+        ActivityCompat.requestPermissions(this, needed, PERM_REQ)
     }
 
     private fun toast(m: String) = Toast.makeText(this, m, Toast.LENGTH_LONG).show()
