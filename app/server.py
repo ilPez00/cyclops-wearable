@@ -30,6 +30,48 @@ bridge = None
 # serializes access to the shared agent (ThreadingHTTPServer handles requests
 # concurrently; agent.run() mutates history/cfg with no locking of its own)
 _AGENT_LOCK = threading.Lock()
+DREAM_INTERVAL_S = 1800  # background review cadence (30 min)
+
+
+def _run_dream_review():
+    """One dream/proposal review over recent notes + graded experiences.
+    Uses the agent's router when available; falls back to rules offline."""
+    from brain.dreams import review
+    from brain.experiences import ExperienceStore
+
+    notes = []
+    try:
+        if pipeline is not None and getattr(pipeline, "store", None):
+            notes = [getattr(n, "text", "") for n in pipeline.store.all()][-15:]
+    except Exception:
+        pass
+    domains = []
+    try:
+        domains = ExperienceStore().domains()
+    except Exception:
+        pass
+    router = getattr(agent, "router", None) if agent is not None else None
+    return review(notes, domains, router=router)
+
+
+def _start_dream_scheduler():
+    """Periodic background reviewer (AURA DreamEngine cadence). Daemon thread,
+    swallows errors so a bad review never takes the server down."""
+
+    def _loop():
+        import time as _t
+
+        while True:
+            _t.sleep(DREAM_INTERVAL_S)
+            try:
+                _run_dream_review()
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_loop, name="cyclops-dreams", daemon=True)
+    t.start()
+    return t
+
 
 _TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
 _HTML: str | None = None
@@ -107,7 +149,9 @@ class H(BaseHTTPRequestHandler):
                 pass
             try:
                 with _AGENT_LOCK:
-                    hist = list(getattr(agent, "history", [])) if agent is not None else []
+                    hist = (
+                        list(getattr(agent, "history", [])) if agent is not None else []
+                    )
                 for m in hist:
                     if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
                         c = m.get("content", "")
@@ -118,9 +162,20 @@ class H(BaseHTTPRequestHandler):
             except Exception:
                 pass
             if bridge is not None and getattr(bridge, "last_banner", ""):
-                events.append(
-                    {"ts": "", "kind": "hud", "message": bridge.last_banner}
-                )
+                events.append({"ts": "", "kind": "hud", "message": bridge.last_banner})
+            try:
+                from brain.dreams import DreamStore
+
+                for d in DreamStore().active():
+                    events.append(
+                        {
+                            "ts": d.get("ts", ""),
+                            "kind": "dream",
+                            "message": d.get("message", ""),
+                        }
+                    )
+            except Exception:
+                pass
             # newest first: dated events by timestamp desc, undated keep order
             events.sort(key=lambda e: e.get("ts") or "", reverse=True)
             return self._send(200, json.dumps(events[:limit]))
@@ -311,6 +366,11 @@ class H(BaseHTTPRequestHandler):
             from brain.experiences import ExperienceStore
 
             return self._send(200, json.dumps(ExperienceStore().domains()))
+        if p.path == "/api/dreams":
+            # active proactive insights/proposals (the "dream" loop)
+            from brain.dreams import DreamStore
+
+            return self._send(200, json.dumps(DreamStore().active()))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
@@ -352,6 +412,17 @@ class H(BaseHTTPRequestHandler):
                 data.get("note", ""),
             )
             return self._send(200, json.dumps(row))
+        if p.path == "/api/dream/review":
+            try:
+                return self._send(200, json.dumps({"dreams": _run_dream_review()}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/dream/dismiss":
+            from brain.dreams import DreamStore
+
+            return self._send(
+                200, json.dumps({"ok": DreamStore().dismiss(data.get("id", ""))})
+            )
         if p.path == "/api/vision":
             # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
             # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
@@ -495,6 +566,7 @@ def main():
     beacon = DiscoveryBeacon(http_port=PORT)
     if beacon.start():
         print(f"Discovery beacon on udp/{beacon.listen_port}")
+    _start_dream_scheduler()  # periodic proactive review (dreams/proposals)
     print(f"Cyclops dashboard on http://localhost:{PORT}")
     try:
         srv.serve_forever()
