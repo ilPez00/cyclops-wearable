@@ -146,15 +146,15 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatusPill() {
         if (!CyclopsApi.configured) {
             binding.txtStatus.text = "● brain: not set — tap"
-            binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+            binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#8FA3B8"))
             return
         }
         binding.txtStatus.text = "● checking…"
-        binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+        binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#8FA3B8"))
         CyclopsApi.health { ok ->
             binding.txtStatus.text = if (ok) "● brain online" else "● brain offline"
             binding.txtStatus.setTextColor(
-                android.graphics.Color.parseColor(if (ok) "#7CFFB2" else "#FF6E6E"))
+                android.graphics.Color.parseColor(if (ok) "#22C55E" else "#EE5A24"))
         }
     }
 
@@ -350,7 +350,7 @@ class NoteAdapter : RecyclerView.Adapter<NoteAdapter.VH>() {
         } else holder.badgeDue.visibility = TextView.GONE
         // accent the card stroke for candidates so they stand out
         holder.card.strokeColor =
-            if (n.candidate) android.graphics.Color.parseColor("#FFB300")
-            else android.graphics.Color.parseColor("#1E2A33")
+            if (n.candidate) android.graphics.Color.parseColor("#FECA57")
+            else android.graphics.Color.parseColor("#16323A")
     }
 }

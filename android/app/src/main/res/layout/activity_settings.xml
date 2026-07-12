@@ -34,7 +34,7 @@
             <TextView
                 android:layout_width="0dp" android:layout_height="wrap_content"
                 android:layout_weight="1" android:text="Transport to wearable"
-                android:textColor="#ccc" />
+                android:textColor="@color/cyclops_secondary" />
             <Spinner
                 android:id="@+id/spTransport"
                 android:layout_width="wrap_content" android:layout_height="wrap_content" />

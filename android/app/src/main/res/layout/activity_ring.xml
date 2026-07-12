@@ -15,7 +15,7 @@
             android:text="@string/ring_title"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:textColor="#00E5FF" />
+            android:textColor="@color/cyclops_primary" />
 
         <Button
             style="@style/Widget.Cyclops.Button.Primary"

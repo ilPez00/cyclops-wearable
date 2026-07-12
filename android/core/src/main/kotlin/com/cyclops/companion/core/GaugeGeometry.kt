@@ -54,9 +54,9 @@ object GaugeGeometry {
     fun tierColor(progress: Float, warnBelow: Float = 0.25f, badBelow: Float = 0.12f): Int {
         val p = progress.coerceIn(0f, 1f)
         return when {
-            p < badBelow -> 0xFFFF5252u.toInt()   // red
-            p < warnBelow -> 0xFFFFB300u.toInt()   // amber
-            else -> 0xFF7CFFB2u.toInt()            // green
+            p < badBelow -> 0xFFEE5A24u.toInt()   // red
+            p < warnBelow -> 0xFFFECA57u.toInt()   // amber
+            else -> 0xFF22C55Eu.toInt()            // green
         }
     }
 
@@ -67,9 +67,9 @@ object GaugeGeometry {
     fun batteryColor(fraction: Float): Int {
         val f = fraction.coerceIn(0f, 1f)
         return when {
-            f < 0.15f -> 0xFFFF5252u.toInt()
-            f < 0.40f -> 0xFFFFB300u.toInt()
-            else -> 0xFF7CFFB2u.toInt()
+            f < 0.15f -> 0xFFEE5A24u.toInt()
+            f < 0.40f -> 0xFFFECA57u.toInt()
+            else -> 0xFF22C55Eu.toInt()
         }
     }
 

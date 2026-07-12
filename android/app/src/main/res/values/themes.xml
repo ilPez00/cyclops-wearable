@@ -4,7 +4,7 @@
          Widget.Cyclops.Button.Primary. This kills the wall-of-cyan look. -->
     <style name="Theme.Cyclops" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/cyclops_primary</item>
-        <item name="colorOnPrimary">#001318</item>
+        <item name="colorOnPrimary">@color/cyclops_on_primary</item>
         <item name="colorSurface">@color/cyclops_surface</item>
         <item name="colorOnSurface">@color/cyclops_on_surface</item>
         <item name="colorSurfaceVariant">@color/cyclops_surface_variant</item>
@@ -30,7 +30,7 @@
     <!-- The ONE main action per screen (Send / Save / Connect ring). -->
     <style name="Widget.Cyclops.Button.Primary" parent="Widget.Material3.Button">
         <item name="backgroundTint">@color/cyclops_primary</item>
-        <item name="android:textColor">#001318</item>
+        <item name="android:textColor">@color/cyclops_on_primary</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textAllCaps">false</item>
         <item name="cornerRadius">14dp</item>

@@ -13,7 +13,7 @@
         android:layout_marginVertical="4dp"
         app:cardCornerRadius="12dp"
         app:cardElevation="2dp"
-        app:strokeColor="#1E2A33"
+        app:strokeColor="@color/cyclops_border"
         app:strokeWidth="1dp"
         android:foreground="?attr/selectableItemBackground">
 
@@ -65,7 +65,7 @@
                         android:paddingBottom="2dp"
                         android:text="candidate"
                         android:textSize="11sp"
-                        android:textColor="#0A0E12"
+                        android:textColor="@color/cyclops_surface"
                         android:background="#FFB300"
                         android:visibility="gone" />
 
@@ -79,7 +79,7 @@
                         android:paddingBottom="2dp"
                         android:textSize="11sp"
                         android:textColor="#B0BEC5"
-                        android:background="#1E2A33"
+                        android:background="@color/cyclops_border"
                         android:visibility="gone" />
                 </LinearLayout>
             </LinearLayout>

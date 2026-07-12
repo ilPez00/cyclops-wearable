@@ -39,17 +39,17 @@ class GaugeGeometryTest {
 
     @Test
     fun tierColorThresholds() {
-        assertEquals(0xFFFF5252u.toInt(), GaugeGeometry.tierColor(0.05f))
-        assertEquals(0xFFFFB300u.toInt(), GaugeGeometry.tierColor(0.20f))
-        assertEquals(0xFF7CFFB2u.toInt(), GaugeGeometry.tierColor(0.50f))
-        assertEquals(0xFF7CFFB2u.toInt(), GaugeGeometry.tierColor(2f))
+        assertEquals(0xFFEE5A24u.toInt(), GaugeGeometry.tierColor(0.05f))
+        assertEquals(0xFFFECA57u.toInt(), GaugeGeometry.tierColor(0.20f))
+        assertEquals(0xFF22C55Eu.toInt(), GaugeGeometry.tierColor(0.50f))
+        assertEquals(0xFF22C55Eu.toInt(), GaugeGeometry.tierColor(2f))
     }
 
     @Test
     fun batteryColorThresholds() {
-        assertEquals(0xFFFF5252u.toInt(), GaugeGeometry.batteryColor(0.10f))
-        assertEquals(0xFFFFB300u.toInt(), GaugeGeometry.batteryColor(0.30f))
-        assertEquals(0xFF7CFFB2u.toInt(), GaugeGeometry.batteryColor(0.80f))
+        assertEquals(0xFFEE5A24u.toInt(), GaugeGeometry.batteryColor(0.10f))
+        assertEquals(0xFFFECA57u.toInt(), GaugeGeometry.batteryColor(0.30f))
+        assertEquals(0xFF22C55Eu.toInt(), GaugeGeometry.batteryColor(0.80f))
     }
 
     @Test
