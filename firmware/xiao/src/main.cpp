@@ -1,6 +1,6 @@
 // Cyclops XIAO ESP32-S3 Sense — wearable HUD + audio capture.
 // scrollwheel + 2 buttons + screen (ST7735 / 128x64 / 128x32 via SCREEN_*).
-// I2S mic (onboard pads 40/41/42) -> BLE audio chunks -> phone transcribes.
+// PDM mic (clk 42, data 41) -> ADPCM -> BLE audio chunks -> phone decodes+transcribes.
 // BLE (NimBLE) to phone. Shares Hud + Screen.
 // Build: pio run -e xiao_st7735 | xiao_128x64 | xiao_128x32
 #include "cyclops_shared.h"
@@ -8,6 +8,7 @@
 #include "screens.h"
 #include "hud.h"
 #include "gestures.h"
+#include "adpcm.h"
 #include "ring_ble.h"
 #include "sd_log.h"
 #include "imu.h"
@@ -145,13 +146,16 @@ class SrvCb : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer*) override { hud.bt = false; }
 };
 
-// One full 256-sample read is 512 B — that never fit send_frame's buffer
-// (encode_frame returns 0 when cap < 7+plen), so audio silently NEVER left
-// the device. Slice reads into BLE-notify-sized frames instead.
-static constexpr size_t AUDIO_SLICE = 240;  // payload bytes per MSG_AUDIO_CHUNK
-
+// Raw PCM16 at 16 kHz is 32 KB/s; the BLE notify link measures ~2-8 KB/s
+// (docs/13 premortem #2), so raw streaming can never keep up. Compress each
+// read with IMA ADPCM (4:1, shared/include/adpcm.h): a 256-sample read
+// becomes 4+128 = 132 B — one notify-sized frame, no slicing. The step index
+// is carried across chunks (warm adaption); each chunk stays self-contained
+// so a lost notify costs only its own ~16 ms window.
 static void audio_task(void*) {
     int16_t samples[MIC_BUF_SAMPLES];
+    uint8_t enc[4 + (MIC_BUF_SAMPLES + 1) / 2];
+    int adpcm_index = 0;
     size_t rd;
     while (capturing) {
         i2s_read((i2s_port_t)0, samples, sizeof(samples), &rd, pdMS_TO_TICKS(100));
@@ -160,11 +164,10 @@ static void audio_task(void*) {
             // connected to receive it. Sending into the void wastes the BLE
             // queue and battery; drop the chunk instead. (D)
             if (hud.bt) {
-                const uint8_t* p = (const uint8_t*)samples;
-                for (size_t off = 0; off < rd; off += AUDIO_SLICE) {
-                    size_t n = rd - off < AUDIO_SLICE ? rd - off : AUDIO_SLICE;
-                    send_frame(cyclops::MSG_AUDIO_CHUNK, p + off, n);
-                }
+                size_t k = cyclops::adpcm_encode_chunk(samples, rd / 2, enc,
+                                                       sizeof(enc),
+                                                       adpcm_index, &adpcm_index);
+                if (k > 0) send_frame(cyclops::MSG_AUDIO_CHUNK, enc, k);
             } else {
                 cyclops::audio_dropped++;  // no consumer -> drop
             }
@@ -191,9 +194,9 @@ static void start_capture() {
     i2s_driver_install((i2s_port_t)0, &cfg, 0, NULL);
     i2s_set_pin((i2s_port_t)0, &pins);
     capturing = true;
-    // announce format once
+    // announce format once: bits, rate, channels, codec (meta[5])
     uint8_t meta[8]; meta[0]=16; meta[1]=0; meta[2]=MIC_RATE&0xFF; meta[3]=(MIC_RATE>>8)&0xFF;
-    meta[4]=1; meta[5]=0; meta[6]=0; meta[7]=0;
+    meta[4]=1; meta[5]=cyclops::AUDIO_CODEC_ADPCM; meta[6]=0; meta[7]=0;
     send_frame(cyclops::MSG_AUDIO_META, meta, 8);
     xTaskCreatePinnedToCore(audio_task, "cap", 4096, NULL, 5, &cap_task, 0);
     hud.recording = true;
