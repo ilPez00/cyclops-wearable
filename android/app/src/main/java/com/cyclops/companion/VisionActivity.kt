@@ -50,8 +50,8 @@ class VisionActivity : AppCompatActivity() {
             }
         }
         preview = ImageView(this).apply {
-            adjustViewBounds = true
-            maxHeight = 700
+            setAdjustViewBounds(true)
+            setMaxHeight(700)
         }
         promptBox = EditText(this).apply {
             hint = "What should I look for? (default: describe it)"
@@ -61,7 +61,7 @@ class VisionActivity : AppCompatActivity() {
             setOnClickListener { submit() }
         }
         result = TextView(this).apply {
-            setPadding(0, 24, 0, 0); textIsSelectable = true
+            setPadding(0, 24, 0, 0); setTextIsSelectable(true)
         }
         root.addView(choose); root.addView(preview)
         root.addView(promptBox); root.addView(ask); root.addView(result)
