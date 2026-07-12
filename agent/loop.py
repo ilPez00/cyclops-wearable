@@ -84,7 +84,13 @@ class Agent:
         context=None,
     ):
         self.cfg = config
-        self.router = router or ModelRouter(config)
+        # cascade across providers when several have keys, else plain router
+        if router is not None:
+            self.router = router
+        else:
+            from .cascade import build_router
+
+            self.router = build_router(config)
         self.registry = registry or ToolRegistry()
         self.skills = skills or Skills(config.skills_dirs)
         self.memory = memory or MemoryStore(config)

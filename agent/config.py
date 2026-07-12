@@ -44,6 +44,7 @@ class AgentConfig:
         True  # skip re-appending an identical card (learning-loop spam guard)
     )
     memory_recall: int = 8  # how many persisted turns to inject as context
+    cascade_enabled: bool = True  # try providers in order, skip burnt keys
     config_dir: str = "~/.config/cyclops"  # P2-A: plugin registry root
     plugin_index_url: str = ""  # P2-A: marketplace index (empty = offline)
 
