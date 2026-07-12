@@ -1,45 +1,62 @@
-# Cyclops — STATUS (2026-07-12)
+# Cyclops — STATUS (2026-07-12, post hardware bring-up)
 
 Single source of truth for build state lives in [`docs/00-superplan.md`](docs/00-superplan.md).
 This file is the at-a-glance snapshot.
 
 ## Branch / repo
-- Remote: `github.com/ilPez00/cyclops-wearable.git` (origin).
-- Working branch: `main`.
-- Latest commit: `e9fd77c` (fix BLE v2 wire protocol encoding).
+- Remote: `github.com/ilPez00/cyclops-wearable.git` (origin). **Default branch: `main`**
+  (`master` force-aligned to `main` 2026-07-12; no longer stale).
+- The outer `/home/gio` (ayu) repo carries a tracked snapshot of this tree by owner
+  choice — canonical development happens HERE. Content-only-on-ayu commits (ayu #17–#20)
+  were ported in #36.
 
 ## Verification snapshots
 | Gate | Result |
 |------|--------|
-| Python full suite (`tests/run_tests.py tests/test_*.py`) | **214 passed, 0 failed** |
-| Firmware host gate (`make test`) | **14 cmds PASS (warning-free after #29)** |
-| Firmware proto gate (`make proto`) | **ALL SHARED TESTS PASSED** |
+| Python full suite (`tests/run_tests.py tests/test_*.py`) | **238 passed, 0 failed** |
+| Firmware host gate (`make test`) | **PASS** (incl. status_json clamp regression) |
+| Firmware proto gate (`make proto`) | **PASS** (framing + OTA + **ADPCM contract**) |
+| Firmware device builds (`xiao_128x32_i2c`, `xiao_selftest`) | **SUCCESS** (local PlatformIO) |
 | G2 layout parity (Python↔JS) | PASS |
-| Kotlin `:core:test` | CI-only (no local gradle 8.9) |
-| Android APK build | CI-only (no local SDK) |
+| Kotlin `:core:test` / APK | CI-only (no local SDK) |
 
-Every step this cycle was committed + pushed after passing all three gates.
+## Verified ON METAL (2026-07-12, bare XIAO ESP32-S3 Sense)
+First real-hardware session — D1 ("never flashed") is dead. Flash 18.9%, RAM 10.1%.
+- **Boot**: missing screen/IMU/SD all degrade gracefully; heartbeat + HOME mode.
+- **BLE**: advertises `CyclopsXIAO`; laptop central (bleak) connects, decodes live
+  MSG_STATUS with the brain's own `Decoder`, writes MSG_CMD back.
+- **Camera** (OV2640): VGA JPEG captured + pulled over serial (PSRAM detected).
+- **Mic**: works ONLY as PDM (clk GPIO42, data GPIO41) — fixed in #38.
+- **SD**: SDHC 32 GB formatted FAT (owner-approved), write+readback OK, mounts at boot.
+- **Audio over BLE**: remote ACT_TRANSCRIBE_START → PDM capture → chunks decoded on the
+  laptop → WAV. Measured notify throughput ~2 KB/s → drove the ADPCM work (#41).
+- Repeatable bring-up: `pio run -e xiao_selftest` (SD/camera/mic report over serial).
 
-## Recently shipped
-- **P0–P2 completed** (2026-07-09): HUD sim, OpenGlass, G2 plugin, consent mode, Omi audio, local-first, gestures, unified health, plugin marketplace, context fusion, health relay, flash guide.
-- **Memory rewrite** (C9+C10): `MemoryView` → card-based `MemoryStore` (Hermes-style, char-budgeted, thread-safe). `hermes_home`/`digigio_home` config keys are now unused by `MemoryStore` (migration: `memory_root`).
-- **Auto-learning** (`agent/learning.py`): background daemon-thread reviews each turn and writes durable facts to USER.md / MEMORY.md — mirrors Hermes's post-turn fork.
-- **BLE v2 protocol fix** (`device/ble.py`): `send_cmd` now encodes as MSG_CMD(9) with JSON-wrapped inner action. Aligns C++/Python/Kotlin on same wire format.
-- **Firmware audit** (C1–C3): ring BLE connect path, arduino target prune, power management, audio backpressure, SD log rollover.
-- **CAD**: pendant enclosure v2 (body/cap, v3 antenna variant, STLs).
+## Recently shipped (this cycle, PRs #33–#42)
+- **Four on-metal firmware fixes** (#38): PDM mic config; BLE audio chunks never fit
+  `send_frame` (silently dropped — now sliced); `status_json` garbage-tail clamp;
+  incoming MSG_CMD dispatch (phone can drive capture/HUD, consent-gated).
+- **IMA ADPCM codec** (#41): 4:1 audio compression, C++/Python byte-identical wire
+  contract, self-contained chunks, warm step-index across chunks; firmware streams
+  ADPCM and announces the codec in MSG_AUDIO_META byte[5].
+- **ADPCM ingest** (#42, in CI): `HudBridge.handle_audio` decodes per the META codec
+  byte; legacy 5-byte META keeps raw PCM.
+- **BleakBackend** (#40): real BLE radio behind `BleLink` — the "transport glue
+  pending" gap. Import-safe (bleak loads on connect).
+- **Obsidian vault sink** (#37): notes mirror into a vault as frontmatter pages +
+  daily-note wikilinks (`CYCLOPS_OBSIDIAN_VAULT`); `memory_root` can live in-vault.
+- **Test hardening** (#39): learning-suite gaps + env-independent omi BLE test.
+- DeviceSim coverage (#33), Android BLE service glue (#35), docs sync (#34).
 
-## T4 hardening
-- **CI green**: firmware host gate + full Python suite + firmware build matrix runs on `main` branch.
-- **PR `cyclops→master` promotion**: on hold — `>100MB` legacy binaries on `master` unresolved.
-- **CAD**: pendant enclosure v2 (body/cap, v3 antenna variant, STLs).
-
-## Open / not locally verifiable
-- Real XIAO flash + I2S mic + OLED field test (T1.1) — manual, board-attached.
-- Live Ollama llava vision test (T2.6).
-- **Android `:app` BLE build** — needs a local Android SDK (currently ABSENT: `ANDROID_HOME` has only `cmake/`+`ndk/`, no cmdline-tools/platforms/build-tools, no `sdkmanager`). The `:app` glue (`CyclopsService.kt`) is implemented but SDK-gated; `:core` (pure-Kotlin, unit-tested: `RingProtoTest` etc.) builds + tests on CI. Installing the SDK + finishing `CyclopsService.connect()` is the next Android step, but it is **runtime-unverifiable without a BLE device/emulator** — per loop rules, Kotlin that can't be runtime-tested is not shipped blind.
-- `agent/learning.py` **now has** `tests/test_learning.py` (was flagged missing — stale).
-- End-to-end BLE streaming (brain ↔ wearable) — transport glue present (`device/ble.py` + `CyclopsService`), device-side needs hardware.
+## Open / next
+- **Live re-verify with ADPCM firmware** — board was unplugged mid-session; rerun
+  audio E2E + BleLink-over-BleakBackend when reattached.
+- **MSG_STATUS heartbeats starve during audio streaming** (observed live).
+- **On-device VAD gate** — stream only speech segments (throughput/battery/privacy).
+- **OTA sender** (`brain/ota_push.py`) — protocol + anti-brick guard exist; no sender.
+- Ring on metal: R02 was advertising in scans; `ENABLE_RING` central path unverified.
+- Live Ollama llava vision test (T2.6); Android `:app` build still SDK-gated.
 
 ## Principles (unchanged)
 One brain, thin clients. Offline-first (every tool stubs without network/keys).
-Secrets never committed. KISS/DRY. Verify before claiming done.
+Secrets never committed. KISS/DRY. Verify before claiming done — on metal when it's metal.
