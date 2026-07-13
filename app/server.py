@@ -102,6 +102,11 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path)
         if p.path == "/" or p.path == "/index.html":
             return self._send(200, _load_html(), "text/html")
+        if p.path == "/health":
+            # liveness probe: the companion app's status pill + the web
+            # dashboard poll this. It never existed, so `configured` clients
+            # showed "offline" even when the brain was up. (bug found 2026-07-13)
+            return self._send(200, json.dumps({"ok": True}))
         if p.path == "/api/notes":
             notes = [n.to_dict() for n in pipeline.store.all()] if pipeline else []
             return self._send(200, json.dumps(notes))

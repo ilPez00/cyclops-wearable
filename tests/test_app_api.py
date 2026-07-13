@@ -57,6 +57,30 @@ def test_api_notes_and_ingest():
             srv.shutdown()
 
 
+def test_health_endpoint_exists():
+    # the app's status pill + web dashboard poll /health; it must be 200
+    with tempfile.TemporaryDirectory() as d:
+        srv, port = _start(os.path.join(d, "notes.jsonl"))
+        try:
+            st, body = _get(port, "/health")
+            assert st == 200 and body.get("ok") is True
+        finally:
+            srv.shutdown()
+
+
+def test_dashboard_html_served():
+    with tempfile.TemporaryDirectory() as d:
+        srv, port = _start(os.path.join(d, "notes.jsonl"))
+        try:
+            import urllib.request
+
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as r:
+                html = r.read().decode()
+            assert "CYCLOPS" in html and "/api/feed" in html
+        finally:
+            srv.shutdown()
+
+
 def test_api_status_reflects_brain_state():
     # HUD mirror polls /api/status; it used to 404 (HUD showed nothing).
     with tempfile.TemporaryDirectory() as d:
