@@ -15,7 +15,24 @@ android {
         versionName "0.1.0"
     }
 
+    signingConfigs {
+        // A committed debug key so every CI-built debug APK is signed with the
+        // SAME certificate — installs over the previous build without an
+        // uninstall (a fresh ephemeral debug key per CI run made every update
+        // an INSTALL_FAILED_UPDATE_INCOMPATIBLE). Debug keys are non-secret by
+        // design (well-known Android debug password), never used for release.
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
