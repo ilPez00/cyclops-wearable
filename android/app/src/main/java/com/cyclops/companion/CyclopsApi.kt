@@ -271,6 +271,55 @@ object CyclopsApi {
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
+    data class Entity(val name: String, val type: String, val seen: Int, val lastSeen: String)
+
+    fun entities(type: String, onResult: (List<Entity>) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val path = if (type.isEmpty()) "/api/entities" else "/api/entities?type=$type"
+            val arr = JSONArray(get(url(path)))
+            val out = mutableListOf<Entity>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(Entity(
+                    o.optString("name", ""), o.optString("type", "thing"),
+                    o.optInt("seen_count", 0), o.optString("last_seen", "")))
+            }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    data class Domain(
+        val domain: String, val count: Int, val avg: Double,
+        val pdca: String, val label: String
+    )
+
+    fun domains(onResult: (List<Domain>) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val arr = JSONArray(get(url("/api/domains")))
+            val out = mutableListOf<Domain>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(Domain(
+                    o.optString("domain", ""), o.optInt("count", 0), o.optDouble("avg", 0.0),
+                    o.optString("pdca", ""), o.optString("grade_label", "")))
+            }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun recordExperience(
+        domain: String, action: String, grade: Double, note: String,
+        onResult: () -> Unit, onError: (String) -> Unit
+    ) = thread {
+        try {
+            val body = JSONObject()
+                .put("domain", domain).put("action", action)
+                .put("grade", grade).put("note", note)
+            post(url("/api/experience"), body.toString())
+            onMain { onResult() }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
     // Response: { "agent": [ {text,target}, ... ], "user": [ ... ] }
     fun memory(onResult: (JSONArray, JSONArray) -> Unit, onError: (String) -> Unit) = thread {
         try {
