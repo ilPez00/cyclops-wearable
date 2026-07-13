@@ -7,6 +7,8 @@
         <item android:id="@+id/nav_memory" android:title="Memory" />
         <item android:id="@+id/nav_progress" android:title="Progress" />
         <item android:id="@+id/nav_entities" android:title="Entities" />
+        <item android:id="@+id/nav_dreams" android:title="Proposals" />
+        <item android:id="@+id/nav_cost" android:title="Usage &amp; cost" />
         <item android:id="@+id/nav_hud" android:title="HUD mirror" />
         <item android:id="@+id/nav_ring" android:title="Ring (health)" />
         <item android:id="@+id/nav_transcript" android:title="Transcript" />
