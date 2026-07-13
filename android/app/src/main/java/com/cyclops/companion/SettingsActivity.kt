@@ -116,6 +116,16 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // advanced per-tool overrides start collapsed
+        binding.hdrTools.setOnClickListener {
+            val show = binding.toolRows.visibility != android.view.View.VISIBLE
+            binding.toolRows.visibility =
+                if (show) android.view.View.VISIBLE else android.view.View.GONE
+            binding.hdrTools.text =
+                if (show) "▾ Per-tool model overrides (advanced)"
+                else "▸ Per-tool model overrides (advanced)"
+        }
+
         binding.btnSave.setOnClickListener { save(); finish() }
     }
 

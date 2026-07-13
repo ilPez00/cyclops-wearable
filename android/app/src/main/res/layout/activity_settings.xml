@@ -10,22 +10,33 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- One-line orientation so the screen isn't a wall of fields. -->
+        <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Only Connection is required — tap Find brain, or paste your server URL. Everything below is optional."
+            android:textSize="13sp"
+            android:textColor="@color/cyclops_secondary"
+            android:layout_marginBottom="4dp" />
+
         <TextView style="@style/SettingsHeader"
             android:id="@+id/hdrConnection"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Connection" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edUrl"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Brain server URL (http://host:8080)"
-            android:inputType="textUri" />
-
+        <!-- Find brain FIRST — it's the zero-typing path. -->
         <Button
+            style="@style/Widget.Cyclops.Button.Primary"
             android:id="@+id/btnFind"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:text="Find brain on this network"
             android:contentDescription="Auto-discover the brain server via LAN broadcast" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edUrl"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="…or paste the URL (http://host:8080)"
+            android:inputType="textUri" />
 
         <LinearLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -102,16 +113,24 @@
             android:hint="System note (extra instructions)"
             android:inputType="textMultiLine" android:minLines="2" />
 
-        <TextView style="@style/SettingsHeader"
+        <!-- Advanced per-tool overrides: 10 jargon fields most users never
+             touch. Collapsed behind a disclosure so Settings reads clean. -->
+        <TextView
             android:id="@+id/hdrTools"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Per-tool overrides (advanced)" />
+            android:padding="6dp"
+            android:layout_marginTop="14dp"
+            android:text="▸ Per-tool model overrides (advanced)"
+            android:textStyle="bold"
+            android:textColor="@color/cyclops_primary"
+            android:contentDescription="Show or hide per-tool provider and model overrides" />
 
         <!-- rows are added programmatically: one provider+model pair per tool -->
         <LinearLayout
             android:id="@+id/toolRows"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:orientation="vertical"
+            android:visibility="gone" />
 
         <Button
             style="@style/Widget.Cyclops.Button.Primary"

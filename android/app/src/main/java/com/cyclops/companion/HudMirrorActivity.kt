@@ -78,7 +78,7 @@ class HudMirrorActivity : AppCompatActivity() {
         setContentView(binding.root)
         binding.btnHudDemo.setOnClickListener {
             demo = !demo
-            binding.btnHudDemo.text = if (demo) "Live" else "Demo"
+            binding.btnHudDemo.text = if (demo) "Switch to Live" else "Switch to Demo"
             if (!demo) pollLive()
         }
         handler.post(tick)

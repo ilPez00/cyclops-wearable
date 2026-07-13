@@ -40,21 +40,57 @@
     android:orientation="vertical"
     android:padding="12dp">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/listNotes"
+    <!-- List + empty state share the flexible middle so the empty state is
+         CENTERED in the space, not stranded at the bottom (the old void). -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="8dp" />
+        android:layout_weight="1">
 
-    <TextView
-        android:id="@+id/txtEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/empty"
-        android:visibility="gone"
-        android:gravity="center"
-        android:textColor="@color/cyclops_secondary" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listNotes"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="8dp" />
+
+        <LinearLayout
+            android:id="@+id/emptyState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◎"
+                android:textSize="56sp"
+                android:textColor="@color/cyclops_primary" />
+
+            <TextView
+                android:id="@+id/txtEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="@string/empty"
+                android:textSize="15sp"
+                android:textColor="@color/cyclops_secondary" />
+
+            <Button
+                android:id="@+id/btnEmptyCta"
+                style="@style/Widget.Cyclops.Button.Primary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:paddingLeft="28dp"
+                android:paddingRight="28dp"
+                android:text="Connect brain server" />
+        </LinearLayout>
+    </FrameLayout>
 
     <!-- Dev tools (raw ingest/extract) are not the product surface: they made
          the home screen read like a debug panel. Collapsed by default. -->
@@ -104,73 +140,85 @@
         android:text="@string/extract" />
     </LinearLayout>
 
-    <!-- Primary interaction: ask the brain. Kept above the ask bar so the
-         answer + HUD banner sit directly over where you type. -->
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/editAsk"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/ask_hint" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Local model"
-            android:textColor="@color/cyclops_secondary" />
-        <Switch
-            android:id="@+id/swLocal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-        <!-- Transport is resolved automatically (cable > BLE > wifi); the
-             manual override lives in Settings for debugging. -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="link: auto"
-            android:textSize="12sp"
-            android:textColor="@color/cyclops_secondary" />
-    </LinearLayout>
-
-    <Button
-        style="@style/Widget.Cyclops.Button.Primary"
-        android:id="@+id/btnAsk"
-        android:contentDescription="Ask the brain"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/send" />
-
-    <!-- Glanceable HUD mirror: shows the banner the wearable glasses would display -->
-    <TextView
-        android:id="@+id/txtHud"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:padding="12dp"
-        android:background="@drawable/bg_hud_banner"
-        android:textColor="@color/cyclops_accent"
-        android:textStyle="bold"
-        android:textSize="13sp"
-        android:text="@string/hud_idle" />
-
+    <!-- The brain's answer appears above the composer where you typed. -->
     <TextView
         android:id="@+id/txtChat"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginBottom="8dp"
         android:padding="12dp"
         android:background="@drawable/bg_panel"
         android:textColor="@color/cyclops_on_surface"
         android:textIsSelectable="true"
         android:visibility="gone" />
+
+    <!-- Wearable HUD mirror line — hidden until the wearable actually pushes
+         a banner (it read as meaningless "HUD: ready" clutter otherwise). -->
+    <TextView
+        android:id="@+id/txtHud"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:padding="12dp"
+        android:background="@drawable/bg_hud_banner"
+        android:textColor="@color/cyclops_accent"
+        android:textStyle="bold"
+        android:textSize="13sp"
+        android:text="@string/hud_idle"
+        android:visibility="gone" />
+
+    <!-- Composer card: ask + Send grounded in one panel. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="@drawable/bg_panel">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editAsk"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/ask_hint" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Local model"
+                android:textSize="13sp"
+                android:textColor="@color/cyclops_secondary" />
+            <Switch
+                android:id="@+id/swLocal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+            <!-- Transport auto-resolves (cable > BLE > wifi); override in Settings. -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="link: auto"
+                android:textSize="12sp"
+                android:textColor="@color/cyclops_secondary" />
+        </LinearLayout>
+
+        <Button
+            style="@style/Widget.Cyclops.Button.Primary"
+            android:id="@+id/btnAsk"
+            android:contentDescription="Ask the brain"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/send" />
+    </LinearLayout>
 
   </LinearLayout>
   </LinearLayout>
