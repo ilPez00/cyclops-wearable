@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
         // only the settings dialog set it, so cold starts hit a fake default)
         CyclopsApi.load(this)
         binding.txtStatus.setOnClickListener { showSettings() }
+        binding.btnEmptyCta.setOnClickListener { showSettings() }
 
         // Hamburger nav drawer (chat / vision / memory / …) via the toolbar.
         setSupportActionBar(binding.toolbar)
@@ -103,7 +104,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnExtract.setOnClickListener {
             val t = binding.editExtract.text.toString().trim()
             if (t.isNotEmpty()) CyclopsApi.extract(t,
-                onResult = { adapter.setNotes(it); binding.txtEmpty.toggle(it.isEmpty()) },
+                onResult = { adapter.setNotes(it); binding.emptyState.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE },
                 onError = { toast(it) })
         }
         binding.btnAsk.setOnClickListener {
@@ -122,14 +123,14 @@ class MainActivity : AppCompatActivity() {
                         val stepTxt = if (steps.isEmpty()) "" else "\n• " + steps.joinToString("\n• ")
                         binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain ($calls tools): $reply$stepTxt"
-                        // glanceable banner the wearable would show (first line)
+                        // wearable HUD line — only show it when there IS one
+                        binding.txtHud.visibility = View.VISIBLE
                         binding.txtHud.text = "HUD: ${reply.split("\n").first().take(60)}"
                         binding.editAsk.text?.clear()
                     },
                     onError = {
                         binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain: (unavailable) $it"
-                        binding.txtHud.text = "HUD: error"
                     })
             }
         }
@@ -164,11 +165,11 @@ class MainActivity : AppCompatActivity() {
         CyclopsApi.notes(
             onResult = {
                 adapter.setNotes(it)
-                binding.txtEmpty.visibility = if (it.isEmpty()) TextView.VISIBLE else TextView.GONE
+                binding.emptyState.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
             },
             // no toast here: the pill already shows offline/not-configured; a
             // toast per background call was pure spam on a fresh install
-            onError = { binding.txtEmpty.visibility = TextView.VISIBLE }
+            onError = { binding.emptyState.visibility = View.VISIBLE }
         )
     }
 
