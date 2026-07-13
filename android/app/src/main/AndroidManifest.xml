@@ -52,6 +52,14 @@
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
+            android:name=".CostActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".DreamsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
             android:name=".EntitiesActivity"
             android:exported="false"
             android:screenOrientation="portrait" />

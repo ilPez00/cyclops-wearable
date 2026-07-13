@@ -59,6 +59,8 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_memory -> startActivity(Intent(this, MemoryActivity::class.java))
                 R.id.nav_progress -> startActivity(Intent(this, ExperiencesActivity::class.java))
                 R.id.nav_entities -> startActivity(Intent(this, EntitiesActivity::class.java))
+                R.id.nav_dreams -> startActivity(Intent(this, DreamsActivity::class.java))
+                R.id.nav_cost -> startActivity(Intent(this, CostActivity::class.java))
                 R.id.nav_hud -> startActivity(Intent(this, HudMirrorActivity::class.java))
                 R.id.nav_ring -> startActivity(Intent(this, RingActivity::class.java))
                 R.id.nav_transcript -> startActivity(Intent(this, TranscriptActivity::class.java))

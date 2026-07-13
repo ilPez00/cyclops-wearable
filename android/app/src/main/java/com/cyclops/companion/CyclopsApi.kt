@@ -320,6 +320,50 @@ object CyclopsApi {
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
+
+    data class CostRow(val provider: String, val calls: Int, val inTok: Int, val outTok: Int, val usd: Double)
+    data class CostSummary(val rows: List<CostRow>, val totalUsd: Double, val totalCalls: Int)
+
+    fun cost(onResult: (CostSummary) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val o = JSONObject(get(url("/api/cost")))
+            val provs = o.optJSONObject("providers") ?: JSONObject()
+            val rows = mutableListOf<CostRow>()
+            for (k in provs.keys()) {
+                val p = provs.getJSONObject(k)
+                rows.add(CostRow(k, p.optInt("calls", 0), p.optInt("in", 0),
+                    p.optInt("out", 0), p.optDouble("usd", 0.0)))
+            }
+            val t = o.optJSONObject("total") ?: JSONObject()
+            onMain { onResult(CostSummary(rows, t.optDouble("usd", 0.0), t.optInt("calls", 0))) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    data class Dream(val id: String, val kind: String, val message: String, val ts: String)
+
+    fun dreams(onResult: (List<Dream>) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val arr = JSONArray(get(url("/api/dreams")))
+            val out = mutableListOf<Dream>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(Dream(o.optString("id", ""), o.optString("kind", "insight"),
+                    o.optString("message", ""), o.optString("ts", "")))
+            }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun dismissDream(id: String, onResult: () -> Unit, onError: (String) -> Unit) = thread {
+        try { post(url("/api/dream/dismiss"), JSONObject().put("id", id).toString()); onMain { onResult() } }
+        catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun reviewDreams(onResult: () -> Unit, onError: (String) -> Unit) = thread {
+        try { post(url("/api/dream/review"), "{}"); onMain { onResult() } }
+        catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
     // Response: { "agent": [ {text,target}, ... ], "user": [ ... ] }
     fun memory(onResult: (JSONArray, JSONArray) -> Unit, onError: (String) -> Unit) = thread {
         try {
