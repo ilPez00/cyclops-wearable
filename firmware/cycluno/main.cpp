@@ -1,17 +1,23 @@
 // CyclUno — Cyclops dev unit on an Arduino Uno.
 //
-// Hardware:
+// Hardware (revised bench build — NO encoder, NO LEDs):
 //   OLED SSD1306 128x32 or 128x64, I2C (A4=SDA A5=SCL, addr 0x3C)
-//   rotary encoder A=D2 B=D3 (both interrupt pins), push button on D4
-//   button B on D5 (menu/back)
-//   REC LED on D6, link LED on D7 (lit while frames arrive)
+//   2 joysticks (analog, active-low push):
+//       J1  VRx=A0  VRy=A1  SW=D2   (primary nav: scroll + select)
+//       J2  VRx=A2  VRy=A3  SW=D3   (secondary: back / menu)
+//   4 buttons (active-low, internal pullup):
+//       B1=D4  select / REC toggle   (same as J1 push)
+//       B2=D5  menu / back           (same as J2 push)
+//       B3=D6  ask agent
+//       B4=D7  home
+//   No physical LEDs — REC / link state is shown on the OLED only.
 //
 // Link: USB serial @115200 speaking the shared v2 framing — the same frames
 // the XIAO speaks over BLE, so the whole brain pipeline is reused unchanged.
 // The brain side is device/transport.py CableTransport (or demo_cycluno.py
 // feeding prerecorded fixtures).
 //
-// RAM: UnoHud is 160 B (host-gated < 400), FrameDecoder 262 B, SSD1306Ascii
+// RAM: UnoHud is ~160 B (host-gated < 400), FrameDecoder 262 B, SSD1306Ascii
 // is text-mode (no framebuffer) — comfortably inside the ATmega328P's 2 KB.
 #include <Arduino.h>
 #include <Wire.h>
@@ -20,12 +26,17 @@
 #include "cyclops_shared.h"
 #include "cycluno.h"
 
-#define PIN_WHEEL_A 2
-#define PIN_WHEEL_B 3
-#define PIN_BTN_A 4
-#define PIN_BTN_B 5
-#define PIN_LED_REC 6
-#define PIN_LED_LINK 7
+// ---- pin map (revised: 2 joysticks + 4 buttons, no encoder/LEDs) ----
+#define PIN_J1_X  A0
+#define PIN_J1_Y  A1
+#define PIN_J1_SW 2
+#define PIN_J2_X  A2
+#define PIN_J2_Y  A3
+#define PIN_J2_SW 3
+#define PIN_B1    4
+#define PIN_B2    5
+#define PIN_B3    6
+#define PIN_B4    7
 #define OLED_ADDR 0x3C
 
 static SSD1306AsciiWire oled;
@@ -61,15 +72,19 @@ static void on_frame(uint8_t type, const uint8_t* p, size_t n, void*) {
 }
 
 // ---- input ------------------------------------------------------------
-volatile int8_t wheel_delta = 0;
-static void wheel_isr() {
-    static uint8_t last = 0;
-    uint8_t a = digitalRead(PIN_WHEEL_A);
-    uint8_t b = digitalRead(PIN_WHEEL_B);
-    if (a != last) { wheel_delta += (a == b) ? 1 : -1; last = a; }
+// Joystick axis -> single step with a center-lock (no auto-repeat while held).
+static int8_t joy_step(uint8_t pin, int8_t& state, int lo = 324, int hi = 700) {
+    int v = analogRead(pin);
+    if (state == 0) {
+        if (v > hi) { state = 1;  return 1; }
+        if (v < lo) { state = -1; return -1; }
+    } else if (v >= lo && v <= hi) {
+        state = 0;  // returned to center -> unlock
+    }
+    return 0;
 }
 
-// debounced active-low buttons
+// debounced active-low buttons (edge = one press)
 static bool pressed(uint8_t pin, uint8_t& state) {
     bool low = digitalRead(pin) == LOW;
     if (low && state == 0) { state = 1; return true; }
@@ -77,7 +92,7 @@ static bool pressed(uint8_t pin, uint8_t& state) {
     return false;
 }
 
-// ---- render sink -------------------------------------------------------
+// ---- render sink ------------------------------------------------------
 struct OledSink : cycluno::RowSink {
     void row(uint8_t idx, const char* text) override {
         oled.setCursor(0, idx);   // one text row per display row
@@ -87,8 +102,6 @@ struct OledSink : cycluno::RowSink {
 };
 static OledSink sink;
 
-static void rec_led(bool on) { digitalWrite(PIN_LED_REC, on ? HIGH : LOW); }
-
 void setup() {
     Serial.begin(115200);
     Wire.begin();
@@ -97,16 +110,17 @@ void setup() {
     oled.setFont(System5x7);
     oled.clear();
 
-    pinMode(PIN_WHEEL_A, INPUT_PULLUP);
-    pinMode(PIN_WHEEL_B, INPUT_PULLUP);
-    pinMode(PIN_BTN_A, INPUT_PULLUP);
-    pinMode(PIN_BTN_B, INPUT_PULLUP);
-    pinMode(PIN_LED_REC, OUTPUT);
-    pinMode(PIN_LED_LINK, OUTPUT);
-    attachInterrupt(digitalPinToInterrupt(PIN_WHEEL_A), wheel_isr, CHANGE);
+    // joystick pushes + 4 buttons: all active-low with internal pullups
+    pinMode(PIN_J1_SW, INPUT_PULLUP);
+    pinMode(PIN_J2_SW, INPUT_PULLUP);
+    pinMode(PIN_B1, INPUT_PULLUP);
+    pinMode(PIN_B2, INPUT_PULLUP);
+    pinMode(PIN_B3, INPUT_PULLUP);
+    pinMode(PIN_B4, INPUT_PULLUP);
+    // analog joystick axes need no pinMode (ADC)
 
     hud.send_cmd = send_cmd;
-    hud.on_rec_led = rec_led;
+    hud.on_rec_led = nullptr;   // no physical REC LED on this build
     hud.init();
     hud.render(sink);
 }
@@ -115,19 +129,26 @@ void loop() {
     // serial in -> decoder -> hud
     while (Serial.available()) dec.push((uint8_t)Serial.read());
 
-    // inputs
-    if (wheel_delta != 0) {
-        int8_t d; noInterrupts(); d = wheel_delta; wheel_delta = 0; interrupts();
-        hud.on_wheel(d > 0 ? 1 : -1);
-    }
-    static uint8_t stA = 0, stB = 0;
-    if (pressed(PIN_BTN_A, stA)) hud.on_btn_a();
-    if (pressed(PIN_BTN_B, stB)) hud.on_btn_b();
+    // joystick Y axes -> scroll (center-locked single steps)
+    static int8_t j1y = 0, j2y = 0;
+    int8_t d = 0;
+    d += joy_step(PIN_J1_Y, j1y);
+    d += joy_step(PIN_J2_Y, j2y);
+    if (d) hud.on_wheel(d > 0 ? 1 : -1);
 
-    // link LED: lit while frames arrived within the last 2 s
-    digitalWrite(PIN_LED_LINK, (millis() - last_rx_ms < 2000) ? HIGH : LOW);
+    // joystick pushes
+    static uint8_t sj1 = 0, sj2 = 0;
+    if (pressed(PIN_J1_SW, sj1)) hud.on_btn_a();   // select / REC
+    if (pressed(PIN_J2_SW, sj2)) hud.on_btn_b();   // menu / back
 
-    // 1 Hz: toast decay + status frame out
+    // 4 buttons
+    static uint8_t sb1 = 0, sb2 = 0, sb3 = 0, sb4 = 0;
+    if (pressed(PIN_B1, sb1)) hud.on_btn_a();
+    if (pressed(PIN_B2, sb2)) hud.on_btn_b();
+    if (pressed(PIN_B3, sb3)) { send_cmd(cycluno::ACT_AGENT); hud.toast("agent…"); }
+    if (pressed(PIN_B4, sb4)) hud.go_home();
+
+    // 1 Hz: toast decay + status frame out (link state implied by OLED updates)
     static unsigned long last_tick = 0;
     bool dirty = false;
     if (millis() - last_tick >= 1000) {
@@ -140,7 +161,7 @@ void loop() {
 
     // redraw on any input or decayed toast
     static unsigned long last_draw = 0;
-    if ((dirty || wheel_delta || millis() - last_draw > 250)) {
+    if ((dirty || d || millis() - last_draw > 250)) {
         hud.render(sink);
         last_draw = millis();
     }

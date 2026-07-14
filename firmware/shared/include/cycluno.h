@@ -83,6 +83,12 @@ public:
         dirty_ = true;
     }
 
+    // Force return to HOME (used by the dedicated Home button on the
+    // joystick/button bench build).
+    void go_home() {
+        if (mode_ != HOME) { mode_ = HOME; dirty_ = true; }
+    }
+
     // ---- data in --------------------------------------------------------
     void add_note(const char* text) {
         // ring buffer: newest first, oldest dropped

@@ -40,44 +40,55 @@ def rgb(t): return C.get(t, C["blk"])
 VARIANTS = [
  {
   "tag":"V1", "title":"CyclUno — Arduino Uno dev unit",
-  "sub":"I2C SSD1306 128x32 (blue board) · scrollwheel + 2 buttons + REC/Link LEDs",
+  "sub":"I2C SSD1306 128x32 (blue board) · 2 joysticks + 4 buttons · NO encoder/LEDs",
   "mcu":"Arduino Uno / Nano (ATmega328)",
   "mcu_pins":[
     ("A4","OLED SDA (I2C)","i2c"),
     ("A5","OLED SCL (I2C)","i2c"),
-    ("5V","OLED + encoder VCC","pwr"),
-    ("GND","OLED + buttons + LED GND","gnd"),
-    ("D2","Encoder A (INT0)","in"),
-    ("D3","Encoder B (INT1)","in"),
-    ("D4","Encoder push = BTN_A (pullup)","in"),
-    ("D5","BTN_B (pullup)","in"),
-    ("D6","REC LED (-> 220R -> GND)","led"),
-    ("D7","Link LED (-> 220R -> GND)","led"),
+    ("5V","OLED VCC","pwr"),
+    ("GND","OLED + buttons + joystick GND","gnd"),
+    ("A0","J1 VRx (scroll X, analog)","in"),
+    ("A1","J1 VRy (scroll Y, analog)","in"),
+    ("D2","J1 push = BTN_A (select/REC)","in"),
+    ("A2","J2 VRx (analog)","in"),
+    ("A3","J2 VRy (analog)","in"),
+    ("D3","J2 push = BTN_B (menu/back)","in"),
+    ("D4","BTN_B1 (select/REC)","in"),
+    ("D5","BTN_B2 (menu/back)","in"),
+    ("D6","BTN_B3 (ask agent)","in"),
+    ("D7","BTN_B4 (home)","in"),
     ("USB","Serial -> brain @115200","pwr"),
   ],
   "comps":{
-    "OLED SSD1306 128x32\n(I2C, blue board, 0x3C)":{
+    "OLED SSD1306 128x32\\n(I2C, blue board, 0x3C)":{
       "xy":(640,150),
       "pins":[("VCC","5V","pwr",""),("GND","GND","gnd",""),("SDA","A4","i2c",""),("SCL","A5","i2c","")]},
-    "Rotary encoder\n(scrollwheel)":{
+    "Joystick 1\\n(primary nav)":{
       "xy":(640,430),
-      "pins":[("+","5V","pwr",""),("GND","GND","gnd",""),("A","D2","in",""),("B","D3","in",""),("SW","D4","in","push = BTN_A")]},
-    "Button B\n(menu / back)":{
-      "xy":(640,690),
-      "pins":[("SIG","D5","in",""),("GND","GND","gnd","pullup on")]},
-    "REC LED":{
+      "pins":[("VRx","A0","in","analog"),("VRy","A1","in","scroll Y / analog"),("SW","D2","in","push = BTN_A"),("+","5V","pwr",""),("GND","GND","gnd","")]},
+    "Joystick 2\\n(secondary)":{
+      "xy":(640,650),
+      "pins":[("VRx","A2","in","analog"),("VRy","A3","in","analog"),("SW","D3","in","push = BTN_B"),("+","5V","pwr",""),("GND","GND","gnd","")]},
+    "Button B1\\n(select / REC)":{
       "xy":(640,840),
-      "pins":[("+","D6","led","anode"),("K","GND","gnd","via 220R")]},
-    "Link LED":{
-      "xy":(640,960),
-      "pins":[("+","D7","led","anode"),("K","GND","gnd","via 220R")]},
+      "pins":[("SIG","D4","in","active-low"),("GND","GND","gnd","pullup on")]},
+    "Button B2\\n(menu / back)":{
+      "xy":(640,940),
+      "pins":[("SIG","D5","in","active-low"),("GND","GND","gnd","pullup on")]},
+    "Button B3\\n(ask agent)":{
+      "xy":(640,1030),
+      "pins":[("SIG","D6","in","active-low"),("GND","GND","gnd","pullup on")]},
+    "Button B4\\n(home)":{
+      "xy":(640,1110),
+      "pins":[("SIG","D7","in","active-low"),("GND","GND","gnd","pullup on")]},
   },
-  "build":"pio run -e cycluno            # compile (~35% flash)\n"
-          "pio run -e cycluno -t upload  # flash (auto-detect port)\n"
+  "build":"pio run -e cycluno            # compile (~34% flash)\\n"
+          "pio run -e cycluno -t upload  # flash (auto-detect port)\\n"
           "python3 demo_cycluno.py       # wired brain demo",
-  "notes":"No WiFi/BT: USB serial stands in for the radio. Same v2 frame protocol as XIAO.\n"
-          "Wheel scrolls notes/menu · A = REC toggle/select · B = menu/back.\n"
-          "Link LED lit while frames arrive; REC LED mirrors recording state.",
+  "notes":"NO rotary encoder / NO LEDs on this build — scroll is the joystick Y axis, select/back\n"
+          "are the joystick pushes (or the matching buttons). REC/link state shows on the OLED only.\n"
+          "Joysticks: center-locked single step (hold = one move). Same v2 frame protocol as XIAO.\n"
+          "J1 = primary nav (scroll + select), J2 = secondary (back/menu). B1..B4 mirror J1/J2 + agent/home.",
  },
  {
   "tag":"V2", "title":"Arduino Uno/Nano dev HUD",
