@@ -1,6 +1,48 @@
 <resources>
+    <!-- One dark theme, tokens from colors.xml. Buttons default to the quiet
+         tonal style; the single primary action per screen opts into
+         Widget.Cyclops.Button.Primary. This kills the wall-of-cyan look. -->
     <style name="Theme.Cyclops" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">#00E5FF</item>
-        <item name="android:statusBarColor">#001015</item>
+        <item name="colorPrimary">@color/cyclops_primary</item>
+        <item name="colorOnPrimary">#001318</item>
+        <item name="colorSurface">@color/cyclops_surface</item>
+        <item name="colorOnSurface">@color/cyclops_on_surface</item>
+        <item name="colorSurfaceVariant">@color/cyclops_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/cyclops_secondary</item>
+        <item name="colorError">@color/cyclops_error</item>
+        <item name="android:windowBackground">@color/cyclops_surface</item>
+        <item name="android:statusBarColor">@color/cyclops_surface</item>
+        <item name="materialButtonStyle">@style/Widget.Cyclops.Button</item>
+        <item name="android:textColorHint">@color/cyclops_secondary</item>
+    </style>
+
+    <!-- Quiet default: dark tonal chip-like button, cyan text, no shouting. -->
+    <style name="Widget.Cyclops.Button" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/cyclops_surface_variant</item>
+        <item name="android:textColor">@color/cyclops_primary</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:insetTop">3dp</item>
+        <item name="android:insetBottom">3dp</item>
+    </style>
+
+    <!-- The ONE main action per screen (Send / Save / Connect ring). -->
+    <style name="Widget.Cyclops.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/cyclops_primary</item>
+        <item name="android:textColor">#001318</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">14dp</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Section header inside the settings screen. -->
+    <style name="SettingsHeader">
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/cyclops_primary</item>
+        <item name="android:paddingTop">20dp</item>
+        <item name="android:paddingBottom">6dp</item>
     </style>
 </resources>

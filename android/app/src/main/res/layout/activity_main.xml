@@ -5,6 +5,7 @@
     android:orientation="vertical"
     android:padding="12dp">
 
+    <!-- Title row: app name + connection status pill (tap = settings). -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -23,6 +24,30 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/txtStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="●"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#9E9E9E"
+            android:contentDescription="Brain connection status — tap for settings" />
+    </LinearLayout>
+
+    <!-- Nav buttons overflowed off-screen as a fixed row; let them scroll. -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <Button
             android:id="@+id/btnSettings"
@@ -73,6 +98,7 @@
             android:layout_height="wrap_content"
             android:text="@string/refresh" />
     </LinearLayout>
+    </HorizontalScrollView>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/listNotes"
@@ -89,6 +115,25 @@
         android:visibility="gone"
         android:gravity="center"
         android:textColor="@color/cyclops_secondary" />
+
+    <!-- Dev tools (raw ingest/extract) are not the product surface: they made
+         the home screen read like a debug panel. Collapsed by default. -->
+    <TextView
+        android:id="@+id/btnDevToggle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="6dp"
+        android:text="▸ Dev tools"
+        android:textSize="12sp"
+        android:textColor="@color/cyclops_secondary"
+        android:contentDescription="Show or hide raw ingest and extract fields" />
+
+    <LinearLayout
+        android:id="@+id/devPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
 
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/editIngest"
@@ -117,7 +162,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/extract" />
+    </LinearLayout>
 
+    <!-- Primary interaction: ask the brain. Kept above the ask bar so the
+         answer + HUD banner sit directly over where you type. -->
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/editAsk"
         android:layout_width="match_parent"
@@ -154,6 +202,7 @@
     </LinearLayout>
 
     <Button
+        style="@style/Widget.Cyclops.Button.Primary"
         android:id="@+id/btnAsk"
         android:contentDescription="Ask the brain"
         android:layout_width="match_parent"
@@ -166,8 +215,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:padding="8dp"
-        android:background="#0A2A33"
+        android:padding="12dp"
+        android:background="@drawable/bg_hud_banner"
         android:textColor="#7CFFB2"
         android:textStyle="bold"
         android:textSize="13sp"
@@ -177,8 +226,11 @@
         android:id="@+id/txtChat"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="#00E5FF"
-        android:textIsSelectable="true" />
+        android:layout_marginTop="6dp"
+        android:padding="12dp"
+        android:background="@drawable/bg_panel"
+        android:textColor="@color/cyclops_on_surface"
+        android:textIsSelectable="true"
+        android:visibility="gone" />
 
 </LinearLayout>

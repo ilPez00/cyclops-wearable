@@ -19,12 +19,17 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="stateHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".RingActivity"
             android:exported="false"
@@ -42,6 +47,14 @@
             android:name=".TranscriptActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
+
+        <!-- BLE hub: pumps wearable frames into HudBridge, forwards
+             display frames back to the device. Started by the app
+             with EXTRA_MAC once BLUETOOTH_CONNECT is granted. -->
+        <service
+            android:name=".CyclopsService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <activity
             android:name=".MemoryActivity"

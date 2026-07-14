@@ -18,7 +18,8 @@
             android:textColor="#00E5FF" />
 
         <Button
-            android:id="@+id/btnRingConnect"
+            style="@style/Widget.Cyclops.Button.Primary"
+        android:id="@+id/btnRingConnect"
         android:contentDescription="Connect COLMI ring"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

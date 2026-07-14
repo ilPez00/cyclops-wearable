@@ -73,8 +73,44 @@ def test_persist_offline_safe_on_error():
     print("OK agent error path is offline-safe")
 
 
+def test_append_respects_max_cards():
+    d = tempfile.mkdtemp()
+    cfg = AgentConfig(memory_root=d, memory_max_cards=5)
+    ms = MemoryStore(cfg)
+    for i in range(12):
+        ms.append(f"note {i}", target="agent")
+    c = ms.counts()
+    assert c["agent"] == 5, f"expected 5 cards, got {c['agent']}"
+    # oldest (note 0..6) evicted; newest 5 (note 7..11) remain
+    rec = ms.read(target="agent")
+    assert "note 11" in rec and "note 7" in rec
+    assert "note 0" not in rec and "note 6" not in rec
+    # indexing still 0-based over remaining cards
+    assert ms.list(target="agent")[0].text == "note 7"
+    print("OK append FIFO-evicts oldest past max_cards")
+
+
+def test_append_dedup_skips_duplicate():
+    d = tempfile.mkdtemp()
+    cfg = AgentConfig(memory_root=d, memory_dedup=True)
+    ms = MemoryStore(cfg)
+    i1 = ms.append("same fact", target="user")
+    i2 = ms.append("same fact", target="user")  # identical -> not re-added
+    assert i1 == i2, "duplicate should return same index"
+    assert ms.counts()["user"] == 1, "duplicate card must not accumulate"
+    # disabling dedup allows the repeat
+    cfg2 = AgentConfig(memory_root=d, memory_dedup=False)
+    ms2 = MemoryStore(cfg2)
+    ms2.append("x")
+    ms2.append("x")
+    assert ms2.counts()["agent"] == 2
+    print("OK append dedups identical cards when enabled")
+
+
 if __name__ == "__main__":
     test_memory_recall()
     test_agent_persists_across_runs()
     test_persist_offline_safe_on_error()
+    test_append_respects_max_cards()
+    test_append_dedup_skips_duplicate()
     print("PASS tests/test_agent_memory.py")

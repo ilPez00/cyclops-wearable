@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 # Shared with firmware/xiao (NimBLE UUIDs) and Android CyclopsService.
 SRVC_UUID = os.environ.get("CYCLOPS_BLE_SRVC", "4fafc201-1fb5-459e-8fcc-c5c9c331914b")
@@ -69,6 +70,131 @@ class FakeBleBackend(BleBackend):
         self.connected = False
 
 
+class FlakyBleBackend(BleBackend):
+    """Test backend: fails the first `failures` connect() calls, then succeeds.
+
+    Used to exercise BleLink reconnect/backoff without real hardware.
+    """
+
+    def __init__(self, failures=1):
+        self.failures = failures
+        self.attempts = 0
+        self.on_bytes = None
+        self.connected = False
+        self.written = []
+
+    def connect(self, on_bytes, timeout=20):
+        self.attempts += 1
+        if self.attempts <= self.failures:
+            raise RuntimeError("simulated connect failure")
+        self.on_bytes = on_bytes
+        self.connected = True
+        return True
+
+    def write(self, data: bytes):
+        assert self.connected, "write before connect"
+        self.written.append(bytes(data))
+        return len(data)
+
+    def push(self, data: bytes):
+        assert self.on_bytes is not None, "not connected"
+        self.on_bytes(bytes(data))
+
+    def disconnect(self):
+        self.connected = False
+
+
+class BleakBackend(BleBackend):
+    """Real GATT central via `bleak` (import-safe: bleak loads on connect()).
+
+    Runs the asyncio BLE client on a daemon thread and bridges it to the
+    synchronous BleBackend interface BleLink expects. Writes are marshalled
+    onto the client's event loop; notifications call ``on_bytes`` from the
+    BLE thread (single producer, so the Decoder sees ordered bytes).
+    Verified live against the XIAO firmware on 2026-07-12.
+    """
+
+    def __init__(self, name=DEVICE_NAME, address="", srvc=SRVC_UUID, note=NOTE_UUID):
+        self.name = name
+        self.address = address
+        self.srvc = srvc
+        self.note = note
+        self.connected = False
+        self.on_bytes = None
+        self._loop = None
+        self._client = None
+        self._thread = None
+
+    def connect(self, on_bytes, timeout=20):
+        import asyncio
+        import threading
+
+        try:
+            from bleak import BleakClient, BleakScanner
+        except Exception as e:  # pragma: no cover - import guard
+            raise RuntimeError("bleak not installed: `pip install bleak`") from e
+
+        self.on_bytes = on_bytes
+        ready = threading.Event()
+        err: list[Exception] = []
+
+        async def _run():
+            try:
+                target = self.address
+                if not target:
+                    dev = await BleakScanner.find_device_by_name(
+                        self.name, timeout=timeout
+                    )
+                    if dev is None:
+                        raise RuntimeError(f"BLE device {self.name!r} not found")
+                    target = dev
+                self._client = BleakClient(target)
+                await self._client.connect()
+                await self._client.start_notify(
+                    self.note, lambda _, d: self.on_bytes and self.on_bytes(bytes(d))
+                )
+                self.connected = True
+                ready.set()
+                while self.connected:
+                    await asyncio.sleep(0.05)
+                await self._client.stop_notify(self.note)
+                await self._client.disconnect()
+            except Exception as e:
+                err.append(e)
+                ready.set()
+
+        def _thread_main():
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._loop.run_until_complete(_run())
+
+        self._thread = threading.Thread(
+            target=_thread_main, name="cyclops-ble", daemon=True
+        )
+        self._thread.start()
+        if not ready.wait(timeout=timeout + 5) or err:
+            self.connected = False
+            raise err[0] if err else RuntimeError("BLE connect timed out")
+        return True
+
+    def write(self, data: bytes):
+        import asyncio
+
+        if not (self.connected and self._client and self._loop):
+            raise RuntimeError("write before connect")
+        fut = asyncio.run_coroutine_threadsafe(
+            self._client.write_gatt_char(self.note, bytes(data), response=False),
+            self._loop,
+        )
+        fut.result(timeout=10)
+        return len(data)
+
+    def disconnect(self):
+        self.connected = False  # signals the loop to unwind + disconnect
+        if self._thread:
+            self._thread.join(timeout=5)
+
+
 class BleLink:
     """GATT-central link: pairs, subscribes to NOTIFY, decodes v2 wire frames
     (``AA 55 <len> <typ><payload> <crc>`` — see ``brain.protocol``) and dispatches
@@ -98,11 +224,35 @@ class BleLink:
 
         self._decoder = Decoder(self._on_frame)
 
-    def connect(self):
-        self.backend.connect(on_bytes=self._on_bytes, timeout=self.timeout)
-        self.connected = True
-        self.paired = True
-        return self
+    def connect(self, retries: int = 3, backoff: float = 0.5):
+        """Establish the link, retrying with exponential backoff.
+
+        A dropped/late-advertising peripheral would otherwise leave the link
+        dead on the first failure. Retries up to `retries` times, sleeping
+        backoff*2**i between attempts (capped at 8s) so a flaky radio self-heals
+        instead of requiring a process restart. Raises after exhausting retries.
+        """
+        self.connected = False
+        self.paired = False
+        delay = backoff
+        last_err: Exception | None = None
+        for attempt in range(1, retries + 1):
+            try:
+                self.backend.connect(on_bytes=self._on_bytes, timeout=self.timeout)
+                self.connected = True
+                self.paired = True
+                return self
+            except Exception as err:  # radio not ready / adapter busy
+                last_err = err
+                if attempt < retries:
+                    time.sleep(min(delay, 8.0))
+                    delay *= 2
+        raise RuntimeError(f"BLE connect failed after {retries} tries: {last_err}")
+
+    def reconnect(self, retries: int = 3, backoff: float = 0.5):
+        """Re-establish a dropped link (idempotent: safe to call when up)."""
+        self.close()
+        return self.connect(retries=retries, backoff=backoff)
 
     def _on_bytes(self, chunk: bytes):
         # Streaming v2 decode — robust to fragmentation/interleaving.
@@ -193,6 +343,8 @@ class BleTransport:
 __all__ = [
     "BleBackend",
     "FakeBleBackend",
+    "FlakyBleBackend",
+    "BleakBackend",
     "BleLink",
     "BleTransport",
     "SRVC_UUID",

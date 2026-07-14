@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView style="@style/SettingsHeader"
+            android:id="@+id/hdrConnection"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Connection" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edUrl"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Brain server URL (http://host:8080)"
+            android:inputType="textUri" />
+
+        <Button
+            android:id="@+id/btnFind"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Find brain on this network"
+            android:contentDescription="Auto-discover the brain server via LAN broadcast" />
+
+        <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+            <TextView
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Transport to wearable"
+                android:textColor="#ccc" />
+            <Spinner
+                android:id="@+id/spTransport"
+                android:layout_width="wrap_content" android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <TextView style="@style/SettingsHeader"
+            android:id="@+id/hdrModel"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Model" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edLocalEndpoint"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Local model endpoint (http://127.0.0.1:11434/v1)"
+            android:inputType="textUri" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edProvider"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Cloud provider (openai / groq / openrouter / …)" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edApiKey"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="API key (stored on device only)"
+            android:inputType="textPassword" />
+
+        <TextView style="@style/SettingsHeader"
+            android:id="@+id/hdrPersona"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Persona" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edPersonaName"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Name (how the agent identifies)" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edPersonaVoice"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Voice (terse / friendly / formal / …)" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edPersonaBio"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Bio (who it is, role, constraints)"
+            android:inputType="textMultiLine" android:minLines="2" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edPersonaNote"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="System note (extra instructions)"
+            android:inputType="textMultiLine" android:minLines="2" />
+
+        <TextView style="@style/SettingsHeader"
+            android:id="@+id/hdrTools"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Per-tool overrides (advanced)" />
+
+        <!-- rows are added programmatically: one provider+model pair per tool -->
+        <LinearLayout
+            android:id="@+id/toolRows"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <Button
+            style="@style/Widget.Cyclops.Button.Primary"
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Save"
+            android:contentDescription="Save settings and push profile to the brain" />
+    </LinearLayout>
+</ScrollView>

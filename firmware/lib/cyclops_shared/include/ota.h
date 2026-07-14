@@ -42,6 +42,7 @@ enum OtaStatus : uint8_t {
     OTA_SIZE_MISMATCH = 5, // end: bytes received != announced size
     OTA_CRC_MISMATCH  = 6, // end: computed CRC32 != announced CRC32
     OTA_FLASH_ERR   = 7,   // an injected sink reported failure
+    OTA_TOO_BIG     = 8,   // announced size exceeds the device safe limit
 };
 
 // Parameters parsed from MSG_OTA_BEGIN. Kept binary (little-endian) so the
@@ -80,7 +81,13 @@ struct OtaSink {
 // sequential starting at seq 0. Not thread-safe (drive it from the BLE cb).
 class OtaReceiver {
 public:
-    explicit OtaReceiver(const OtaSink& sink) : sink_(sink) {}
+    // max_size: hard ceiling on an announced image (bytes). A BEGIN larger
+    // than this is rejected before any sink erases/writes, so a malformed or
+    // attacker-controlled announcement cannot trigger a destructive erase of
+    // the wrong partition. Default 2 MiB fits the XIAO app partition.
+    explicit OtaReceiver(const OtaSink& sink, uint32_t max_size = 2u*1024*1024)
+        : sink_(sink), max_size_(max_size) {}
+    void set_max_size(uint32_t m) { max_size_ = m; }
 
     bool active() const { return active_; }
     uint32_t received() const { return got_; }
@@ -92,6 +99,8 @@ public:
         if (active_) return OTA_BUSY;
         OtaBegin b;
         if (!b.parse(p, n)) return OTA_SIZE_MISMATCH;
+        if (b.size == 0) return OTA_SIZE_MISMATCH;       // empty image
+        if (b.size > max_size_) return OTA_TOO_BIG;       // would brick/over-erase
         begin_ = b;
         got_ = 0; next_seq_ = 0; crc_ = 0xFFFFFFFFu;
         if (sink_.begin && !sink_.begin(b.size, sink_.ctx)) return OTA_FLASH_ERR;
@@ -142,6 +151,7 @@ public:
 
 private:
     OtaSink sink_;
+    uint32_t max_size_ = 2u*1024*1024;
     OtaBegin begin_;
     bool active_ = false;
     uint32_t got_ = 0;

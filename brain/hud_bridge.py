@@ -86,6 +86,7 @@ class HudBridge:
         self._audio_buf = bytearray()
         self._audio_rate = 16000
         self._audio_bits = 16
+        self._audio_codec = 0  # AUDIO_CODEC_PCM16; META byte[5] switches it
         self.last_gesture = None
 
     def _emit_text(self, text):
@@ -182,14 +183,27 @@ class HudBridge:
         return g["name"]
 
     def handle_audio(self, typ, payload):
-        """Accumulate PCM from the device; transcribe on STOP."""
+        """Accumulate audio from the device; transcribe on STOP.
+
+        META byte[5] announces the codec (0=PCM16 raw, 1=IMA ADPCM — see
+        brain/adpcm.py / firmware adpcm.h). ADPCM chunks are self-contained,
+        so each is decoded to PCM16 on arrival and the buffer stays raw PCM
+        for the transcriber either way. Older firmware sends a 5-byte META
+        (no codec byte) and keeps the raw-PCM default.
+        """
         if typ == MSG_AUDIO_META:
             if len(payload) >= 4:
                 self._audio_bits = payload[0] | (payload[1] << 8)
                 self._audio_rate = payload[2] | (payload[3] << 8)
+            self._audio_codec = payload[5] if len(payload) >= 6 else 0
             return ("meta", (self._audio_rate, self._audio_bits))
         if typ == MSG_AUDIO_CHUNK:
-            self._audio_buf.extend(payload)
+            if self._audio_codec == 1:  # AUDIO_CODEC_ADPCM
+                from .adpcm import decode_chunk
+
+                self._audio_buf.extend(decode_chunk(bytes(payload)))
+            else:
+                self._audio_buf.extend(payload)
             return ("chunk", len(self._audio_buf))
         if typ == MSG_AUDIO_STOP:
             pcm = bytes(self._audio_buf)

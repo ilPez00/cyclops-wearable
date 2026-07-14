@@ -10,9 +10,12 @@ from .extractor import NOTE_TYPES, Note
 
 
 class NoteStore:
-    def __init__(self, path: str = "~/.cyclops/notes.jsonl"):
+    def __init__(self, path: str = "~/.cyclops/notes.jsonl", vault=None):
+        # `vault` is an optional brain.obsidian.ObsidianVault: every stored
+        # note is mirrored into the vault as a linked .md page. None = off.
         self.path = os.path.expanduser(path)
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.vault = vault
         self.notes: list[Note] = []
         self._load()
 
@@ -33,6 +36,11 @@ class NoteStore:
         self.notes.append(note)
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(note)) + "\n")
+        if self.vault is not None:
+            try:
+                self.vault.write_note(note)
+            except Exception:
+                pass  # vault mirror must never break note capture
         return note
 
     def add_many(self, notes: list[Note]) -> list[Note]:

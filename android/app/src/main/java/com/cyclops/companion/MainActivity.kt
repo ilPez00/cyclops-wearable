@@ -36,8 +36,36 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // restore the persisted brain URL before any call fires (previously
+        // only the settings dialog set it, so cold starts hit a fake default)
+        CyclopsApi.load(this)
+        binding.txtStatus.setOnClickListener { showSettings() }
+
+        // no URL yet -> try LAN auto-discovery once instead of making the
+        // user find and type an IP (brain answers on udp/19871)
+        if (!CyclopsApi.configured) {
+            BrainDiscovery.find { url ->
+                if (url != null && !CyclopsApi.configured) {
+                    getSharedPreferences("cyclops", MODE_PRIVATE)
+                        .edit().putString("url", url).apply()
+                    CyclopsApi.baseUrl = url
+                    toast("brain found at $url")
+                    updateStatusPill()
+                    refresh()
+                }
+            }
+        }
+
         binding.listNotes.layoutManager = LinearLayoutManager(this)
         binding.listNotes.adapter = adapter
+
+        // raw ingest/extract are developer plumbing, not the product surface
+        binding.btnDevToggle.setOnClickListener {
+            val show = binding.devPanel.visibility != android.view.View.VISIBLE
+            binding.devPanel.visibility =
+                if (show) android.view.View.VISIBLE else android.view.View.GONE
+            binding.btnDevToggle.text = if (show) "▾ Dev tools" else "▸ Dev tools"
+        }
 
         // refresh the home-screen glance widget on app open
         HudWidgetProvider.push(this)
@@ -68,12 +96,14 @@ class MainActivity : AppCompatActivity() {
                 CyclopsApi.agent(t, local, transport, persona, provider, endpoint, apiKey,
                     onResult = { reply, calls, steps ->
                         val stepTxt = if (steps.isEmpty()) "" else "\n• " + steps.joinToString("\n• ")
+                        binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain ($calls tools): $reply$stepTxt"
                         // glanceable banner the wearable would show (first line)
                         binding.txtHud.text = "HUD: ${reply.split("\n").first().take(60)}"
                         binding.editAsk.text?.clear()
                     },
                     onError = {
+                        binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain: (unavailable) $it"
                         binding.txtHud.text = "HUD: error"
                     })
@@ -97,13 +127,38 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
+    override fun onResume() {
+        super.onResume()
+        updateStatusPill()
+    }
+
+    /** Status pill: not configured / online / offline. Carries the connection
+     *  state so per-call error toasts don't have to. Tap -> Settings. */
+    private fun updateStatusPill() {
+        if (!CyclopsApi.configured) {
+            binding.txtStatus.text = "● brain: not set — tap"
+            binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+            return
+        }
+        binding.txtStatus.text = "● checking…"
+        binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+        CyclopsApi.health { ok ->
+            binding.txtStatus.text = if (ok) "● brain online" else "● brain offline"
+            binding.txtStatus.setTextColor(
+                android.graphics.Color.parseColor(if (ok) "#7CFFB2" else "#FF6E6E"))
+        }
+    }
+
     private fun refresh() {
+        updateStatusPill()
         CyclopsApi.notes(
             onResult = {
                 adapter.setNotes(it)
                 binding.txtEmpty.visibility = if (it.isEmpty()) TextView.VISIBLE else TextView.GONE
             },
-            onError = { toast(it); binding.txtEmpty.visibility = TextView.VISIBLE }
+            // no toast here: the pill already shows offline/not-configured; a
+            // toast per background call was pure spam on a fresh install
+            onError = { binding.txtEmpty.visibility = TextView.VISIBLE }
         )
     }
 
@@ -231,105 +286,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettings() {
-        val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
-        val ctx = this
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 24)
-        }
-        fun field(hint: String, key: String, secret: Boolean = false): EditText =
-            EditText(this).apply {
-                setHint(hint)
-                setText(prefs.getString(key, ""))
-                inputType = if (secret) android.text.InputType.TYPE_CLASS_TEXT or
-                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD else
-                    android.text.InputType.TYPE_CLASS_TEXT
-                layout.addView(this)
-            }
-        val urlEd = field("Brain server URL", "url").apply { setText(CyclopsApi.baseUrl) }
-        field("Local model endpoint (e.g. http://127.0.0.1:11434/v1)", "local_endpoint")
-        field("Cloud provider (openai/groq/openrouter/...)", "provider")
-        val keyEd = field("API key (stored on device only)", "api_key", secret = true)
-        // persona as a first-class concept: name / voice / bio (sent to brain profile)
-        field("Persona name (how the agent identifies)", "persona_name")
-        field("Persona voice (tone: terse / friendly / formal / ...)", "persona_voice")
-        field("Persona bio (who it is, role, constraints)", "persona_bio")
-        field("Persona / system note (extra instructions)", "persona")
-        // per-tool overrides (provider/model) — saved to the brain profile
-        val TOOLS = listOf("vision", "web_search", "web_fetch", "translate", "brain")
-        val toolProvider = mutableMapOf<String, EditText>()
-        val toolModel = mutableMapOf<String, EditText>()
-        val header = TextView(this).apply {
-            text = "Per-tool model overrides"
-            setPadding(0, 16, 0, 8)
-            textSize = 14f
-            layout.addView(this)
-        }
-        for (t in TOOLS) {
-            val lp = field("provider for $t", "tool_${t}_provider")
-            val lm = field("model for $t", "tool_${t}_model")
-            toolProvider[t] = lp
-            toolModel[t] = lm
-        }
-        val transSpin = Spinner(this).apply {
-            adapter = ArrayAdapter.createFromResource(ctx, R.array.transports,
-                android.R.layout.simple_spinner_item).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-            val cur = prefs.getString("transport", "wifi") ?: "wifi"
-            setSelection((0 until count).indexOfFirst { getItemAtPosition(it) == cur })
-            layout.addView(this)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.settings)
-            .setView(layout)
-            .setPositiveButton("Save") { _, _ ->
-                prefs.edit().apply {
-                    putString("url", urlEd.text.toString().trim())
-                    putString("local_endpoint", prefs.getString("local_endpoint", ""))
-                    putString("provider", prefs.getString("provider", ""))
-                    putString("api_key", keyEd.text.toString().trim())
-                    putString("persona_name", prefs.getString("persona_name", ""))
-                    putString("persona_voice", prefs.getString("persona_voice", ""))
-                    putString("persona_bio", prefs.getString("persona_bio", ""))
-                    putString("persona", prefs.getString("persona", ""))
-                    putString("transport", transSpin.selectedItem?.toString() ?: "wifi")
-                    for (t in TOOLS) {
-                        putString("tool_${t}_provider", toolProvider[t]!!.text.toString().trim())
-                        putString("tool_${t}_model", toolModel[t]!!.text.toString().trim())
-                    }
-                }.apply()
-                CyclopsApi.baseUrl = urlEd.text.toString().trim()
-                // push profile (persona/provider + per-tool overrides) to the brain
-                val overrides = org.json.JSONObject()
-                for (t in TOOLS) {
-                    val p = toolProvider[t]!!.text.toString().trim()
-                    val m = toolModel[t]!!.text.toString().trim()
-                    if (p.isNotEmpty() || m.isNotEmpty()) {
-                        val o = org.json.JSONObject()
-                        if (p.isNotEmpty()) o.put("provider", p)
-                        if (m.isNotEmpty()) o.put("model", m)
-                        overrides.put(t, o)
-                    }
-                }
-                val profile = org.json.JSONObject().apply {
-                    put("persona", prefs.getString("persona", "") ?: "")
-                    put("persona_name", prefs.getString("persona_name", "") ?: "")
-                    put("persona_voice", prefs.getString("persona_voice", "") ?: "")
-                    put("persona_bio", prefs.getString("persona_bio", "") ?: "")
-                    put("provider", prefs.getString("provider", "") ?: "")
-                    put("api_key", keyEd.text.toString().trim())
-                    if (overrides.length() > 0) put("tool_overrides", overrides)
-                }
-                CyclopsApi.putSettings(profile.toString(),
-                    onResult = { toast("Settings saved to brain") },
-                    onError = { toast("Save failed: $it") })
-                refresh()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
+    private var lastToastMsg = ""
+    private var lastToastAt = 0L
+
+    /** Rate-limited toast: identical messages are suppressed for 30 s so a
+     *  flaky link can't stack an endless queue of failure toasts. */
     private fun toast(msg: String) {
+        val now = System.currentTimeMillis()
+        if (msg == lastToastMsg && now - lastToastAt < 30_000) return
+        lastToastMsg = msg; lastToastAt = now
         android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show()
     }
 

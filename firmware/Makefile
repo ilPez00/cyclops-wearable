@@ -47,6 +47,10 @@ proto:
 	/tmp/cyclops_test_shared
 	$(CXX) $(CXXFLAGS) $(INC) shared/test_ota.cpp -o /tmp/cyclops_test_ota
 	/tmp/cyclops_test_ota
+	$(CXX) $(CXXFLAGS) $(INC) shared/test_adpcm.cpp -o /tmp/cyclops_test_adpcm
+	/tmp/cyclops_test_adpcm
+	$(CXX) $(CXXFLAGS) $(INC) shared/test_cycluno.cpp -o /tmp/cyclops_test_cycluno
+	/tmp/cyclops_test_cycluno
 
 ota:
 	$(CXX) $(CXXFLAGS) $(INC) shared/test_ota.cpp -o /tmp/cyclops_test_ota
@@ -65,5 +69,5 @@ monitor: pio-check
 	pio run -e $(SCREEN) -t monitor
 
 clean:
-	rm -f /tmp/cyclops_test_hud /tmp/cyclops_test_shared /tmp/cyclops_test_ota
+	rm -f /tmp/cyclops_test_hud /tmp/cyclops_test_shared /tmp/cyclops_test_ota /tmp/cyclops_test_adpcm
 	pio run -e native_test -t clean 2>/dev/null || true

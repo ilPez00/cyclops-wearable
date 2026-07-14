@@ -42,6 +42,17 @@ class HudMirrorActivity : AppCompatActivity() {
     )
     private var demoIdx = 0
 
+    private fun pollLive() {
+        CyclopsApi.status(
+            onResult = { json ->
+                isOnline = true
+                lastUpdateMs = System.currentTimeMillis()
+                HudFrame.fromStatusJson(json)?.let { binding.hudMirror.frame = it }
+            },
+            onError = { isOnline = false }
+        )
+    }
+
     private val tick = object : Runnable {
         override fun run() {
             clockSec = (clockSec + 1) % 86400
@@ -51,6 +62,8 @@ class HudMirrorActivity : AppCompatActivity() {
             if (demo) {
                 if (clockSec % 3 == 0) demoIdx = (demoIdx + 1) % demoFrames.size
                 binding.hudMirror.frame = demoFrames[demoIdx]
+            } else if (clockSec % 2 == 0) {
+                pollLive()  // live means live: refresh every 2 s, not once
             }
             binding.hudMirror.clock = clk
             binding.hudMirror.tick(System.currentTimeMillis())
@@ -66,14 +79,7 @@ class HudMirrorActivity : AppCompatActivity() {
         binding.btnHudDemo.setOnClickListener {
             demo = !demo
             binding.btnHudDemo.text = if (demo) "Live" else "Demo"
-            if (!demo) CyclopsApi.status(
-                onResult = { json ->
-                    isOnline = true
-                    lastUpdateMs = System.currentTimeMillis()
-                    HudFrame.fromStatusJson(json)?.let { binding.hudMirror.frame = it }
-                },
-                onError = { isOnline = false; binding.txtHudStatus.text = statusText() }
-            )
+            if (!demo) pollLive()
         }
         handler.post(tick)
     }

@@ -7,6 +7,7 @@
 #include "ring_ble.h"
 
 #ifdef ARDUINO
+#include <Arduino.h>
 #include <NimBLEDevice.h>
 #endif
 
@@ -23,6 +24,12 @@ static const uint8_t RT_HR = 1, RT_SPO2 = 3;
 
 RingBle* RingBle::self_ = nullptr;
 
+#ifdef ARDUINO
+unsigned RingBle::now_ms() { return (unsigned)millis(); }
+#else
+unsigned RingBle::now_ms() { return 0; }
+#endif
+
 bool RingBle::begin(const char* name_prefix) {
     (void)name_prefix;
 #ifdef ARDUINO
@@ -30,33 +37,40 @@ bool RingBle::begin(const char* name_prefix) {
     prefix_ = name_prefix ? name_prefix : "R02_";
     // main.cpp already did NimBLEDevice::init() for the server. Do NOT re-init;
     // just start a scan as a central. NimBLE supports server+client on one chip.
-    static bool scan_started = false;
-    if (!scan_started) {
-        auto* scan = NimBLEDevice::getScan();
-        scan->setActiveScan(true);
-        scan->setInterval(100); scan->setWindow(80);
-        class ScanCb : public NimBLEAdvertisedDeviceCallbacks {
-            void onResult(NimBLEAdvertisedDevice* d) override {
-                if (d->getName().rfind(self_->prefix_, 0) == 0) {  // name prefix
-                    NimBLEDevice::getScan()->stop();
-                    self_->want_connect_ = true;
-                    self_->pending_addr_ = d->getAddress();
-                }
-            }
-        };
-        static ScanCb scb;
-        scan->setAdvertisedDeviceCallbacks(&scb, false);
-        scan->start(5, false);   // 5s window, don't restart
-        scan_started = true;
-    }
+    start_scan();
     return true;
 #else
     return false;  // no BLE on host build
 #endif
 }
 
+void RingBle::start_scan() {
+    auto* scan = NimBLEDevice::getScan();
+    scan->setActiveScan(true);
+    scan->setInterval(100); scan->setWindow(80);
+    class ScanCb : public NimBLEAdvertisedDeviceCallbacks {
+        void onResult(NimBLEAdvertisedDevice* d) override {
+            if (d->getName().rfind(self_->prefix_, 0) == 0) {  // name prefix
+                NimBLEDevice::getScan()->stop();
+                self_->want_connect_ = true;
+                self_->pending_addr_ = d->getAddress();
+            }
+        }
+    };
+    static ScanCb scb;
+    scan->setAdvertisedDeviceCallbacks(&scb, false);
+    scan->start(5, false);   // 5s window, don't restart
+}
+
 void RingBle::update() {
 #ifdef ARDUINO
+    // Recover from a failed connect or a ring that appeared after the first
+    // scan: if we are not connected and not mid-connect, and the rescan
+    // cooldown has elapsed, start another scan. Debounced so we never spin.
+    if (!connected_ && !want_connect_ && now_ms() >= rescan_at_ms_) {
+        start_scan();
+        schedule_rescan();
+    }
     if (!connected_ && want_connect_) {
         want_connect_ = false;
         client_ = NimBLEDevice::createClient();
@@ -102,7 +116,7 @@ void RingBle::update() {
 
 #ifdef ARDUINO
 void RingBle::on_ring_packet(const uint8_t* p) {
-    if (self_) ring_parse(p, self_->sample_);
+    if (self_) { ring_parse(p, self_->sample_); self_->mark_seen(); }
 }
 
 // Called from client callback on disconnect; triggers a rescan.
@@ -111,6 +125,7 @@ void RingBle::on_disconnect() {
         self_->connected_ = false;
         self_->client_ = nullptr;
         self_->want_connect_ = true;
+        self_->last_seen_ms_ = 0;   // sample now stale until next packet
     }
 }
 #endif

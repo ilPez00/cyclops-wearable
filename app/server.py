@@ -382,11 +382,19 @@ def main():
         agent=agent,
     )
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
+    # LAN discovery beacon so clients can find us without typing an IP.
+    # Convenience only: a taken UDP port degrades to "no beacon", never blocks.
+    from brain.discovery import DiscoveryBeacon
+
+    beacon = DiscoveryBeacon(http_port=PORT)
+    if beacon.start():
+        print(f"Discovery beacon on udp/{beacon.listen_port}")
     print(f"Cyclops dashboard on http://localhost:{PORT}")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         srv.shutdown()
+        beacon.stop()
 
 
 if __name__ == "__main__":

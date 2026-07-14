@@ -195,3 +195,52 @@ def test_device_tool_routes_ble_transport():
     assert len(store.all()) >= 1
     t.close()
     os.remove(sp)
+
+
+def test_ble_link_reconnect_backoff():
+    # FlakyBleBackend fails once, then succeeds on 2nd try.
+    from device.ble import BleLink, FlakyBleBackend
+
+    class _Bridge:
+        def dispatch(self, a, arg):
+            pass
+
+    backend = FlakyBleBackend(failures=1)
+    link = BleLink(_Bridge(), backend=backend)
+    link.connect(retries=3, backoff=0.01)  # backoff tiny for test speed
+    assert link.connected and backend.attempts == 2
+    print("OK ble link retries then connects")
+
+
+def test_ble_link_connect_exhausts():
+    from device.ble import BleLink, FlakyBleBackend
+
+    class _Bridge:
+        def dispatch(self, a, arg):
+            pass
+
+    backend = FlakyBleBackend(failures=5)
+    link = BleLink(_Bridge(), backend=backend)
+    try:
+        link.connect(retries=2, backoff=0.01)
+        assert False, "should have raised"
+    except RuntimeError as e:
+        assert "failed after 2" in str(e)
+        assert not link.connected
+    print("OK ble link raises after exhausting retries")
+
+
+def test_bleak_backend_offline_contract():
+    # Real-radio backend must be import-safe and enforce connect-before-write
+    # without touching bleak at module load (bleak may be absent in CI).
+    from device.ble import BleakBackend
+
+    b = BleakBackend(name="CyclopsXIAO")
+    assert not b.connected
+    try:
+        b.write(b"\x00")
+        assert False, "write before connect must raise"
+    except RuntimeError as e:
+        assert "connect" in str(e)
+    b.disconnect()  # no-op when never connected; must not raise
+    print("OK BleakBackend offline contract (import-safe, write guarded)")
