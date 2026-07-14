@@ -15,6 +15,9 @@ import cairo, math, os, re
 
 W, H = 1000, 1320          # one variant per page
 FONT = "DejaVu Sans"
+SCALE = 2                   # default output resolution multiplier (crisp at 2x)
+# CyclUno gets an even larger "expanded" poster for print/desk reference
+CYCLUNO_EXPAND_SCALE = 3
 
 # ---- colors per signal type ----
 C = {
@@ -324,10 +327,11 @@ def render_svg(path):
         draw_variant(ctx, v, 0, i*H)
     surface.finish()
 
-def render_png(path, per_variant_dir=None):
-    # combined tall PNG
-    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H*len(VARIANTS))
+def render_png(path, per_variant_dir=None, scale=SCALE):
+    # combined tall PNG (scaled for crisp output)
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(W*scale), int(H*scale*len(VARIANTS)))
     ctx = cairo.Context(surf)
+    ctx.scale(scale, scale)
     ctx.set_source_rgb(1,1,1); ctx.paint()
     for i,v in enumerate(VARIANTS):
         draw_variant(ctx, v, 0, i*H)
@@ -335,13 +339,25 @@ def render_png(path, per_variant_dir=None):
     # per-variant PNGs
     if per_variant_dir:
         for i,v in enumerate(VARIANTS):
-            s2 = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
-            c2 = cairo.Context(s2); c2.set_source_rgb(1,1,1); c2.paint()
+            s2 = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(W*scale), int(H*scale))
+            c2 = cairo.Context(s2); c2.scale(scale, scale)
+            c2.set_source_rgb(1,1,1); c2.paint()
             draw_variant(c2, v, 0, 0)
             slug = re.sub(r'[^A-Za-z0-9]+', '_', v['title'].split('—')[0].strip())
             p = os.path.join(per_variant_dir, f"cyclops_{v['tag'].lower()}_{slug}.png")
             s2.write_to_png(p)
             print("  wrote", p)
+
+def render_expanded_cycluno(path, scale=CYCLUNO_EXPAND_SCALE):
+    """Dedicated high-res CyclUno (V1) poster for desk/print reference."""
+    v = next(x for x in VARIANTS if x["tag"] == "V1")
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(W*scale), int(H*scale))
+    ctx = cairo.Context(surf)
+    ctx.scale(scale, scale)
+    ctx.set_source_rgb(1,1,1); ctx.paint()
+    draw_variant(ctx, v)
+    surf.write_to_png(path)
+    print("  wrote", path)
 
 if __name__=="__main__":
     here = os.path.dirname(os.path.abspath(__file__))
@@ -349,5 +365,7 @@ if __name__=="__main__":
     print("wrote cyclops_wiring.pdf")
     render_svg(os.path.join(here,"cyclops_wiring.svg"))
     print("wrote cyclops_wiring.svg")
-    render_png(os.path.join(here,"cyclops_wiring.png"), per_variant_dir=here)
-    print("wrote cyclops_wiring.png (+ per-variant)")
+    render_png(os.path.join(here,"cyclops_wiring.png"), per_variant_dir=here, scale=SCALE)
+    print(f"wrote cyclops_wiring.png (+ per-variant @ {SCALE}x)")
+    render_expanded_cycluno(os.path.join(here,"cyclops_v1_CyclUno_EXPANDED.png"), scale=CYCLUNO_EXPAND_SCALE)
+    print(f"wrote cyclops_v1_CyclUno_EXPANDED.png (@ {CYCLUNO_EXPAND_SCALE}x)")
