@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="8dp"
-    android:background="#0A0E12">
+    android:background="@color/cyclops_surface">
 
     <TextView
         android:id="@+id/widgetTitle"
@@ -13,7 +13,7 @@
         android:text="Cyclops"
         android:textSize="12sp"
         android:textStyle="bold"
-        android:textColor="#00E5FF" />
+        android:textColor="@color/cyclops_primary" />
 
     <TextView
         android:id="@+id/widgetBanner"

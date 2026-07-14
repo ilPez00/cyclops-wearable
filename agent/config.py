@@ -26,6 +26,7 @@ class AgentConfig:
     inference_mode: str = "auto"  # auto|offline|local|cloud (resolved by resolve_mode)
     local_base_url: str = "http://127.0.0.1:11434/v1"  # ollama default
     local_model: str = "llama3.1"
+    gguf_model_path: str = ""  # a .gguf file -> true offline inference (llama-cpp)
     local_vision_model: str = "llava"
     local_stt: str = "http://127.0.0.1:11434"
     vision_model: str = ""  # cloud vision model override
@@ -44,6 +45,7 @@ class AgentConfig:
         True  # skip re-appending an identical card (learning-loop spam guard)
     )
     memory_recall: int = 8  # how many persisted turns to inject as context
+    cascade_enabled: bool = True  # try providers in order, skip burnt keys
     config_dir: str = "~/.config/cyclops"  # P2-A: plugin registry root
     plugin_index_url: str = ""  # P2-A: marketplace index (empty = offline)
 

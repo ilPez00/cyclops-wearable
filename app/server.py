@@ -30,6 +30,48 @@ bridge = None
 # serializes access to the shared agent (ThreadingHTTPServer handles requests
 # concurrently; agent.run() mutates history/cfg with no locking of its own)
 _AGENT_LOCK = threading.Lock()
+DREAM_INTERVAL_S = 1800  # background review cadence (30 min)
+
+
+def _run_dream_review():
+    """One dream/proposal review over recent notes + graded experiences.
+    Uses the agent's router when available; falls back to rules offline."""
+    from brain.dreams import review
+    from brain.experiences import ExperienceStore
+
+    notes = []
+    try:
+        if pipeline is not None and getattr(pipeline, "store", None):
+            notes = [getattr(n, "text", "") for n in pipeline.store.all()][-15:]
+    except Exception:
+        pass
+    domains = []
+    try:
+        domains = ExperienceStore().domains()
+    except Exception:
+        pass
+    router = getattr(agent, "router", None) if agent is not None else None
+    return review(notes, domains, router=router)
+
+
+def _start_dream_scheduler():
+    """Periodic background reviewer (AURA DreamEngine cadence). Daemon thread,
+    swallows errors so a bad review never takes the server down."""
+
+    def _loop():
+        import time as _t
+
+        while True:
+            _t.sleep(DREAM_INTERVAL_S)
+            try:
+                _run_dream_review()
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_loop, name="cyclops-dreams", daemon=True)
+    t.start()
+    return t
+
 
 _TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
 _HTML: str | None = None
@@ -60,6 +102,11 @@ class H(BaseHTTPRequestHandler):
         p = urlparse(self.path)
         if p.path == "/" or p.path == "/index.html":
             return self._send(200, _load_html(), "text/html")
+        if p.path == "/health":
+            # liveness probe: the companion app's status pill + the web
+            # dashboard poll this. It never existed, so `configured` clients
+            # showed "offline" even when the brain was up. (bug found 2026-07-13)
+            return self._send(200, json.dumps({"ok": True}))
         if p.path == "/api/notes":
             notes = [n.to_dict() for n in pipeline.store.all()] if pipeline else []
             return self._send(200, json.dumps(notes))
@@ -86,6 +133,57 @@ class H(BaseHTTPRequestHandler):
                 if isinstance(m, dict)
             ]
             return self._send(200, json.dumps(out))
+        if p.path == "/api/feed":
+            # Unified reverse-chron activity stream (AURA sync-feed idea):
+            # merge the events Cyclops already produces — notes, agent turns,
+            # the last HUD banner — into one time-sorted list. Pure aggregation
+            # over sources that already exist; nothing new is stored.
+            limit = int((parse_qs(p.query).get("limit", ["50"])[0]) or 50)
+            events = []
+            try:
+                if pipeline is not None and getattr(pipeline, "store", None):
+                    for n in pipeline.store.all():
+                        events.append(
+                            {
+                                "ts": getattr(n, "created", "") or "",
+                                "kind": getattr(n, "type", "note"),
+                                "message": getattr(n, "text", ""),
+                            }
+                        )
+            except Exception:
+                pass
+            try:
+                with _AGENT_LOCK:
+                    hist = (
+                        list(getattr(agent, "history", [])) if agent is not None else []
+                    )
+                for m in hist:
+                    if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
+                        c = m.get("content", "")
+                        if isinstance(c, str) and c.strip():
+                            events.append(
+                                {"ts": "", "kind": m["role"], "message": c[:200]}
+                            )
+            except Exception:
+                pass
+            if bridge is not None and getattr(bridge, "last_banner", ""):
+                events.append({"ts": "", "kind": "hud", "message": bridge.last_banner})
+            try:
+                from brain.dreams import DreamStore
+
+                for d in DreamStore().active():
+                    events.append(
+                        {
+                            "ts": d.get("ts", ""),
+                            "kind": "dream",
+                            "message": d.get("message", ""),
+                        }
+                    )
+            except Exception:
+                pass
+            # newest first: dated events by timestamp desc, undated keep order
+            events.sort(key=lambda e: e.get("ts") or "", reverse=True)
+            return self._send(200, json.dumps(events[:limit]))
         if p.path == "/api/extract":
             # LLM-aware extraction of arbitrary text -> candidate notes (premortem #5)
             q = parse_qs(p.query)
@@ -253,6 +351,62 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"learned": written}))
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/cost":
+            # Per-provider token + estimated USD spend (merlin CostTracker).
+            try:
+                from agent.cost import CostTracker
+
+                return self._send(200, json.dumps(CostTracker().summary()))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/experiences":
+            # graded self-review log (AURA/Praxis PDCA); optional ?domain= filter
+            from brain.experiences import ExperienceStore
+
+            dom = parse_qs(p.query).get("domain", [""])[0]
+            store = ExperienceStore()
+            rows = store.for_domain(dom) if dom else store.all()
+            return self._send(200, json.dumps(list(reversed(rows))))
+        if p.path == "/api/domains":
+            from brain.experiences import ExperienceStore
+
+            return self._send(200, json.dumps(ExperienceStore().domains()))
+        if p.path == "/api/dreams":
+            # active proactive insights/proposals (the "dream" loop)
+            from brain.dreams import DreamStore
+
+            return self._send(200, json.dumps(DreamStore().active()))
+        if p.path == "/api/entities":
+            # deduplicated registry of seen things (AURA EntityStore)
+            from brain.entities import EntityStore
+
+            etype = parse_qs(p.query).get("type", [""])[0]
+            return self._send(200, json.dumps(EntityStore().all(etype)))
+        if p.path == "/api/entities/search":
+            from brain.entities import EntityStore
+
+            q = parse_qs(p.query).get("q", [""])[0]
+            return self._send(200, json.dumps(EntityStore().search(q)))
+        if p.path == "/api/status":
+            # Glanceable HUD state for the companion mirror (and the wearable
+            # status frame shape, t=8). Reflects the brain's own view when no
+            # device is streaming, so the HUD mirror is never a dead demo.
+            note_count = 0
+            try:
+                if pipeline is not None and getattr(pipeline, "store", None):
+                    note_count = len(pipeline.store.all())
+            except Exception:
+                pass
+            b = bridge
+            st = {
+                "t": 8,
+                "rec": 1 if (b and b.recording) else 0,
+                "mode": (b.mode if b else "HOME"),
+                "notes": note_count,
+                "banner": (b.last_banner if b else ""),
+                "online": True,
+            }
+            return self._send(200, json.dumps(st))
         self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
@@ -263,6 +417,53 @@ class H(BaseHTTPRequestHandler):
             data = json.loads(body or b"{}")
         except Exception:
             data = {}
+        if p.path == "/api/experience":
+            # record a graded experience: {domain, action, grade(0..1), note}
+            from brain.experiences import ExperienceStore
+
+            row = ExperienceStore().record(
+                data.get("domain", "general"),
+                data.get("action", ""),
+                float(data.get("grade", 0.0) or 0.0),
+                data.get("note", ""),
+            )
+            return self._send(200, json.dumps(row))
+        if p.path == "/api/dream/review":
+            try:
+                return self._send(200, json.dumps({"dreams": _run_dream_review()}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/dream/dismiss":
+            from brain.dreams import DreamStore
+
+            return self._send(
+                200, json.dumps({"ok": DreamStore().dismiss(data.get("id", ""))})
+            )
+        if p.path == "/api/entity":
+            # upsert-and-increment a seen entity: {name, type, note}
+            from brain.entities import EntityStore
+
+            r = EntityStore().touch(
+                data.get("name", ""), data.get("type", "thing"), data.get("note", "")
+            )
+            return self._send(200, json.dumps(r))
+        if p.path == "/api/vision":
+            # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
+            # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
+            try:
+                from agent.tools.vision import make_vision_tool
+
+                cfg = AgentConfig.load(env=dict(os.environ))
+                tool = make_vision_tool(cfg)
+                out = tool.run(
+                    {
+                        "image": data.get("image", ""),
+                        "prompt": data.get("prompt", "Describe this image concisely."),
+                    }
+                )
+                return self._send(200, json.dumps({"result": out}))
+            except Exception as e:
+                return self._send(200, json.dumps({"error": str(e)}))
         if p.path == "/api/settings":
             # merge + persist the profile (persona, provider, per-tool overrides, ...)
             cfg = (
@@ -389,6 +590,7 @@ def main():
     beacon = DiscoveryBeacon(http_port=PORT)
     if beacon.start():
         print(f"Discovery beacon on udp/{beacon.listen_port}")
+    _start_dream_scheduler()  # periodic proactive review (dreams/proposals)
     print(f"Cyclops dashboard on http://localhost:{PORT}")
     try:
         srv.serve_forever()

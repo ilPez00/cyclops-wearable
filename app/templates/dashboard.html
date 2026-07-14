@@ -1,25 +1,107 @@
 <!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
 <title>Cyclops</title><style>
-body{font-family:system-ui;background:#0e1116;color:#e6e6e6;margin:0;padding:1rem}
-h1{font-size:1.1rem} .sec{margin-top:1rem} h2{font-size:.9rem;color:#7fd1ff;border-bottom:1px solid #222}
-.note{padding:.3rem .5rem;margin:.2rem 0;background:#161b22;border-radius:6px;font-size:.85rem}
-.due{color:#ffb454;font-size:.75rem} .live{color:#7CFFB2}
-</style></head><body>
-<h1>CYCLOPS <span class=live id=rec></span></h1>
-<div id=last></div>
-<div class=sec><h2>Tasks</h2><div id=task></div></div>
-<div class=sec><h2>Reminders</h2><div id=reminder></div></div>
-<div class=sec><h2>Decisions</h2><div id=decision></div></div>
-<div class=sec><h2>Ideas</h2><div id=idea></div></div>
-<div class=sec><h2>Summary</h2><div id=summary></div></div>
-<script>
-async function load(){
-  const r=await fetch('/api/notes'); const d=await r.json();
-  const by=t=>d.filter(n=>n.type===t);
-  const render=(id,arr)=>document.getElementById(id).innerHTML=arr.map(n=>
-    `<div class=note>${n.text}${n.due?`<span class=due> (due ${n.due})</span>`:''}</div>`).join('');
-  ['task','reminder','decision','idea','summary'].forEach(t=>render(t,by(t)));
-  document.getElementById('last').innerHTML = d.length?`<div class=note>last: ${d[d.length-1].text}</div>`:'';
+:root{
+  --bg:#080810; --panel:#10101c; --border:#16323a; --ink:#c8d6e5; --dim:#8fa3b8;
+  --teal:#00d2d3; --green:#22c55e; --amber:#feca57; --red:#ee5a24; --blue:#3b82f6; --purple:#a78bfa;
+  --mono:"SF Mono","JetBrains Mono","Fira Code",monospace;
 }
-setInterval(load,1500); load();
+*{box-sizing:border-box} body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);margin:0}
+header{display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
+header h1{font-size:1.05rem;margin:0;color:var(--teal);letter-spacing:1px}
+#status{margin-left:auto;font-size:.8rem;color:var(--dim);font-family:var(--mono)}
+nav{display:flex;gap:.2rem;padding:.5rem 1rem;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+nav button{background:var(--panel);color:var(--dim);border:1px solid var(--border);border-radius:8px;
+  padding:.35rem .8rem;font-size:.8rem;cursor:pointer}
+nav button.on{color:var(--teal);border-color:var(--teal)}
+main{padding:1rem;max-width:820px;margin:0 auto}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;margin:.4rem 0}
+.muted{color:var(--dim);font-size:.85rem} .row{display:flex;align-items:center;gap:.5rem}
+.badge{font-size:.7rem;padding:.1rem .5rem;border-radius:6px;border:1px solid var(--border)}
+.kpi{font-size:2rem;font-weight:700;color:var(--green)} .grow{flex:1}
+.hide{display:none} h2{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:.6rem 0 .3rem}
+.bar{height:8px;border-radius:4px;background:var(--teal)}
+.empty{color:var(--dim);text-align:center;padding:2rem}
+</style></head><body>
+<header><h1>◎ CYCLOPS</h1><span id=status>connecting…</span></header>
+<nav id=nav></nav>
+<main id=main></main>
+<script>
+const TABS=[
+ ['feed','Activity'],['notes','Notes'],['entities','Entities'],
+ ['progress','Progress'],['proposals','Proposals'],['cost','Usage']];
+let tab='feed';
+const el=(h)=>{const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild};
+const esc=(s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const kindColor={user:'--teal',assistant:'--ink',hud:'--green',dream:'--purple',proposal:'--teal',risk:'--amber',insight:'--green'};
+const pdcaColor={Plan:'--dim',Do:'--blue',Check:'--amber',Act:'--green'};
+
+async function j(p){try{const r=await fetch(p);if(!r.ok)throw 0;return await r.json()}catch(e){return null}}
+
+async function ping(){
+  const h=await j('/health'); const s=document.getElementById('status');
+  s.textContent = h?'● online':'● offline'; s.style.color = h?'var(--green)':'var(--red)';
+}
+
+function panel(html){return `<div class=panel>${html}</div>`}
+
+async function render(){
+  const m=document.getElementById('main'); m.innerHTML='<div class=empty>loading…</div>';
+  if(tab==='feed'){
+    const d=await j('/api/feed')||[];
+    m.innerHTML = d.length? d.map(e=>panel(
+      `<div class=row><span class=badge style="color:var(${kindColor[e.kind]||'--dim'})">${esc(e.kind)}</span>
+       <span class=grow>${esc(e.message)}</span><span class=muted style=font-size:.7rem>${esc((e.ts||'').slice(11,16))}</span></div>`)).join('')
+      : '<div class=empty>No activity yet.</div>';
+  } else if(tab==='notes'){
+    const d=await j('/api/notes')||[];
+    m.innerHTML = d.length? d.slice().reverse().map(n=>panel(
+      `<span class=badge style=color:var(--teal)>${esc(n.type)}</span> ${esc(n.text)}
+       ${n.due?`<span class=muted> · due ${esc(n.due)}</span>`:''}`)).join('')
+      : '<div class=empty>No notes yet.</div>';
+  } else if(tab==='entities'){
+    const d=await j('/api/entities')||[];
+    m.innerHTML = d.length? d.map(e=>panel(
+      `<div class=row><b class=grow>${esc(e.name)}</b>
+       <span class=muted>seen ${e.seen_count}×</span>
+       <span class=badge style=color:var(--teal)>${esc(e.type)}</span></div>`)).join('')
+      : '<div class=empty>Nothing seen yet.</div>';
+  } else if(tab==='progress'){
+    const d=await j('/api/domains')||[];
+    m.innerHTML = d.length? d.map(x=>panel(
+      `<div class=row><b class=grow>${esc(x.domain)}</b>
+       <span class=muted>${x.count} · avg ${esc(x.grade_label)}</span>
+       <span class=badge style="color:var(${pdcaColor[x.pdca]||'--dim'});border-color:var(${pdcaColor[x.pdca]||'--border'})">${esc(x.pdca)}</span></div>
+       <div class=bar style="width:${Math.round((x.avg||0)*100)}%;margin-top:.4rem;background:var(${pdcaColor[x.pdca]||'--teal'})"></div>`)).join('')
+      : '<div class=empty>No graded areas yet.</div>';
+  } else if(tab==='proposals'){
+    const d=await j('/api/dreams')||[];
+    m.innerHTML = d.length? d.map(x=>panel(
+      `<div class=badge style=color:var(${kindColor[x.kind]||'--green'})>${esc(x.kind).toUpperCase()}</div>
+       <div style=margin-top:.3rem>${esc(x.message)}</div>`)).join('')
+      : '<div class=empty>No proposals right now.</div>';
+  } else if(tab==='cost'){
+    const c=await j('/api/cost'); const provs=c&&c.providers||{}; const tot=c&&c.total||{};
+    const names=Object.keys(provs); const max=Math.max(1,...names.map(n=>provs[n].usd||0));
+    m.innerHTML = panel(`<div style=text-align:center><div class=kpi>$${(tot.usd||0).toFixed(2)}</div>
+       <div class=muted>${tot.calls||0} calls</div></div>`) +
+      (names.length? names.sort((a,b)=>provs[b].usd-provs[a].usd).map(n=>panel(
+        `<div class=row><b class=grow>${esc(n)}</b><span class=muted>${provs[n].calls} calls</span>
+         <b style=color:var(--green)>$${(provs[n].usd||0).toFixed(3)}</b></div>
+         <div class=bar style="width:${Math.round((provs[n].usd/max)*100)}%;margin-top:.4rem"></div>`)).join('')
+        : '<div class=empty>No usage yet.</div>');
+  }
+}
+
+function buildNav(){
+  const n=document.getElementById('nav');
+  n.innerHTML='';
+  for(const [id,label] of TABS){
+    const b=el(`<button class="${id===tab?'on':''}">${label}</button>`);
+    b.onclick=()=>{tab=id;buildNav();render()};
+    n.appendChild(b);
+  }
+}
+buildNav(); render(); ping();
+setInterval(()=>{ping();render()},4000);
 </script></body></html>

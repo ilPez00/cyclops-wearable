@@ -21,6 +21,15 @@ class ChatResult:
     raw: dict = field(default_factory=dict)
 
 
+class ModelError(RuntimeError):
+    """A provider call failed. `status` carries the HTTP code (0 = transport
+    error / timeout) so a cascade can classify the failure and back off."""
+
+    def __init__(self, message: str, status: int = 0):
+        super().__init__(message)
+        self.status = status
+
+
 # --- transport shim (stdlib default; injectable) -------------------------
 def _default_session():
     from brain.http_session import stdlib_session
@@ -29,9 +38,10 @@ def _default_session():
 
 
 class ModelRouter:
-    def __init__(self, config: AgentConfig, session=None):
+    def __init__(self, config: AgentConfig, session=None, cost_tracker=None):
         self.cfg = config
         self.session = session or _default_session()
+        self.cost_tracker = cost_tracker
 
     def chat(
         self,
@@ -70,19 +80,42 @@ class ModelRouter:
         headers = {"Content-Type": "application/json"}
         if resolved_key:
             headers["Authorization"] = f"Bearer {resolved_key}"
-        resp = self.session.post(
-            endpoint_url,
-            data=json.dumps(payload).encode(),
-            headers=headers,
-            timeout=120,
-        )
+        try:
+            resp = self.session.post(
+                endpoint_url,
+                data=json.dumps(payload).encode(),
+                headers=headers,
+                timeout=120,
+            )
+        except Exception as e:  # transport error / timeout
+            raise ModelError(f"transport error: {e}", status=0) from e
+        status = getattr(resp, "status", 200)
+        if status and status >= 400:
+            body = ""
+            try:
+                body = json.dumps(resp.json())[:200]
+            except Exception:
+                pass
+            raise ModelError(f"HTTP {status}: {body}", status=status)
         data = resp.json()
         try:
             msg = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as e:
-            raise RuntimeError(f"model response error: {e} ({data})")
+            raise ModelError(f"model response error: {e} ({data})", status=status)
         text = msg.get("content") or ""
         tool_calls = msg.get("tool_calls") or []
+        # tally spend if a tracker is wired (usage is OpenAI-compatible shape)
+        if self.cost_tracker is not None:
+            try:
+                u = data.get("usage") or {}
+                self.cost_tracker.record(
+                    provider or self.cfg.provider or "",
+                    model,
+                    int(u.get("prompt_tokens", 0)),
+                    int(u.get("completion_tokens", 0)),
+                )
+            except Exception:
+                pass  # accounting must never break a completion
         return ChatResult(text=text, tool_calls=tool_calls, raw=data)
 
     def _resolve_model(self, provider: str | None = None) -> str:

@@ -34,6 +34,37 @@ _CARD_RE = re.compile(r"(?m)^§\s*$")
 # same reason — they are re-injected into the system prompt on every turn.
 MAX_CARD_CHARS = 240
 
+_STOP = {
+    "the",
+    "a",
+    "an",
+    "of",
+    "to",
+    "in",
+    "is",
+    "it",
+    "and",
+    "or",
+    "for",
+    "on",
+    "at",
+    "with",
+    "my",
+    "i",
+    "you",
+    "me",
+    "this",
+    "that",
+    "be",
+    "was",
+    "are",
+}
+
+
+def _tokenize(text: str) -> list[str]:
+    """Lowercase word tokens, stopwords dropped. Used for lexical ranking."""
+    return [w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if w not in _STOP]
+
 
 @dataclass
 class MemoryCard:
@@ -158,13 +189,66 @@ class MemoryStore:
             self._write_cards(self._path(target), cards)
             return True
 
-    def recall(self, target: str = "agent", limit: int = 8) -> str:
-        """Last `limit` cards as a compact context blob (offline-safe)."""
+    def recall(self, target: str = "agent", limit: int = 8, query: str = "") -> str:
+        """Cards as a compact context blob (offline-safe).
+
+        With a `query` this ranks cards by lexical relevance and returns the
+        top `limit` (recency breaks ties) — so as memory grows the agent sees
+        the cards that matter for *this* turn, not just the newest ones
+        (ported from AURA/merlin ContextAugmenter). Without a query it keeps
+        the old recency behaviour.
+        """
         with self._lock:
-            cards = self._read_cards(self._path(target))[-limit:]
+            cards = self._read_cards(self._path(target))
         if not cards:
             return ""
-        return "\n".join(f"- {c}" for c in cards)
+        if query.strip():
+            ranked = self.search(query, target=target, limit=limit, cards=cards)
+            if ranked:
+                return "\n".join(f"- {c}" for c in ranked)
+        return "\n".join(f"- {c}" for c in cards[-limit:])
+
+    def search(
+        self, query: str, target: str = "agent", limit: int = 8, cards=None
+    ) -> list[str]:
+        """Lexical relevance ranking over cards (no model, no dependency).
+
+        Scores each card by overlap of query terms (term frequency weighted by
+        inverse card frequency, so common words count for less), with a small
+        recency bonus. Returns the top `limit` card texts, most relevant first.
+        """
+        if cards is None:
+            with self._lock:
+                cards = self._read_cards(self._path(target))
+        terms = _tokenize(query)
+        if not terms or not cards:
+            return cards[-limit:] if cards else []
+        n = len(cards)
+        tok = [_tokenize(c) for c in cards]
+        # document frequency per term
+        df: dict[str, int] = {}
+        for t in tok:
+            for w in set(t):
+                df[w] = df.get(w, 0) + 1
+        import math
+
+        scored = []
+        for i, (card, words) in enumerate(zip(cards, tok)):
+            if not words:
+                continue
+            wset = {}
+            for w in words:
+                wset[w] = wset.get(w, 0) + 1
+            score = 0.0
+            for q in terms:
+                if q in wset:
+                    idf = math.log((n + 1) / (df.get(q, 0) + 1)) + 1.0
+                    score += (wset[q] / len(words)) * idf
+            if score > 0:
+                score += 0.001 * i  # recency tie-break (later card = higher i)
+                scored.append((score, i, card))
+        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        return [c for _, _, c in scored[:limit]]
 
     def counts(self) -> dict:
         with self._lock:

@@ -52,7 +52,7 @@ class RadialGaugeView @JvmOverloads constructor(
     private var animator: ValueAnimator? = null
 
     init {
-        trackPaint.color = Color.parseColor("#263238")
+        trackPaint.color = Color.parseColor("#16323A")
         textPaint.color = Color.WHITE
         unitPaint.textSize = 30f
     }
@@ -132,7 +132,7 @@ class BatteryBarView @JvmOverloads constructor(
         set(v) { field = v; invalidate() }
 
     private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL; color = Color.parseColor("#263238")
+        style = Paint.Style.FILL; color = Color.parseColor("#16323A")
     }
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Cyclops design tokens. Secondary >= 7:1 on surface (WCAG AA). -->
-    <color name="cyclops_primary">#00E5FF</color>
-    <color name="cyclops_secondary">#B3B3B3</color>
-    <color name="cyclops_surface">#0A0E12</color>
-    <color name="cyclops_surface_variant">#0A2A33</color>
-    <color name="cyclops_on_surface">#FFFFFF</color>
-    <color name="cyclops_accent">#7CFFB2</color>
-    <color name="cyclops_warning">#FFB300</color>
-    <color name="cyclops_error">#FF5252</color>
+    <!-- Cyclops design tokens — adopted from the sibling AURA app's system
+         (aura/ui/src/style.css) so the ecosystem reads as one product.
+         Solid equivalents of AURA's translucent HUD surfaces. -->
+    <color name="cyclops_primary">#00D2D3</color>        <!-- AURA accent-teal -->
+    <color name="cyclops_on_primary">#04141A</color>
+    <color name="cyclops_secondary">#8FA3B8</color>      <!-- readable dim, >4.5:1 -->
+    <color name="cyclops_surface">#080810</color>        <!-- AURA bg-primary solid -->
+    <color name="cyclops_surface_variant">#10101C</color><!-- AURA bg-panel solid -->
+    <color name="cyclops_border">#16323A</color>         <!-- AURA teal-low border solid -->
+    <color name="cyclops_on_surface">#C8D6E5</color>     <!-- AURA text-primary, soft -->
+    <color name="cyclops_accent">#22C55E</color>         <!-- AURA green, ok/online -->
+    <color name="cyclops_warning">#FECA57</color>        <!-- AURA amber -->
+    <color name="cyclops_error">#EE5A24</color>          <!-- AURA red -->
+    <color name="cyclops_blue">#3B82F6</color>           <!-- AURA blue -->
+    <color name="cyclops_purple">#A78BFA</color>         <!-- AURA purple -->
 </resources>

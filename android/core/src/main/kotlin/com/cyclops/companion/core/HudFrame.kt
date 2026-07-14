@@ -39,6 +39,7 @@ data class HudFrame(
             val mode = strField(json, "mode")
             return HudFrame(
                 mode = mode.ifEmpty { "HOME" },
+                banner = strField(json, "banner"),
                 batteryMv = intField(json, "batt"),
                 charging = intField(json, "chg") != 0,
                 recording = intField(json, "rec") != 0,

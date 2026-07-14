@@ -39,7 +39,7 @@ class HudMirrorView @JvmOverloads constructor(
         style = Paint.Style.FILL; color = Color.parseColor("#FF5252")
     }
     private val barTrack = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL; color = Color.parseColor("#263238")
+        style = Paint.Style.FILL; color = Color.parseColor("#16323A")
     }
     private val barFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
@@ -94,7 +94,7 @@ class HudMirrorView @JvmOverloads constructor(
             val frac = GaugeGeometry.sweepAngleFor(frame.progress / 100f, 1f) / 1f
             val barY = h - pad - lineH * 1.4f
             val barH = lineH * 0.5f
-            barTrack.color = Color.parseColor("#263238")
+            barTrack.color = Color.parseColor("#16323A")
             canvas.drawRect(pad, barY, w - pad, barY + barH, barTrack)
             barFill.color = GaugeGeometry.tierColor(frac)
             canvas.drawRect(pad, barY, pad + (w - 2 * pad) * frac, barY + barH, barFill)
@@ -109,7 +109,7 @@ class HudMirrorView @JvmOverloads constructor(
 
         // toast overlay (bottom)
         if (frame.toast.isNotEmpty()) {
-            dimPaint.color = Color.parseColor("#FFB300")
+            dimPaint.color = Color.parseColor("#FECA57")
             canvas.drawText(frame.toast.take(HudFrame.MAX_COLS), pad, h - pad - charW * 0.2f, dimPaint)
             dimPaint.color = Color.parseColor("#8A9BA8")
         }

@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -40,6 +41,35 @@ class MainActivity : AppCompatActivity() {
         // only the settings dialog set it, so cold starts hit a fake default)
         CyclopsApi.load(this)
         binding.txtStatus.setOnClickListener { showSettings() }
+        binding.btnEmptyCta.setOnClickListener { showSettings() }
+
+        // Hamburger nav drawer (chat / vision / memory / …) via the toolbar.
+        setSupportActionBar(binding.toolbar)
+        val toggle = androidx.appcompat.app.ActionBarDrawerToggle(
+            this, binding.drawerLayout, binding.toolbar,
+            android.R.string.ok, android.R.string.cancel
+        )
+        binding.drawerLayout.addDrawerListener(toggle)
+        toggle.syncState()
+        binding.navView.setNavigationItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_chat -> binding.editAsk.requestFocus()
+                R.id.nav_feed -> startActivity(Intent(this, FeedActivity::class.java))
+                R.id.nav_vision -> startActivity(Intent(this, VisionActivity::class.java))
+                R.id.nav_memory -> startActivity(Intent(this, MemoryActivity::class.java))
+                R.id.nav_progress -> startActivity(Intent(this, ExperiencesActivity::class.java))
+                R.id.nav_entities -> startActivity(Intent(this, EntitiesActivity::class.java))
+                R.id.nav_dreams -> startActivity(Intent(this, DreamsActivity::class.java))
+                R.id.nav_cost -> startActivity(Intent(this, CostActivity::class.java))
+                R.id.nav_hud -> startActivity(Intent(this, HudMirrorActivity::class.java))
+                R.id.nav_ring -> startActivity(Intent(this, RingActivity::class.java))
+                R.id.nav_transcript -> startActivity(Intent(this, TranscriptActivity::class.java))
+                R.id.nav_remap -> startActivity(Intent(this, RemapActivity::class.java))
+                R.id.nav_settings -> showSettings()
+            }
+            binding.drawerLayout.closeDrawers()
+            true
+        }
 
         // no URL yet -> try LAN auto-discovery once instead of making the
         // user find and type an IP (brain answers on udp/19871)
@@ -70,7 +100,6 @@ class MainActivity : AppCompatActivity() {
         // refresh the home-screen glance widget on app open
         HudWidgetProvider.push(this)
 
-        binding.btnRefresh.setOnClickListener { refresh() }
         binding.btnIngest.setOnClickListener {
             val t = binding.editIngest.text.toString().trim()
             if (t.isNotEmpty()) CyclopsApi.ingest(t,
@@ -80,14 +109,15 @@ class MainActivity : AppCompatActivity() {
         binding.btnExtract.setOnClickListener {
             val t = binding.editExtract.text.toString().trim()
             if (t.isNotEmpty()) CyclopsApi.extract(t,
-                onResult = { adapter.setNotes(it); binding.txtEmpty.toggle(it.isEmpty()) },
+                onResult = { adapter.setNotes(it); binding.emptyState.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE },
                 onError = { toast(it) })
         }
         binding.btnAsk.setOnClickListener {
             val t = binding.editAsk.text.toString().trim()
             if (t.isNotEmpty()) {
                 val local = binding.swLocal.isChecked
-                val transport = binding.spinTransport.selectedItem?.toString() ?: "wifi"
+                val transport = getSharedPreferences("cyclops", MODE_PRIVATE)
+                    .getString("transport", "auto") ?: "auto"
                 val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
                 val persona = prefs.getString("persona", "") ?: ""
                 val provider = prefs.getString("provider", "") ?: ""
@@ -98,30 +128,16 @@ class MainActivity : AppCompatActivity() {
                         val stepTxt = if (steps.isEmpty()) "" else "\n• " + steps.joinToString("\n• ")
                         binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain ($calls tools): $reply$stepTxt"
-                        // glanceable banner the wearable would show (first line)
+                        // wearable HUD line — only show it when there IS one
+                        binding.txtHud.visibility = View.VISIBLE
                         binding.txtHud.text = "HUD: ${reply.split("\n").first().take(60)}"
                         binding.editAsk.text?.clear()
                     },
                     onError = {
                         binding.txtChat.visibility = TextView.VISIBLE
                         binding.txtChat.text = "Brain: (unavailable) $it"
-                        binding.txtHud.text = "HUD: error"
                     })
             }
-        }
-        binding.btnSettings.setOnClickListener { showSettings() }
-        binding.btnMemory.setOnClickListener { startActivity(Intent(this, MemoryActivity::class.java)) }
-        binding.btnRing.setOnClickListener { startActivity(Intent(this, RingActivity::class.java)) }
-        binding.btnHud.setOnClickListener { startActivity(Intent(this, HudMirrorActivity::class.java)) }
-        binding.btnRemap.setOnClickListener { startActivity(Intent(this, RemapActivity::class.java)) }
-        binding.btnTranscript.setOnClickListener { startActivity(Intent(this, TranscriptActivity::class.java)) }
-
-        // transport selector (wifi / bt / cable)
-        ArrayAdapter.createFromResource(
-            this, R.array.transports, android.R.layout.simple_spinner_item
-        ).also { ad ->
-            ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            binding.spinTransport.adapter = ad
         }
 
         refresh()
@@ -137,15 +153,15 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatusPill() {
         if (!CyclopsApi.configured) {
             binding.txtStatus.text = "● brain: not set — tap"
-            binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+            binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#8FA3B8"))
             return
         }
         binding.txtStatus.text = "● checking…"
-        binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#9E9E9E"))
+        binding.txtStatus.setTextColor(android.graphics.Color.parseColor("#8FA3B8"))
         CyclopsApi.health { ok ->
             binding.txtStatus.text = if (ok) "● brain online" else "● brain offline"
             binding.txtStatus.setTextColor(
-                android.graphics.Color.parseColor(if (ok) "#7CFFB2" else "#FF6E6E"))
+                android.graphics.Color.parseColor(if (ok) "#22C55E" else "#EE5A24"))
         }
     }
 
@@ -154,11 +170,11 @@ class MainActivity : AppCompatActivity() {
         CyclopsApi.notes(
             onResult = {
                 adapter.setNotes(it)
-                binding.txtEmpty.visibility = if (it.isEmpty()) TextView.VISIBLE else TextView.GONE
+                binding.emptyState.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
             },
             // no toast here: the pill already shows offline/not-configured; a
             // toast per background call was pure spam on a fresh install
-            onError = { binding.txtEmpty.visibility = TextView.VISIBLE }
+            onError = { binding.emptyState.visibility = View.VISIBLE }
         )
     }
 
@@ -341,7 +357,7 @@ class NoteAdapter : RecyclerView.Adapter<NoteAdapter.VH>() {
         } else holder.badgeDue.visibility = TextView.GONE
         // accent the card stroke for candidates so they stand out
         holder.card.strokeColor =
-            if (n.candidate) android.graphics.Color.parseColor("#FFB300")
-            else android.graphics.Color.parseColor("#1E2A33")
+            if (n.candidate) android.graphics.Color.parseColor("#FECA57")
+            else android.graphics.Color.parseColor("#16323A")
     }
 }

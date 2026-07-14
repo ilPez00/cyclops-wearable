@@ -11,17 +11,25 @@
         android:text="Wearable HUD mirror"
         android:textSize="20sp"
         android:textStyle="bold"
-        android:textColor="#00E5FF" />
+        android:textColor="@color/cyclops_primary" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="A preview of what the wearable's OLED shows. Demo plays sample frames; Live mirrors your connected device."
+        android:textSize="13sp"
+        android:textColor="@color/cyclops_secondary" />
 
     <TextView
         android:id="@+id/txtHudStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="8dp"
         android:textSize="12sp"
-        android:textColor="#8A9BA8"
-        android:background="#0A2A33"
-        android:padding="4dp"
+        android:textColor="@color/cyclops_secondary"
+        android:background="@color/cyclops_surface_variant"
+        android:padding="6dp"
         android:contentDescription="HUD connection status" />
 
     <com.cyclops.companion.HudMirrorView
@@ -30,14 +38,15 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_marginTop="12dp"
-        android:background="#0A0E12"
+        android:background="@color/cyclops_surface"
         android:contentDescription="Live mirror of the wearable OLED HUD" />
 
     <Button
+        style="@style/Widget.Cyclops.Button.Primary"
         android:id="@+id/btnHudDemo"
-        android:contentDescription="Toggle live / demo"
+        android:contentDescription="Switch between demo and live mirror"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:text="Live" />
+        android:text="Switch to Live" />
 </LinearLayout>

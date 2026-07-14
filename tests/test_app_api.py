@@ -57,6 +57,84 @@ def test_api_notes_and_ingest():
             srv.shutdown()
 
 
+def test_health_endpoint_exists():
+    # the app's status pill + web dashboard poll /health; it must be 200
+    with tempfile.TemporaryDirectory() as d:
+        srv, port = _start(os.path.join(d, "notes.jsonl"))
+        try:
+            st, body = _get(port, "/health")
+            assert st == 200 and body.get("ok") is True
+        finally:
+            srv.shutdown()
+
+
+def test_dashboard_html_served():
+    with tempfile.TemporaryDirectory() as d:
+        srv, port = _start(os.path.join(d, "notes.jsonl"))
+        try:
+            import urllib.request
+
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as r:
+                html = r.read().decode()
+            assert "CYCLOPS" in html and "/api/feed" in html
+        finally:
+            srv.shutdown()
+
+
+def test_api_status_reflects_brain_state():
+    # HUD mirror polls /api/status; it used to 404 (HUD showed nothing).
+    with tempfile.TemporaryDirectory() as d:
+        store = os.path.join(d, "notes.jsonl")
+        srv, port = _start(store)
+        try:
+            st, body = _get(port, "/api/status")
+            assert st == 200
+            assert body["t"] == 8 and body["online"] is True
+            assert body["mode"] == "HOME" and body["rec"] == 0
+            assert "banner" in body and "notes" in body
+        finally:
+            srv.shutdown()
+
+
+def test_api_vision_offline_safe():
+    # Vision screen POSTs {image, prompt}; must degrade gracefully with no VLM.
+    with tempfile.TemporaryDirectory() as d:
+        srv, port = _start(os.path.join(d, "notes.jsonl"))
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/vision",
+                data=json.dumps({"image": "data:abc", "prompt": "what is this"}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            body = json.loads(urllib.request.urlopen(req, timeout=5).read())
+            assert "result" in body or "error" in body
+            if "result" in body:
+                assert "offline" in body["result"] or len(body["result"]) > 0
+        finally:
+            srv.shutdown()
+
+
+def test_api_feed_aggregates_notes():
+    # Unified activity stream: notes appear as feed events, newest first.
+    with tempfile.TemporaryDirectory() as d:
+        store = os.path.join(d, "notes.jsonl")
+        srv, port = _start(store)
+        try:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/ingest?text="
+                + urllib.parse.quote("call Marco by friday"),
+                timeout=5,
+            ).read()
+            st, body = _get(port, "/api/feed")
+            assert st == 200 and isinstance(body, list)
+            assert body, "feed should contain the ingested note"
+            e = body[0]
+            assert "ts" in e and "kind" in e and "message" in e
+            assert any("Marco" in x["message"] for x in body)
+        finally:
+            srv.shutdown()
+
+
 def test_api_extract_returns_candidates_gracefully():
     with tempfile.TemporaryDirectory() as d:
         store = os.path.join(d, "notes.jsonl")

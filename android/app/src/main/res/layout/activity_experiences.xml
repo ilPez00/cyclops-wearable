@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Progress"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/cyclops_primary" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Grade what you did, by area. Cyclops rolls it up into a Plan / Do / Check / Act state per area."
+            android:textSize="13sp"
+            android:textColor="@color/cyclops_secondary" />
+
+        <!-- Record card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_panel"
+            android:padding="14dp"
+            android:layout_marginTop="14dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edDomain"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Area (e.g. lifting, study, work)" />
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edAction"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="What did you do?" />
+
+            <TextView
+                android:id="@+id/lblGrade"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Grade: fair"
+                android:textColor="@color/cyclops_on_surface" />
+
+            <SeekBar
+                android:id="@+id/seekGrade"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="50" />
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Note (optional)" />
+
+            <Button
+                style="@style/Widget.Cyclops.Button.Primary"
+                android:id="@+id/btnRecord"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Record" />
+        </LinearLayout>
+
+        <TextView style="@style/SettingsHeader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Areas" />
+
+        <LinearLayout
+            android:id="@+id/domList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/domEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:padding="16dp"
+            android:text="No entries yet — record one above."
+            android:textColor="@color/cyclops_secondary" />
+    </LinearLayout>
+</ScrollView>

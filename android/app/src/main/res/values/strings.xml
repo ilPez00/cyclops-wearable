@@ -11,7 +11,7 @@
     <string name="send">Send</string>
     <string name="refresh">Refresh</string>
     <string name="connecting">Connecting…</string>
-    <string name="empty">No notes yet.\nTap the status pill to set your brain server, then speak to the wearable or ask below.</string>
+    <string name="empty">Connect your brain server to begin.\nThen speak to the wearable or ask below — notes land here.</string>
     <string name="hud_idle">HUD: ready</string>
     <string name="ring_title">COLMI R02 Ring</string>
     <string name="ring_connect">Connect ring</string>
@@ -20,8 +20,9 @@
     <string name="ring_note">Reads HR / SpO2 / battery over BLE (NUS). No pairing. Keep the ring within ~1 m. Data stays on-device unless you forward it.</string>
     <string name="memory">Memory</string>
     <string-array name="transports">
+        <item>auto</item>
         <item>wifi</item>
-        <item>bt</item>
+        <item>ble</item>
         <item>cable</item>
     </string-array>
 </resources>

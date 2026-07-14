@@ -7,6 +7,8 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import android.content.Intent
+import com.cyclops.companion.core.Providers
 import com.cyclops.companion.databinding.ActivitySettingsBinding
 import com.google.android.material.textfield.TextInputEditText
 import org.json.JSONObject
@@ -35,8 +37,46 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.edUrl.setText(if (CyclopsApi.baseUrl.isNotBlank()) CyclopsApi.baseUrl else get("url"))
         binding.edLocalEndpoint.setText(get("local_endpoint"))
-        binding.edProvider.setText(get("provider"))
         binding.edApiKey.setText(get("api_key"))
+
+        // Provider dropdown + "Get an API key" link (Providers lives in :core).
+        ArrayAdapter(this, android.R.layout.simple_spinner_item, Providers.labels).also { ad ->
+            ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.spProvider.adapter = ad
+            binding.spProvider.setSelection(Providers.indexOfId(get("provider")))
+        }
+        binding.spProvider.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: android.widget.AdapterView<*>?, view: android.view.View?,
+                    pos: Int, id: Long
+                ) {
+                    val prov = Providers.ALL[pos]
+                    binding.lnkGetKey.visibility =
+                        if (prov.keyUrl.isNotEmpty()) android.view.View.VISIBLE
+                        else android.view.View.GONE
+                    binding.edApiKey.visibility =
+                        if (prov.local) android.view.View.GONE else android.view.View.VISIBLE
+                    // prefill the endpoint for local providers if the box is empty
+                    if (prov.local && prov.endpoint.isNotEmpty() &&
+                        binding.edLocalEndpoint.text.isNullOrBlank()
+                    ) {
+                        binding.edLocalEndpoint.setText(prov.endpoint)
+                    }
+                    if (prov.exampleModel.isNotEmpty()) {
+                        binding.edApiKey.hint =
+                            "API key (stored on device) — e.g. model ${prov.exampleModel}"
+                    }
+                }
+
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            }
+        binding.lnkGetKey.setOnClickListener {
+            val prov = Providers.ALL[binding.spProvider.selectedItemPosition]
+            if (prov.keyUrl.isNotEmpty()) {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(prov.keyUrl)))
+            }
+        }
         binding.edPersonaName.setText(get("persona_name"))
         binding.edPersonaVoice.setText(get("persona_voice"))
         binding.edPersonaBio.setText(get("persona_bio"))
@@ -61,7 +101,7 @@ class SettingsActivity : AppCompatActivity() {
         ).also { ad ->
             ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             binding.spTransport.adapter = ad
-            val cur = get("transport").ifEmpty { "wifi" }
+            val cur = get("transport").ifEmpty { "auto" }
             val idx = (0 until binding.spTransport.count)
                 .indexOfFirst { binding.spTransport.getItemAtPosition(it) == cur }
             if (idx >= 0) binding.spTransport.setSelection(idx)
@@ -76,6 +116,16 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
+        // advanced per-tool overrides start collapsed
+        binding.hdrTools.setOnClickListener {
+            val show = binding.toolRows.visibility != android.view.View.VISIBLE
+            binding.toolRows.visibility =
+                if (show) android.view.View.VISIBLE else android.view.View.GONE
+            binding.hdrTools.text =
+                if (show) "▾ Per-tool model overrides (advanced)"
+                else "▸ Per-tool model overrides (advanced)"
+        }
+
         binding.btnSave.setOnClickListener { save(); finish() }
     }
 
@@ -85,7 +135,7 @@ class SettingsActivity : AppCompatActivity() {
         prefs.edit().apply {
             putString("url", url)
             putString("local_endpoint", binding.edLocalEndpoint.text?.toString()?.trim())
-            putString("provider", binding.edProvider.text?.toString()?.trim())
+            putString("provider", Providers.ALL[binding.spProvider.selectedItemPosition].id)
             putString("api_key", binding.edApiKey.text?.toString()?.trim())
             putString("persona_name", binding.edPersonaName.text?.toString()?.trim())
             putString("persona_voice", binding.edPersonaVoice.text?.toString()?.trim())
@@ -116,7 +166,7 @@ class SettingsActivity : AppCompatActivity() {
             put("persona_name", binding.edPersonaName.text?.toString()?.trim() ?: "")
             put("persona_voice", binding.edPersonaVoice.text?.toString()?.trim() ?: "")
             put("persona_bio", binding.edPersonaBio.text?.toString()?.trim() ?: "")
-            put("provider", binding.edProvider.text?.toString()?.trim() ?: "")
+            put("provider", Providers.ALL[binding.spProvider.selectedItemPosition].id)
             put("api_key", binding.edApiKey.text?.toString()?.trim() ?: "")
             if (overrides.length() > 0) put("tool_overrides", overrides)
         }
