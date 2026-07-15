@@ -20,6 +20,7 @@ from .models import ChatResult, ModelError, ModelRouter
 # the sketchy keyless-proxy / public-Ollama slots from pika are deliberately
 # NOT included (security + reliability).
 DEFAULT_ORDER = [
+    "fcm",
     "groq",
     "openrouter",
     "deepinfra",
@@ -29,6 +30,13 @@ DEFAULT_ORDER = [
     "gemini",
     "mistral",
 ]
+
+# FCM local proxy — keyless, tried before every keyed provider.
+# Works when free-coding-models daemon is running on localhost:19280.
+# Fails fast when daemon isn't running, falling through to the keyed cascade.
+FCM_URL = "http://localhost:19280/v1"
+FCM_MODEL = "fcm"
+FCM_KEY = "fcm-local"
 
 
 def backoff_for(status: int) -> float:
@@ -80,6 +88,18 @@ class CascadingRouter:
         if kw.get("provider"):
             return self.router.chat(messages, **kw)
         now = time.time()
+
+        # FCM local proxy — tries first (priority 0), fails fast if daemon
+        # is not running, falls through to keyed providers.
+        if self._alive("fcm", now):
+            try:
+                return self.router.chat(
+                    messages, provider="fcm",
+                    endpoint=FCM_URL, model=FCM_MODEL, key=FCM_KEY, **kw
+                )
+            except ModelError as e:
+                self._dead_until["fcm"] = time.time() + backoff_for(e.status)
+
         providers = self._providers()
         if not providers:
             return self.router.chat(messages, **kw)  # no keys: let it degrade
