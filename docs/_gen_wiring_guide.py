@@ -62,7 +62,8 @@ VARIANTS = [
   "comps":{
     "OLED SSD1306 128x32\\n(I2C, blue board, 0x3C)":{
       "xy":(640,150),
-      "pins":[("VCC","5V","pwr",""),("GND","GND","gnd",""),("SDA","A4","i2c",""),("SCL","A5","i2c","")]},
+      "pins":[("VCC","5V","pwr",""),("GND","GND","gnd",""),("SDA","A4","i2c",""),("SCL","A5","i2c",""),
+              ("RES","","spi","strap pullup->VCC"),("DC","","spi","strap->GND"),("CS","","spi","strap->VCC")]},
     "Joystick 1\\n(primary nav)":{
       "xy":(640,430),
       "pins":[("VRx","A0","in","analog"),("VRy","A1","in","scroll Y / analog"),("SW","D2","in","push = BTN_A"),("+","5V","pwr",""),("GND","GND","gnd","")]},
@@ -370,6 +371,117 @@ def render_expanded_cycluno(path, scale=CYCLUNO_EXPAND_SCALE):
     surf.write_to_png(path)
     print("  wrote", path)
 
+def render_assembly(path, scale=2):
+    """Top-down 'finished board' poster for CyclUno V1.
+    Every wire is drawn: signal wires curve Uno->comp, power/gnd tap the
+    top(5V)/bottom(GND) buses, and the 7-pin OLED straps are shown."""
+    W, H = 1500, 1240
+    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(W*scale), int(H*scale))
+    ctx = cairo.Context(surf); ctx.scale(scale, scale)
+    ctx.set_source_rgb(0.97,0.97,0.95); ctx.paint()
+
+    text(ctx, 40, 40, "CyclUno V1 — finished assembly (every wire drawn)", 20, (0.12,0.18,0.30), bold=True)
+    text(ctx, 40, 64, "Uno (left) -> OLED + 2 joysticks + 4 buttons (right).  Top bar = 5V, bottom bar = GND.", 12, (0.3,0.32,0.4))
+
+    BUS5, BUSG = 110, 1160
+    ctx.set_line_width(6)
+    ctx.set_source_rgb(*C["pwr"]); ctx.move_to(260,BUS5); ctx.line_to(W-40,BUS5); ctx.stroke()
+    ctx.set_source_rgb(*C["gnd"]); ctx.move_to(260,BUSG); ctx.line_to(W-40,BUSG); ctx.stroke()
+    text(ctx, 40, BUS5-6, "5V", 13, C["pwr"], bold=True)
+    text(ctx, 40, BUSG-6, "GND", 13, C["gnd"], bold=True)
+
+    def wline(x1,y1,x2,y2,col,wd=2.6):
+        ctx.set_source_rgb(*col); ctx.set_line_width(wd)
+        ctx.move_to(x1,y1); ctx.line_to(x2,y2); ctx.stroke()
+    def wcurve(x1,y1,x2,y2,col,wd=2.6):
+        ctx.set_source_rgb(*col); ctx.set_line_width(wd)
+        ctx.move_to(x1,y1); ctx.curve_to(x1-50,y1, x2+50,y2, x2,y2); ctx.stroke()
+
+    # ---- Uno ----
+    ux,uy,uw,uh = 60,150,200,820
+    ctx.set_source_rgb(0.93,0.94,0.97); ctx.rectangle(ux,uy,uw,uh); ctx.fill()
+    ctx.set_source_rgb(0.30,0.34,0.45); ctx.set_line_width(2); ctx.rectangle(ux,uy,uw,uh); ctx.stroke()
+    text(ctx, ux+uw/2, uy+22, "Arduino Uno", 14, (0.15,0.18,0.28), bold=True, align="c")
+    uno_pins = [("5V",200,"pwr"),("GND",260,"gnd"),("A0",320,"in"),("A1",370,"in"),
+                ("A2",420,"in"),("A3",470,"in"),("A4",520,"i2c"),("A5",570,"i2c"),
+                ("D2",640,"in"),("D3",690,"in"),("D4",740,"in"),("D5",790,"in"),
+                ("D6",840,"in"),("D7",890,"in")]
+    uxr = ux+uw
+    uno_y = {}
+    for lab,y,t in uno_pins:
+        uno_y[lab]=y
+        ctx.set_source_rgb(*rgb(t)); ctx.arc(uxr,y,5,0,2*math.pi); ctx.fill()
+        text(ctx, uxr+10, y+5, lab, 12, (0.1,0.1,0.1), bold=True)
+    text(ctx, ux+uw/2, uy+uh+24, "USB -> host (brain) @115200", 12, (0.15,0.2,0.45), bold=True, align="c")
+    # Uno power/gnd to bus
+    wline(uxr, uno_y["5V"], uxr, BUS5, rgb("pwr"))
+    wline(uxr, uno_y["GND"], uxr, BUSG, rgb("gnd"))
+
+    # ---- components ----
+    # comp: (name, x, y, w, h, pins) ; pin=(label, y, type, target, note)
+    #   target = Uno pin label | "BUS5" | "BUSG" | ("strap", other_label)
+    comps = [
+      ("OLED SSD1306 128x32\n(I2C 0x3C)", 900, 150, 250, 250, [
+        ("VCC",185,"pwr","BUS5",""),("GND",220,"gnd","BUSG",""),
+        ("SDA",255,"i2c","A4",""),("SCL",290,"i2c","A5",""),
+        ("RES",335,"spi",("strap","VCC"),"10k"),("DC",370,"spi",("strap","GND"),""),
+        ("CS",405,"spi",("strap","VCC"),"") ]),
+      ("Joystick 1 (primary)", 900, 500, 250, 180, [
+        ("VRx",530,"in","A0",""),("VRy",560,"in","A1",""),("SW",590,"in","D2",""),
+        ("+",625,"pwr","BUS5",""),("GND",660,"gnd","BUSG","") ]),
+      ("Joystick 2 (secondary)", 900, 730, 250, 180, [
+        ("VRx",760,"in","A2",""),("VRy",790,"in","A3",""),("SW",820,"in","D3",""),
+        ("+",855,"pwr","BUS5",""),("GND",890,"gnd","BUSG","") ]),
+    ]
+    # buttons row
+    btn_x = [880, 1040, 1200, 1360]; btn_y=950; btn_w=130; btn_h=95
+    btn_targets = ["D4","D5","D6","D7"]
+    for i,bx in enumerate(btn_x):
+        comps.append((f"Button B{i+1}", bx, btn_y, btn_w, btn_h, [
+            ("SIG",975,"in",btn_targets[i],""),("GND",1010,"gnd","BUSG","") ]))
+
+    # draw wires first (behind boxes)
+    for name,cx,cy,cw,ch,pins in comps:
+        for lab,py,t,tgt,note in pins:
+            col = rgb(t)
+            if isinstance(tgt, tuple) and tgt[0]=="strap":
+                # strap to another pin of same comp (drawn later on top)
+                continue
+            elif tgt=="BUS5":
+                wline(cx, py, cx, BUS5, col)
+            elif tgt=="BUSG":
+                wline(cx, py, cx, BUSG, col)
+            else:
+                wcurve(cx, py, uxr, uno_y[tgt], col)
+    # draw boxes + pin dots + labels
+    for name,cx,cy,cw,ch,pins in comps:
+        ctx.set_source_rgb(0.98,0.96,0.90); ctx.rectangle(cx,cy,cw,ch); ctx.fill()
+        ctx.set_source_rgb(0.55,0.45,0.20); ctx.set_line_width(2); ctx.rectangle(cx,cy,cw,ch); ctx.stroke()
+        text(ctx, cx+cw/2, cy+20, name, 12.5, (0.35,0.25,0.10), bold=True, align="c")
+        for lab,py,t,tgt,note in pins:
+            ctx.set_source_rgb(*rgb(t)); ctx.arc(cx,py,4.5,0,2*math.pi); ctx.fill()
+            text(ctx, cx+12, py+4, lab, 12, (0.1,0.1,0.1), bold=True)
+            if note: text(ctx, cx+60, py+4, note, 9.5, (0.4,0.4,0.45))
+    # draw straps on top (within OLED)
+    for name,cx,cy,cw,ch,pins in comps:
+        pinmap = {lab:py for lab,py,t,tgt,note in pins}
+        for lab,py,t,tgt,note in pins:
+            if isinstance(tgt, tuple) and tgt[0]=="strap":
+                ty = pinmap.get(tgt[1])
+                if ty is None: continue
+                ctx.set_source_rgb(*rgb(t)); ctx.set_line_width(2.2)
+                ctx.set_dash([5,3]); ctx.move_to(cx,py); ctx.line_to(cx,ty); ctx.stroke(); ctx.set_dash([])
+                text(ctx, cx-8, (py+ty)/2, f"{lab}->{tgt[1]}", 9, rgb(t), bold=True, align="r")
+    # legend
+    lx, ly = 40, 1200
+    text(ctx, lx, ly, "legend:", 12, (0.1,0.1,0.1), bold=True)
+    for i,(k,c) in enumerate([("i2c",C["i2c"]),("spi",C["spi"]),("in",C["in"]),("pwr",C["pwr"]),("gnd",C["gnd"])]):
+        x = lx+60+i*130
+        ctx.set_source_rgb(*c); ctx.arc(x, ly-4, 5, 0, 2*math.pi); ctx.fill()
+        text(ctx, x+10, ly, k, 11, (0.1,0.1,0.1))
+    surf.write_to_png(path)
+    print("  wrote", path)
+
 if __name__=="__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     render_pdf(os.path.join(here,"cyclops_wiring.pdf"))
@@ -380,3 +492,5 @@ if __name__=="__main__":
     print(f"wrote cyclops_wiring.png (+ per-variant @ {SCALE}x)")
     render_expanded_cycluno(os.path.join(here,"cyclops_v1_CyclUno_EXPANDED.png"), scale=CYCLUNO_EXPAND_SCALE)
     print(f"wrote cyclops_v1_CyclUno_EXPANDED.png (@ {CYCLUNO_EXPAND_SCALE}x)")
+    render_assembly(os.path.join(here,"cyclops_v1_CyclUno_ASSEMBLY.png"), scale=2)
+    print("wrote cyclops_v1_CyclUno_ASSEMBLY.png")
