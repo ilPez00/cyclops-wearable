@@ -39,6 +39,17 @@ Sources for Cyclops wearable AI note-taker's voice / HUD / agent design.
 - **URL**: <https://github.com/hortocam/jarvis_ai>
 - **Key ideas applicable to Cyclops**: numbered UI sections, activity feed, status dots, cinematic boot sequence, KV-rows with accent colors
 
+## 3b. chrisguevara805-prog/J.AR.V.I.S. (+ upstream DawoodTouseef/J.AR.V.I.S.)
+
+- **URL**: <https://github.com/chrisguevara805-prog/J.AR.V.I.S.> (fork of <https://github.com/DawoodTouseef/J.AR.V.I.S.>)
+- **License**: Apache 2.0 (note: not MIT)
+- **Stack**: PyQt5 desktop + OpenCV
+- **Key ideas for Cyclops (wearable HUD)**:
+  - **Proactive suggestions from camera/screenshot analysis** — directly transferable: Cyclops IS the wearable cam, so its HUD can proactively suggest based on what the user is looking at
+  - Voice activation + system monitor + proactive triad (what aion built in Cycle 3)
+  - Witty JARVIS persona charm (maps to aion's voice/persona.py)
+- **Relevance**: strongest design reference for Cyclops' "AI note-taker that anticipates" goal
+
 ## 4. Community ecosystem
 
 - **Rango** — Browser voice navigation
