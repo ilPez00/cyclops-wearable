@@ -505,15 +505,24 @@ struct Hud {
         if (!screen_on) { scr.flush(); return; }
         int rows = scr.text_rows();
         int cols = scr.char_cols();
-        // status bar row 0: clock + flags + mode breadcrumb
-        char sb[32];
-        const char* md = mode_name(top());
+        // status bar row 0: two fixed zones (Talon-HUD style) drawn as one
+        // row so the on-screen layout is left=connectivity, right=power:
+        //   LEFT  = connectivity (clock + BLE phone + ring/bead link)
+        //   RIGHT = power (effective battery % + charging + low-batt warn)
         int eff_batt = bead_batt > 0 ? bead_batt : ring_batt;
-        const char* bt_icon = bt ? "BT+" : "BT-";          // + connected, - not
-        const char* low = (eff_batt > 0 && eff_batt < 20) ? " !" : "";
-        snprintf(sb, sizeof(sb), "%02u:%02u %s%s%s%s %s",
-                 (clock/3600)%24, (clock/60)%60,
-                 recording ? "REC " : "", bt_icon, consent ? "" : " X", low, md);
+        const char* bt_icon  = bt ? "BT+" : "BT-";          // + connected, - not
+        const char* ring_link = (ring_batt > 0) ? "RN" : "--";
+        const char* bead_link = (bead_batt > 0) ? "BD" : "--";
+        const char* chg = charging ? "^" : "";
+        const char* low = (eff_batt > 0 && eff_batt < 20) ? "!" : "";  // low-batt warn
+        char sb[40];
+        int llen = snprintf(sb, sizeof(sb), "%02u:%02u %s %s%s",
+                            (clock/3600)%24, (clock/60)%60, bt_icon, ring_link, bead_link);
+        // right-justify the power zone at the end of the row
+        int rlen = (int)strlen(chg) + (int)strlen(low) + 3; // "NNN%"
+        int pad = cols - llen - rlen;
+        if (pad < 1) pad = 1;
+        snprintf(sb + llen, sizeof(sb) - llen, "%*s%d%%%s%s", pad, "", eff_batt, chg, low);
         scr.set_ink(true); scr.draw_text(0, 0, sb);
 
         // mode-transition wipe: brief vertical bar sweep on mode change (battery-safe, 4 frames)
@@ -557,11 +566,19 @@ struct Hud {
                 snprintf(li, sizeof(li), "A%d B%d", wa, wb);
                 trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
             }
+            // status strip (semantic zone): battery + note count + REC
             char ln[40];
-            snprintf(ln, sizeof(ln), "%dmV %d notes %s", (bead_batt>0?bead_batt:ring_batt),
-                     note_count, recording ? "REC" : "");
+            snprintf(ln, sizeof(ln), "%dmV %d notes%s", (bead_batt>0?bead_batt:ring_batt),
+                     note_count, recording ? " REC" : "");
             trim(ln, cols); scr.draw_text(0, body, ln); body++;
-            scr.draw_text(0, body, "wheel:menu"); body++;
+            // bottom strip: current mode + primary hint (moved out of status bar).
+            // Skip during the boot splash so it doesn't clobber the boot frame.
+            bool booting = (boot_frame < 4 && scr.w() >= 48 && scr.h() >= 32);
+            if (!booting) {
+                char strip[40];
+                snprintf(strip, sizeof(strip), "%s | wheel:menu", mode_name(top()));
+                trim(strip, cols); scr.draw_text(0, rows - 1, strip);
+            }
         } else if (m == MENU) {
             for (int i = 0; i < rows-1 && i < menu_n; ++i) {
                 const char* mk = (i == menu_sel) ? ">" : " ";

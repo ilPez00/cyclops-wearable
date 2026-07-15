@@ -18,7 +18,10 @@ using namespace cyclops;
 // Fake screen: records draw calls, enforces geometry like a 128x32 (4 rows x 21 cols).
 struct FakeScreen : Screen {
     int rows_=4, cols_=21;
-    int draws=0; char last[64]=""; char row0[64]="";
+    int draws=0; char last[64]="";
+    char grid[8][64];   // full per-row buffer (both zones on a row survive)
+    FakeScreen() { for (int r=0;r<8;++r) grid[r][0]=0; }
+    const char* row0 = grid[0];   // backward-compat alias (live view of row 0)
     int w() const override { return 128; }
     int h() const override { return 32; }
     int char_cols() const override { return cols_; }
@@ -26,7 +29,15 @@ struct FakeScreen : Screen {
     void begin() override {}
     void clear() override {}
     void set_ink(bool) override {}
-    void draw_text(int, int row, const char* s) override { draws++; strncpy(last, s, 63); last[63]=0; if (row==0) { strncpy(row0, s, 63); row0[63]=0; } }
+    void draw_text(int col, int row, const char* s) override {
+        draws++;
+        strncpy(last, s, 63); last[63]=0;
+        if (row >= 0 && row < 8) {
+            int i = 0;
+            while (s[i] && col+i < 63) { grid[row][col+i] = s[i]; ++i; }
+            grid[row][col+i] = 0;
+        }
+    }
     void draw_rect(int,int,int,int,bool) override {}
     void flush() override {}
 };
@@ -126,14 +137,14 @@ int main() {
     h.note_sel = h.note_count-1; h.on_select();
     int so0 = h.scroll_off; h.on_wheel(1); assert(h.scroll_off > so0);
 
-    // Status bar renders a mode breadcrumb + flags (no crash on tiny screen)
+    // Status bar renders semantic zones: connectivity (left) + power (right)
     Hud h2; h2.send_cmd = on_cmd; h2.init();
     h2.recording = true; h2.bt = true; h2.hr = 72; h2.bead_batt = 15;
     FakeScreen scr2; h2.render(scr2);
- assert(strstr(scr2.row0, "REC") != nullptr);   // recording flag in status bar
- assert(strstr(scr2.row0, "BT+") != nullptr);   // connected -> BT+ icon
- assert(strstr(scr2.row0, "!") != nullptr);     // bead_batt=15 <20 -> low-batt warning
- assert(strstr(scr2.row0, "HOME") != nullptr || strstr(scr2.row0, "HLTH") != nullptr);
+ assert(strstr(scr2.row0, "BT+") != nullptr);   // connectivity left zone: connected
+ assert(strstr(scr2.row0, "15%!") != nullptr);  // power right zone: low-batt warn
+ assert(strstr(scr2.row0, "HOME") == nullptr);  // mode moved off row0 to bottom strip
+ // the full render (incl. bottom mode strip) must not crash on tiny screen
 
  // BT- icon when disconnected
  Hud h3; h3.send_cmd = on_cmd; h3.init();
@@ -572,18 +583,17 @@ int main() {
         };
         char a[24][48], b[24][48];
 
-        // HOME (idle): status bar (row0) + ready banner (last row).
+        // HOME (idle): status bar row0 = connectivity + power zones.
         Hud h0; h0.send_cmd = on_cmd; h0.init();
         GridScreen g0; h0.render(g0); dump(g0, a);
-        bool home_ok = false;
-        if (strstr(a[0], "HOME") != nullptr) home_ok = true;          // mode breadcrumb
-        if (strlen(a[20])>0 && strstr(a[20], "Cyclops") != nullptr) home_ok = true; // ready banner (last row)
+        // connectivity zone (left) must show the BT link state
+        bool home_ok = (strstr(a[0], "BT-") != nullptr) || (strstr(a[0], "BT+") != nullptr);
         assert(home_ok);
 
-        // HOME (recording): status bar carries the REC flag.
+        // HOME (recording): status strip (row1) carries the REC flag.
         Hud h0r; h0r.send_cmd = on_cmd; h0r.init(); h0r.recording = true;
         GridScreen g0r; h0r.render(g0r); dump(g0r, a);
-        assert(strstr(a[0], "REC") != nullptr);
+        assert(strstr(a[1], "REC") != nullptr);
 
         // MENU: lists at least one menu item.
         Hud hm; hm.send_cmd = on_cmd; hm.init();
