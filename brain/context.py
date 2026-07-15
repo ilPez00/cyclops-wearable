@@ -20,6 +20,7 @@ class ContextAssembler:
         self._notes = []
         self._health = None  # HealthAggregator
         self._calendar = []  # list of event dicts
+        self._flow_scorer = None
 
     # -- inputs ------------------------------------------------------------
     def add_notes(self, notes) -> "ContextAssembler":
@@ -61,7 +62,13 @@ class ContextAssembler:
         }
 
     def render(self) -> str:
-        """Human/agent-readable fused context (compact, one section per source)."""
+        """Human/agent-readable fused context (compact, one section per source).
+
+        Emits a delimited block (=== LIVE CONTEXT === / === END CONTEXT ===)
+        so the LLM reliably learns where the live data starts and ends
+        (Talon-ai-tools style: a labeled context prefix injected before the
+        user prompt every turn).
+        """
         d = self.build()
         lines = []
         if d["health"]:
@@ -87,4 +94,33 @@ class ContextAssembler:
                 f"{n.get('type', 'note')}: {n.get('text', '')}" for n in d["notes"][-5:]
             )
             lines.append(f"[notes] {nt}")
-        return "\n".join(lines) if lines else "[context] empty"
+        body = "\n".join(lines) if lines else "[context] empty"
+        return f"=== LIVE CONTEXT ===\n{body}\n=== END CONTEXT ==="
+
+    # Flow-score integration (FlowOS port): if a scorer is attached, surface
+    # the numeric Flow Score + category as the first context line so the agent
+    # can adapt tone/urgency to the wearer's current momentum.
+    def attach_flow_score(self, scorer) -> "ContextAssembler":
+        """scorer: callable returning (score:int, category:str) or None."""
+        self._flow_scorer = scorer
+        return self
+
+    def render_block(self) -> str:
+        """Delimited context block including an optional Flow Score header."""
+        block = self.render()
+        scorer = getattr(self, "_flow_scorer", None)
+        if scorer:
+            try:
+                res = scorer()
+                if res:
+                    score, cat = res
+                    header = f"[flow] {score}/100 ({cat})"
+                    # insert right after the opening marker
+                    return block.replace(
+                        "=== LIVE CONTEXT ===\n",
+                        f"=== LIVE CONTEXT ===\n{header}\n",
+                        1,
+                    )
+            except Exception:
+                pass
+        return block

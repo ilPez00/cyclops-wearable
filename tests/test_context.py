@@ -27,14 +27,21 @@ def test_fuse_notes_health_calendar():
     assert d["health"]["hr"] == 72 and d["health"]["spo2"] == 98
     assert d["calendar"][0]["title"] == "Standup"
     rendered = a.render()
+    assert "=== LIVE CONTEXT ===" in rendered and "=== END CONTEXT ===" in rendered
     assert "[health]" in rendered and "[calendar]" in rendered and "[notes]" in rendered
+    # the body must sit strictly between the markers
+    assert rendered.index("[health]") > rendered.index("=== LIVE CONTEXT ===")
+    assert rendered.index("=== END CONTEXT ===") > rendered.index("[notes]")
     os.remove(cal_path)
     print("OK fused notes+health+calendar ->", repr(rendered))
 
 
 def test_empty_safe():
     a = ContextAssembler()
-    assert a.render() == "[context] empty"
+    out = a.render()
+    assert out.startswith("=== LIVE CONTEXT ===")
+    assert out.endswith("=== END CONTEXT ===")
+    assert "[context] empty" in out
     assert a.build()["notes"] == [] and a.build()["calendar"] == []
     print("OK empty assembler -> empty context")
 

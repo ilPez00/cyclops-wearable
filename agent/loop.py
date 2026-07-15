@@ -246,9 +246,12 @@ class Agent:
         if rec:
             parts.append("RECENT MEMORY (persisted across sessions):\n" + rec)
         if self.context is not None:
-            fused = self.context.render()
-            if fused and fused != "[context] empty":
-                parts.append("LIVE CONTEXT (fused notes/health/calendar):\n" + fused)
+            fused = self.context.render_block()
+            # strip the delimiters for inline injection (markers reserved for
+            # the raw DISPLAY_CMD path); keep the section lines.
+            body = fused.replace("=== LIVE CONTEXT ===\n", "").replace("\n=== END CONTEXT ===", "")
+            if body and "[context] empty" not in body:
+                parts.append("LIVE CONTEXT (fused notes/health/calendar):\n" + body)
         return "\n\n".join(parts)
 
     def persist_turn(self, user_text: str, answer: str):
