@@ -286,6 +286,36 @@ int main() {
      assert(hd.note_count == 1 && strcmp(hd.notes[0], "hello world") == 0);
  }
 
+ // ---- P1: notification ring buffer (Talon-HUD inspired) ----
+ {
+     Hud hn; hn.send_cmd = on_cmd; hn.init();
+     // Push a 3s transient notification -> present immediately
+     hn.notify("recording started", Hud::NOTE_INFO, 3);
+     assert(hn.notif_count == 1);
+     assert(strcmp(hn.notifs[0].text, "recording started") == 0);
+     assert(hn.notifs[0].ttl == 3);
+     // Auto-clear after N ticks
+     hn.tick_sec(); hn.tick_sec(); hn.tick_sec();
+     assert(hn.notifs[0].ttl == 0);   // expired
+     assert(hn.notif_count == 0);     // all expired
+     // A fresh render still works (expired slot skipped, no crash)
+     FakeScreen fs; hn.render(fs);
+     // Permanent note vs transient: add_note persists, notify expires
+     hn.add_note("permanent note");
+     hn.notify("ephemeral", Hud::NOTE_WARN, 1);
+     assert(hn.note_count == 1 && strcmp(hn.notes[0], "permanent note") == 0);
+     assert(hn.notif_count == 1);
+     hn.tick_sec();  // ephemeral expires
+     assert(hn.notif_count == 0);  // back to empty
+     // Overflow: push 9 -> ring wraps, notif_count caps at RING_SIZE (8)
+     Hud ho; ho.send_cmd = on_cmd; ho.init();
+     for (int i = 0; i < 9; ++i) ho.notify("n", Hud::NOTE_INFO, 255); // ttl 255 = never auto-expire in test
+     assert(ho.notif_count == Hud::RING_SIZE);
+     // kind field preserved
+     ho.notify("err", Hud::NOTE_ERR, 255);
+     assert(ho.notifs[(ho.notif_wp + Hud::RING_SIZE - 1) % Hud::RING_SIZE].kind == Hud::NOTE_ERR);
+ }
+
  // ---- COLMI R02 16-byte packet protocol (parser shared with Python) ----
 {
     // battery response: cmd 3, level 64%, charging 0

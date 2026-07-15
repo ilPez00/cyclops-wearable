@@ -136,7 +136,7 @@ static void on_ota_frame(uint8_t type, const uint8_t* p, size_t n) {
     cyclops::OtaStatus st;
     if (type == cyclops::MSG_OTA_BEGIN) {
         st = ota_rx().on_begin(p, n, &seq);
-        if (st == cyclops::OTA_OK) { hud.toast("OTA start", 3); hud.progress = 0; }
+        if (st == cyclops::OTA_OK) { hud.notify("OTA start", cyclops::Hud::NOTE_INFO, 3); hud.progress = 0; }
     } else if (type == cyclops::MSG_OTA_CHUNK) {
         st = ota_rx().on_chunk(p, n, &seq);
         uint32_t exp = ota_rx().expected();
@@ -147,13 +147,13 @@ static void on_ota_frame(uint8_t type, const uint8_t* p, size_t n) {
     char ack[48]; int m = cyclops::OtaReceiver::ack_json(ack, sizeof(ack), seq, st);
     send_frame(cyclops::MSG_OTA_ACK, (const uint8_t*)ack, (size_t)m);
     if (type == cyclops::MSG_OTA_END && st == cyclops::OTA_OK) {
-        hud.toast("OTA ok, reboot", 2);
+        hud.notify("OTA ok, reboot", cyclops::Hud::NOTE_OK, 2);
         cyclops::sd_log_line("ota", "commit + reboot");
         delay(400);  // let the ACK notify flush before the link drops
         esp_restart();
     } else if (st != cyclops::OTA_OK) {
         hud.progress = 0;
-        hud.toast("OTA fail", 3);
+        hud.notify("OTA fail", cyclops::Hud::NOTE_ERR, 3);
     }
 }
 
@@ -184,7 +184,7 @@ static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
             if (a == cyclops::ACT_TRANSCRIBE_START) {
                 // Same consent gate as on-device capture (on_nod/do_action):
                 // remote start must not bypass Consent Mode.
-                if (!capturing && !hud.consent) { hud.toast("consent off", 2); }
+                if (!capturing && !hud.consent) { hud.notify("consent off", cyclops::Hud::NOTE_WARN, 2); }
                 else if (capturing) stop_capture();
                 else start_capture();
             } else {

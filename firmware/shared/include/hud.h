@@ -52,6 +52,34 @@ struct Hud {
     int note_count = 0;
     int note_sel = 0;
 
+    // ---- Notification ring buffer (Talon-HUD inspired) ----
+    // Transient system notifications with auto-clear TTL. Permanent notes
+    // (brain/agent) stay in notes[] and never expire; these are the
+    // "system audit" / status pings that should auto-clear after N seconds.
+    enum NoteKind : uint8_t { NOTE_INFO=0, NOTE_WARN=1, NOTE_ERR=2, NOTE_OK=3 };
+    struct NoteSlot {
+        char text[NCOLS+1];
+        uint8_t ttl;   // seconds remaining; 0 = slot free/expired
+        uint8_t kind;
+    };
+    static const int RING_SIZE = 8;
+    NoteSlot notifs[RING_SIZE];
+    uint8_t notif_wp = 0;    // next write position (circular)
+    uint8_t notif_count = 0;
+
+    // Push a transient notification. ttl=0 means "keep until overwritten"
+    // (rare); default 3s auto-clears. kind drives the glyph in render().
+    // notif_count tracks ACTIVE (ttl>0) slots; filling a free/expired slot
+    // bumps it, evicting an already-active slot leaves it unchanged (ring).
+    void notify(const char* t, uint8_t kind = NOTE_INFO, int ttl = 3) {
+        NoteSlot& s = notifs[notif_wp];
+        if (s.ttl == 0 && notif_count < RING_SIZE) ++notif_count;  // filling free slot
+        int n = 0; while (t && t[n] && n < NCOLS) { s.text[n] = t[n]; ++n; }
+        s.text[n] = 0; s.ttl = (uint8_t)ttl; s.kind = kind;
+        notif_wp = (uint8_t)((notif_wp + 1) % RING_SIZE);
+        if (on_note) on_note(s.text);
+    }
+
     Mode stack[STACK];
     int sp = 0;                  // top = stack[sp-1]
     int menu_sel = 0;
@@ -118,7 +146,12 @@ struct Hud {
         return n >= (int)cap ? (int)cap - 1 : n;
     }
 
-    void init() { sp = 0; push(HOME); note_count = 0; menu_sel = 0; hud_len = 0; toast_ttl = 0; }
+    void init() {
+        sp = 0; push(HOME); note_count = 0; menu_sel = 0; hud_len = 0; toast_ttl = 0;
+        notif_wp = 0; notif_count = 0;
+        for (uint8_t i = 0; i < RING_SIZE; ++i) { notifs[i].ttl = 0; notifs[i].kind = NOTE_INFO; notifs[i].text[0] = 0; }
+        for (uint8_t i = 0; i < RING_SIZE; ++i) { notifs[i].ttl = 0; notifs[i].kind = NOTE_INFO; notifs[i].text[0] = 0; }
+    }
     void push(Mode m) { if (sp < STACK) stack[sp++] = m; }
     Mode top() const { return sp > 0 ? stack[sp-1] : HOME; }
     void pop() { if (sp > 1) --sp; }
@@ -194,10 +227,14 @@ struct Hud {
         while (*s==' ') ++s;
         if (*s=='"') { ++s; char out[64]; int i=0; while (*s && *s!='"' && i<63) out[i++]=*s++; out[i]=0; add_note(out); }
     }
-    // Advance 1s of wall clock (REC timer + toast + idle sleep).
+    // Advance 1s of wall clock (REC timer + toast + notif TTL + idle sleep).
     void tick_sec() {
         if (recording) ++rec_secs;
         if (toast_ttl > 0) --toast_ttl;
+        // expire notification slots whose TTL ran out
+        for (uint8_t i = 0; i < RING_SIZE; ++i) {
+            if (notifs[i].ttl > 0) { if (--notifs[i].ttl == 0 && notif_count > 0) --notif_count; }
+        }
         if (boot_frame < 4) ++boot_frame;     // ~4s boot spinner, then settled
         if (screen_on) { if (++idle >= sleep_after) screen_on = false; }
     }
@@ -441,6 +478,20 @@ struct Hud {
 
         Mode m = top();
         int body = 1;
+        // active notification footer (Talon-HUD inspired): newest active notif
+        if (notif_count > 0) {
+        // find the newest non-expired slot (highest age since write)
+        int newest = -1;
+        for (uint8_t i = 0; i < RING_SIZE; ++i) if (notifs[i].ttl > 0) newest = i;
+        if (newest >= 0) {
+            const char* glyph = notifs[newest].kind == NOTE_ERR ? "!" :
+                                 notifs[newest].kind == NOTE_WARN ? "*" :
+                                 notifs[newest].kind == NOTE_OK   ? "+" : ">";
+            char ln[40];
+            snprintf(ln, sizeof(ln), "%s %s", glyph, notifs[newest].text);
+            trim(ln, cols); scr.draw_text(0, body, ln); body++;
+        }
+        }
         if (m == HOME) {
             // boot spinner for the first ~2s on pixel-capable panels
             if (boot_frame < 4 && scr.w() >= 48 && scr.h() >= 32) {
