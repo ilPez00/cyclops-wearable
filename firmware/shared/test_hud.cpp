@@ -316,6 +316,41 @@ int main() {
      assert(ho.notifs[(ho.notif_wp + Hud::RING_SIZE - 1) % Hud::RING_SIZE].kind == Hud::NOTE_ERR);
  }
 
+ // ---- P2: dynamic choice menu (Talon-HUD inspired) ----
+ {
+     Hud hc; hc.send_cmd = on_cmd; hc.init();
+     const char* items[] = {"Save note", "Discard", "Edit"};
+     hc.show_choices(items, 3, "note_save");
+     assert(hc.top() == CHOICE);
+     assert(hc.choice_n == 3);
+     assert(strcmp(hc.choice_cb, "note_save") == 0);
+     assert(strcmp(hc.choices[0], "Save note") == 0);
+     // wheel scrolls the selection
+     hc.on_wheel(1); assert(hc.choice_sel == 1);
+     hc.on_wheel(1); assert(hc.choice_sel == 2);
+     hc.on_wheel(-1); assert(hc.choice_sel == 1);
+     // select fires ACT_CHOICE_SELECT with the callback tag
+     int before = ncmd;
+     hc.on_select();
+     assert(hc.top() != CHOICE);            // popped back
+     assert(cmds[ncmd-1] == ACT_CHOICE_SELECT);
+     // arg = callback tag (captured via on_cmd's carg)
+     assert(strstr(carg, "note_save") != nullptr);
+     (void)before;
+     // overflow: more than MAX_CHOICES clipped
+     const char* many[] = {"a","b","c","d","e","f","g"};
+     Hud hm; hm.send_cmd = on_cmd; hm.init();
+     hm.show_choices(many, 7, "cb");
+     assert(hm.choice_n == Hud::MAX_CHOICES);
+     // parse from DISPLAY_CMD json (brain -> wearable)
+     Hud hj; hj.send_cmd = on_cmd; hj.init();
+     hj.apply_display_cmd("{\"kind\":\"choices\",\"cb\":\"note_discard\",\"items\":[\"Keep\",\"Delete\",\"Snooze\"]}");
+     assert(hj.top() == CHOICE);
+     assert(hj.choice_n == 3);
+     assert(strcmp(hj.choice_cb, "note_discard") == 0);
+     assert(strcmp(hj.choices[2], "Snooze") == 0);
+ }
+
  // ---- COLMI R02 16-byte packet protocol (parser shared with Python) ----
 {
     // battery response: cmd 3, level 64%, charging 0

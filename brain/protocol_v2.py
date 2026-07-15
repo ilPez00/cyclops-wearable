@@ -45,6 +45,7 @@ ACT_VOICE_CMD = 19
 ACT_OK = 20
 ACT_BACK = 21
 ACT_CONSENT_TOGGLE = 22
+ACT_CHOICE_SELECT = 23
 
 
 # numeric constants for convenience

@@ -17,7 +17,7 @@ namespace cyclops {
 enum Mode : uint8_t {
     HOME=0, MENU, NOTES, NOTE_DETAIL, TRANSCRIBE, TRANSLATE,
     HEALTH, TELEPROMPTER, NAV, CAMERA, IMAGE_ANALYSIS, SSH, SETTINGS, CONFIRM,
-    AGENT
+    CHOICE, AGENT
 };
 
 // Action ids sent to the brain via MSG_CMD
@@ -27,7 +27,7 @@ enum Action : uint8_t {
     ACT_SSH=9, ACT_SETTINGS=10, ACT_CONFIRM_YES=11, ACT_CONFIRM_NO=12,
     ACT_SELECT=13, ACT_AGENT=14, ACT_AGENT_ABORT=15,
     ACT_PHOTO=16, ACT_VIDEO=17, ACT_VOICE_NOTE=18, ACT_VOICE_CMD=19,
-    ACT_OK=20, ACT_BACK=21, ACT_CONSENT_TOGGLE=22
+    ACT_OK=20, ACT_BACK=21, ACT_CONSENT_TOGGLE=22, ACT_CHOICE_SELECT=23
 };
 
 // Two buttons x three gestures = the remappable binding grid. Index:
@@ -110,6 +110,27 @@ struct Hud {
     int nav_dist = 0, nav_head = 0; char nav_label[24] = "";
     int tele_page = 0;
     char confirm_prompt[32] = ""; uint8_t confirm_action = 0;
+
+    // ---- Choice menu (Talon-HUD inspired) ----
+    // Dynamic multi-option list pushed by the brain. Wheel scrolls,
+    // select fires ACT_CHOICE_SELECT with the choice's callback tag.
+    static const int MAX_CHOICES = 6;
+    char choices[MAX_CHOICES][NCOLS+1];
+    char choice_cb[32];            // callback tag sent back on select
+    int choice_n = 0;
+    int choice_sel = 0;
+    // Push a choice list. items[] are labels (<=NCOLS chars), cb is the
+    // tag the wearable returns to the brain on selection.
+    void show_choices(const char* const items[], int n, const char* cb) {
+        choice_n = 0; choice_sel = 0;
+        int m = (n < MAX_CHOICES) ? n : MAX_CHOICES;
+        for (int i = 0; i < m; ++i) {
+            int k = 0; while (items[i] && items[i][k] && k < NCOLS) { choices[choice_n][k] = items[i][k]; ++k; }
+            choices[choice_n][k] = 0; ++choice_n;
+        }
+        int c = 0; while (cb && cb[c] && c < 31) { choice_cb[c] = cb[c]; ++c; } choice_cb[c] = 0;
+        push(CHOICE);
+    }
     int rec_secs = 0;
     int haptic_pattern[2] = {1, 2};   // per-button (A=0,B=1) vibration pattern id
     int led_hue[2] = {0, 200};        // per-button LED hue (0..360) for the paired LED
@@ -219,6 +240,30 @@ struct Hud {
                 return;
             }
         }
+        // dynamic choice list (Talon-HUD choice panel)
+        if (strstr(k, "\"choices\"")) {
+            const char* cb = strstr(k, "\"cb\"");
+            char cbtag[32]; cbtag[0]=0;
+            if (cb) { const char* s = strchr(cb, ':'); if (s) { ++s; while (*s==' '||*s=='\"') ++s;
+                int i=0; while (*s && *s!='\"' && *s!=',' && i<31) cbtag[i++]=*s++; cbtag[i]=0; } }
+            // parse up to MAX_CHOICES labels from "items":["a","b",...]
+            // static scratch buffers (no strndup; ESP32 libc lacks it)
+            static char cbuf[6][24];
+            const char* items = strstr(k, "\"items\"");
+            const char* arr = items ? strchr(items, '[') : nullptr;
+            const char* list[6]; int ln2 = 0;
+            if (arr) { const char* p = arr + 1;
+                while (*p && *p != ']' && ln2 < 6) {
+                    while (*p && *p != '\"') ++p;
+                    if (!*p) break; ++p;
+                    int bi=0; while (*p && *p!='\"' && bi<23) cbuf[ln2][bi++]=*p++; cbuf[ln2][bi]=0;
+                    if (*p) ++p;  // skip closing quote
+                    if (cbuf[ln2][0]) { list[ln2] = cbuf[ln2]; ++ln2; }
+                }
+            }
+            show_choices(list, ln2, cbtag[0] ? cbtag : "choice");
+            return;
+        }
         // default: treat as a text line -> note
         const char* key = strstr(json, "\"data\"") ? "\"data\"" : "\"text\"";
         const char* t = strstr(json, key);
@@ -250,6 +295,7 @@ struct Hud {
         Mode m = top();
         if (m == MENU) menu_sel = clamp(menu_sel + d, 0, menu_n-1);
         else if (m == NOTES) note_sel = clamp(note_sel + d, 0, note_count-1);
+        else if (m == CHOICE) choice_sel = clamp(choice_sel + d, 0, choice_n-1);
         else if (m == NOTE_DETAIL || m == TRANSLATE || m == IMAGE_ANALYSIS || m == SSH || m == CAMERA || m == AGENT)
             scroll_off = clamp(scroll_off + d*16, 0, detail_len);
         else if (m == TELEPROMPTER) tele_page = clamp(tele_page + d, 0, 999);
@@ -280,6 +326,9 @@ struct Hud {
             toast("agent ready", 2);
         } else if (m == CONFIRM) {
             cmd(ACT_CONFIRM_YES); pop();
+        } else if (m == CHOICE) {
+            if (choice_n) cmd(ACT_CHOICE_SELECT, choice_cb);
+            pop();
         } else if (m == HOME) {
             push(MENU);
         }
@@ -583,6 +632,15 @@ struct Hud {
         } else if (m == CONFIRM) {
             scr.draw_text(0,body,confirm_prompt);
             scr.draw_text(0,body+1,"A:yes  B:no");
+        } else if (m == CHOICE) {
+            char hdr[32]; snprintf(hdr, sizeof(hdr), "choose [%s]", choice_cb);
+            trim(hdr, cols); scr.draw_text(0, body, hdr); body++;
+            for (int i = 0; i < rows-2 && i < choice_n; ++i) {
+                const char* mk = (i == choice_sel) ? ">" : " ";
+                char ln[40]; snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, choices[i]);
+                trim(ln, cols); scr.draw_text(0, body+i, ln);
+            }
+            scr.draw_text(0, rows-1, "wheel:pick A:ok B:back");
         }
         // transient toast overlay (last row) wins over body content
         if (toast_ttl > 0) {
@@ -599,7 +657,7 @@ struct Hud {
             case NOTE_DETAIL: return "NOTE"; case TRANSCRIBE: return "REC"; case TRANSLATE: return "TR";
             case HEALTH: return "HLTH"; case TELEPROMPTER: return "TELE"; case NAV: return "NAV";
             case CAMERA: return "CAM"; case IMAGE_ANALYSIS: return "IMG"; case SSH: return "SSH";
-            case SETTINGS: return "CFG"; case CONFIRM: return "?"; case AGENT: return "AGENT";
+            case SETTINGS: return "CFG"; case CONFIRM: return "?"; case CHOICE: return "CHO"; case AGENT: return "AGENT";
         }
         return "";
     }

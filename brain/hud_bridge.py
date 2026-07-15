@@ -34,6 +34,7 @@ from .protocol_v2 import (
     ACT_VIDEO,
     ACT_VOICE_CMD,
     ACT_VOICE_NOTE,
+    ACT_CHOICE_SELECT,
     HUD_KINDS,
     MSG_RING_GESTURE,
     build_hud,
@@ -289,6 +290,14 @@ class HudBridge:
         if act == ACT_CONFIRM_NO:
             self._emit_text("CANCELLED")
             return ("confirm_no", None)
+        if act == ACT_CHOICE_SELECT:
+            # arg carries the callback tag the firmware was given via
+            # show_choices(); route the selection to the agent/brain.
+            cb = (arg or "").strip()
+            self._emit_text("CHOICE: " + (cb or "(none)"))
+            # a real backend would dispatch on cb (e.g. "note_save",
+            # "note_discard"); here we surface it as an event.
+            return ("choice_select", cb)
         if act == ACT_NOTES:
             if self.store:
                 self._emit_text("NOTES: %d stored" % len(self.store.all()))
