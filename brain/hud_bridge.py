@@ -45,6 +45,20 @@ MSG_CMD = 9
 from .protocol import MSG as _MSG  # noqa: E402
 from .transcriber import get_transcriber  # noqa: E402
 
+# lifeOS sink: Cyclops maintains each user's lifeOS with extracted wearable notes.
+# Single source of truth lives at /home/gio/vault/lifeos_sink.py; import it if
+# present (home box), else this stays a no-op so production deploys aren't tied
+# to the vault path.
+try:
+    import sys as _sys
+    _VAULT = "/home/gio/vault"
+    if _VAULT not in _sys.path:
+        _sys.path.insert(0, _VAULT)
+    from lifeos_sink import Cyclops as _CyclopsSink  # type: ignore
+    _cyclops_sink = _CyclopsSink(_VAULT)
+except Exception:  # pragma: no cover - optional integration
+    _cyclops_sink = None
+
 MSG_AUDIO_META = _MSG["AUDIO_META"]
 MSG_AUDIO_CHUNK = _MSG["AUDIO_CHUNK"]
 MSG_AUDIO_STOP = _MSG["AUDIO_STOP"]
@@ -73,9 +87,10 @@ _MASK = 0xFF
 
 
 class HudBridge:
-    def __init__(self, sink, store=None, transcriber=None, health=None, agent=None):
+    def __init__(self, sink, store=None, transcriber=None, health=None, agent=None, user_id="wearer"):
         self.sink = sink
         self.store = store
+        self.user_id = user_id  # who this wearable serves (lifeOS target)
         # auto-select a real backend (whisper -> cloud -> stub) when none given
         self.trans = transcriber if transcriber is not None else get_transcriber("auto")
         self.health = health
@@ -299,8 +314,17 @@ class HudBridge:
             # "note_discard"); here we surface it as an event.
             return ("choice_select", cb)
         if act == ACT_NOTES:
-            if self.store:
-                self._emit_text("NOTES: %d stored" % len(self.store.all()))
+            n = len(self.store.all()) if self.store else 0
+            self._emit_text("NOTES: %d stored" % n)
+            # maintain the wearer's lifeOS with the latest extracted notes
+            if _cyclops_sink is not None and self.store:
+                try:
+                    for _nt in self.store.all()[-5:]:
+                        _txt = _nt.get("text") if isinstance(_nt, dict) else str(_nt)
+                        _typ = _nt.get("type", "note") if isinstance(_nt, dict) else "note"
+                        _cyclops_sink.sync_note(self.user_id or "wearer", _txt, type=_typ)
+                except Exception:
+                    pass  # sink failures must never break the command bridge
             return ("notes", None)
         if act == ACT_AGENT:
             prompt = arg or ""
