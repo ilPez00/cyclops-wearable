@@ -12,6 +12,7 @@ AiKeys store the rest of the brain uses, so no new configuration surface.
 
 from __future__ import annotations
 
+import os
 import time
 
 from .models import ChatResult, ModelError, ModelRouter
@@ -31,12 +32,14 @@ DEFAULT_ORDER = [
     "mistral",
 ]
 
-# FCM local proxy — keyless, tried before every keyed provider.
-# Works when free-coding-models daemon is running on localhost:19280.
-# Fails fast when daemon isn't running, falling through to the keyed cascade.
-FCM_URL = "http://localhost:19280/v1"
-FCM_MODEL = "fcm"
-FCM_KEY = "fcm-local"
+# FCM / free-coding-models endpoint — routed through OmniRoute (which proxies FCM).
+# Defaults point at OmniRoute on localhost:20128; override via env to bypass or change model.
+#   CYCLOPS_FCM_BASE_URL  (default: http://localhost:20128/v1  — OmniRoute)
+#   CYCLOPS_FCM_MODEL     (default: fcm/fcm                — FCM node inside OmniRoute)
+#   CYCLOPS_FCM_KEY      (optional; OmniRoute allows keyless local access)
+FCM_URL = os.environ.get("CYCLOPS_FCM_BASE_URL", "http://localhost:20128/v1")
+FCM_MODEL = os.environ.get("CYCLOPS_FCM_MODEL", "fcm/fcm")
+FCM_KEY = os.environ.get("CYCLOPS_FCM_KEY", "fcm-local")
 
 
 def backoff_for(status: int) -> float:
