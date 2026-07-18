@@ -13,9 +13,17 @@ fake transport without touching the network.
 
 from __future__ import annotations
 
+import os
+
 from .aikeys import AiKeys
 from .pipeline import Pipeline
 from .store import NoteStore
+
+# freerouting: default LLM provider/model. Routes through the local OmniRoute
+# router (agy → Claude Code Pro → free stack) registered in ai_api.txt as
+# `omniroute` / `omniroute_endpoint`. Override with CYCLOPS_LLM_PROVIDER /
+# CYCLOPS_LLM_MODEL, or pass provider= explicitly.
+_DEFAULT_LLM_PROVIDER = os.environ.get("CYCLOPS_LLM_PROVIDER", "omniroute")
 
 
 def build_transcriber(keys: AiKeys | None = None, session=None):
@@ -36,7 +44,7 @@ def build_transcriber(keys: AiKeys | None = None, session=None):
     return StubTranscriber()
 
 
-def build_extractor(keys: AiKeys | None = None, session=None, provider: str = "groq"):
+def build_extractor(keys: AiKeys | None = None, session=None, provider: str = _DEFAULT_LLM_PROVIDER):
     from .extractor import extract
     from .llm_extractor import LLMClient, LLMExtractor
 
@@ -55,7 +63,7 @@ def build_pipeline(
     store_path: str | None = None,
     keys: AiKeys | None = None,
     session=None,
-    llm_provider: str = "groq",
+    llm_provider: str = _DEFAULT_LLM_PROVIDER,
     vault=None,
 ):
     """Return a Pipeline wired with the best available transcriber + extractor.
