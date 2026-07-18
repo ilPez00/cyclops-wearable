@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="20dp"
+    android:background="@color/cyclops_surface_variant">
+
+    <ImageView
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="Cyclops logo" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:textColor="@color/cyclops_primary" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Wearable AI companion"
+            android:textSize="12sp"
+            android:textColor="@color/cyclops_secondary" />
+    </LinearLayout>
+</LinearLayout>

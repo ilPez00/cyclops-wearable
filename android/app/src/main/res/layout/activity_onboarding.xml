@@ -28,7 +28,7 @@
             android:layout_height="wrap_content"
             android:text="Two buttons. That's it."
             android:textSize="16sp"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/cyclops_on_surface" />
 
         <TextView
             android:layout_width="match_parent"
@@ -36,7 +36,7 @@
             android:layout_marginTop="16dp"
             android:text="A · EYE  — look / photo / video"
             android:textSize="15sp"
-            android:textColor="#B3B3B3" />
+            android:textColor="@color/cyclops_secondary" />
 
         <TextView
             android:layout_width="match_parent"
@@ -44,7 +44,7 @@
             android:layout_marginTop="8dp"
             android:text="B · EAR  — back / voice note / voice cmd"
             android:textSize="15sp"
-            android:textColor="#B3B3B3" />
+            android:textColor="@color/cyclops_secondary" />
     </LinearLayout>
 
     <!-- page 1: gestures -->
@@ -62,7 +62,7 @@
             android:layout_height="wrap_content"
             android:text="Each button, three ways"
             android:textSize="16sp"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/cyclops_on_surface" />
 
         <TextView
             android:layout_width="match_parent"
@@ -70,7 +70,7 @@
             android:layout_marginTop="12dp"
             android:text="single tap · double tap · long press"
             android:textSize="15sp"
-            android:textColor="#B3B3B3" />
+            android:textColor="@color/cyclops_secondary" />
 
         <TextView
             android:layout_width="match_parent"
@@ -78,7 +78,7 @@
             android:layout_marginTop="8dp"
             android:text="Remap any of the 6 slots from the app."
             android:textSize="15sp"
-            android:textColor="#B3B3B3" />
+            android:textColor="@color/cyclops_secondary" />
     </LinearLayout>
 
     <!-- page 2: live + done -->
@@ -96,7 +96,7 @@
             android:layout_height="wrap_content"
             android:text="Mirror &amp; memory"
             android:textSize="16sp"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/cyclops_on_surface" />
 
         <TextView
             android:layout_width="match_parent"
@@ -104,7 +104,7 @@
             android:layout_marginTop="12dp"
             android:text="See the live HUD, browse memories, drop the widget on your home screen."
             android:textSize="15sp"
-            android:textColor="#B3B3B3" />
+            android:textColor="@color/cyclops_secondary" />
     </LinearLayout>
 
     <Button

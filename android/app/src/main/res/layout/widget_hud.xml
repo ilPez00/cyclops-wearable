@@ -23,7 +23,7 @@
         android:maxLines="2"
         android:ellipsize="end"
         android:textSize="13sp"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/cyclops_on_surface"
         android:text="—" />
 
     <TextView
@@ -32,7 +32,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:textSize="11sp"
-        android:textColor="#8A9BA8"
+        android:textColor="@color/cyclops_secondary"
         android:text="" />
 
 </LinearLayout>

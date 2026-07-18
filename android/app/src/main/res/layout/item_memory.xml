@@ -25,7 +25,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textSize="14sp"
-            android:textColor="#FFFFFF" />
+            android:lineSpacingExtra="2dp"
+            android:textColor="@color/cyclops_on_surface" />
 
     </LinearLayout>
 
