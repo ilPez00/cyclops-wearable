@@ -111,13 +111,19 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/editIngest"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/ingest_hint"
-        android:inputType="textMultiLine"
-        android:minLines="2" />
+        android:layout_marginTop="4dp"
+        android:hint="@string/ingest_hint">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editIngest"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textMultiLine"
+            android:minLines="2" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <Button
         android:id="@+id/btnIngest"
@@ -126,11 +132,17 @@
         android:layout_height="wrap_content"
         android:text="@string/ingest" />
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/editExtract"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/extract_hint" />
+        android:layout_marginTop="4dp"
+        android:hint="@string/extract_hint">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editExtract"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <Button
         android:id="@+id/btnExtract"
@@ -175,11 +187,16 @@
         android:padding="12dp"
         android:background="@drawable/bg_panel">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editAsk"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/ask_hint" />
+            android:hint="@string/ask_hint">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editAsk"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -190,10 +207,11 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
                 android:text="Local model"
                 android:textSize="13sp"
                 android:textColor="@color/cyclops_secondary" />
-            <Switch
+            <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/swLocal"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
@@ -229,6 +247,10 @@
       android:layout_height="match_parent"
       android:layout_gravity="start"
       android:background="@color/cyclops_surface"
+      app:headerLayout="@layout/nav_header"
+      app:itemTextColor="@color/nav_item_color"
+      app:itemIconTint="@color/nav_item_color"
+      app:itemShapeFillColor="@color/cyclops_surface_variant"
       app:menu="@menu/drawer_menu" />
 
 </androidx.drawerlayout.widget.DrawerLayout>

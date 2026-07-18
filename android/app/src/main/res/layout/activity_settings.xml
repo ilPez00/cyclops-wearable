@@ -31,12 +31,16 @@
             android:text="Find brain on this network"
             android:contentDescription="Auto-discover the brain server via LAN broadcast" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edUrl"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="…or paste the URL (http://host:8080)"
-            android:inputType="textUri" />
+            android:layout_marginTop="10dp"
+            android:hint="…or paste the URL (http://host:8080)">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edUrl"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <LinearLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -74,44 +78,73 @@
             android:textColor="@color/cyclops_primary"
             android:contentDescription="Open the provider's API-key page in a browser" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edApiKey"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="API key (stored on device only)"
-            android:inputType="textPassword" />
+            android:layout_marginTop="8dp"
+            android:hint="API key (stored on device only)">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edLocalEndpoint"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edApiKey"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Endpoint (auto-filled for local providers)"
-            android:inputType="textUri" />
+            android:layout_marginTop="8dp"
+            android:hint="Endpoint (auto-filled for local providers)">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edLocalEndpoint"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textUri" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <TextView style="@style/SettingsHeader"
             android:id="@+id/hdrPersona"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:text="Persona" />
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edPersonaName"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Name (how the agent identifies)" />
+            android:hint="Name (how the agent identifies)">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edPersonaVoice"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Voice (terse / friendly / formal / …)" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edPersonaName"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edPersonaBio"
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Bio (who it is, role, constraints)"
-            android:inputType="textMultiLine" android:minLines="2" />
+            android:layout_marginTop="8dp"
+            android:hint="Voice (terse / friendly / formal / …)">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edPersonaNote"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edPersonaVoice"
+                android:layout_width="match_parent" android:layout_height="wrap_content" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="System note (extra instructions)"
-            android:inputType="textMultiLine" android:minLines="2" />
+            android:layout_marginTop="8dp"
+            android:hint="Bio (who it is, role, constraints)">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edPersonaBio"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textMultiLine" android:minLines="2" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="System note (extra instructions)">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edPersonaNote"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textMultiLine" android:minLines="2" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Advanced per-tool overrides: 10 jargon fields most users never
              touch. Collapsed behind a disclosure so Settings reads clean. -->

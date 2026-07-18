@@ -15,4 +15,5 @@
     <color name="cyclops_error">#EE5A24</color>          <!-- AURA red -->
     <color name="cyclops_blue">#3B82F6</color>           <!-- AURA blue -->
     <color name="cyclops_purple">#A78BFA</color>         <!-- AURA purple -->
+    <color name="ic_launcher_background">#080810</color>
 </resources>

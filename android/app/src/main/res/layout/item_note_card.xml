@@ -1,88 +1,89 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/cardNote"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="4dp">
+    android:layout_marginHorizontal="4dp"
+    android:layout_marginVertical="4dp"
+    android:foreground="?attr/selectableItemBackground">
 
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/cardNote"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginVertical="4dp"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="2dp"
-        app:strokeColor="@color/cyclops_border"
-        app:strokeWidth="1dp"
-        android:foreground="?attr/selectableItemBackground">
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="12dp">
 
+        <!-- type chip + status badges share the top row; text gets full width below -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:padding="12dp">
+            android:gravity="center_vertical">
 
-            <!-- type chip -->
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipType"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textSize="11sp"
+                android:textColor="@color/cyclops_primary"
+                app:chipBackgroundColor="@color/cyclops_surface"
+                app:chipStrokeColor="@color/cyclops_border"
+                app:chipStrokeWidth="1dp"
+                app:chipMinHeight="26dp"
                 app:chipMinTouchTargetSize="0dp" />
 
-            <LinearLayout
+            <View
                 android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <LinearLayout
+                android:id="@+id/layoutBadges"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:orientation="vertical">
+                android:orientation="horizontal">
 
                 <TextView
-                    android:id="@+id/txtNoteText"
-                    android:layout_width="match_parent"
+                    android:id="@+id/badgeCandidate"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="#E6F1F7"
-                    android:textSize="14sp"
-                    android:maxLines="4"
-                    android:ellipsize="end" />
+                    android:layout_marginStart="6dp"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="2dp"
+                    android:text="candidate"
+                    android:textSize="11sp"
+                    android:textColor="@color/cyclops_on_primary"
+                    android:background="@drawable/bg_badge"
+                    android:backgroundTint="@color/cyclops_warning"
+                    android:visibility="gone" />
 
-                <LinearLayout
-                    android:id="@+id/layoutBadges"
-                    android:layout_width="match_parent"
+                <TextView
+                    android:id="@+id/badgeDue"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/badgeCandidate"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="6dp"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:paddingTop="2dp"
-                        android:paddingBottom="2dp"
-                        android:text="candidate"
-                        android:textSize="11sp"
-                        android:textColor="@color/cyclops_surface"
-                        android:background="#FFB300"
-                        android:visibility="gone" />
-
-                    <TextView
-                        android:id="@+id/badgeDue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:paddingTop="2dp"
-                        android:paddingBottom="2dp"
-                        android:textSize="11sp"
-                        android:textColor="#B0BEC5"
-                        android:background="@color/cyclops_border"
-                        android:visibility="gone" />
-                </LinearLayout>
+                    android:layout_marginStart="6dp"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="2dp"
+                    android:textSize="11sp"
+                    android:textColor="@color/cyclops_secondary"
+                    android:background="@drawable/bg_badge"
+                    android:backgroundTint="@color/cyclops_border"
+                    android:visibility="gone" />
             </LinearLayout>
         </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-</LinearLayout>
+
+        <TextView
+            android:id="@+id/txtNoteText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/cyclops_on_surface"
+            android:textSize="14sp"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="4"
+            android:ellipsize="end" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
