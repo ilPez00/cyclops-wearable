@@ -19,6 +19,7 @@
 #include <SoftwareSerial.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
+#include "rowlink.h"
 
 #define PIN_RX   2     // <- controller D4
 #define PIN_TX   3     // unused (SoftwareSerial needs a TX pin)
@@ -62,28 +63,13 @@ void setup() {
     tft.print("CyclUno display");
 }
 
-void loop() {
-    // Reassemble row frames: first byte after a newline is the row index,
-    // then ASCII text until the next newline.
-    static char buf[COLS + 1];
-    static uint8_t len = 0;
-    static uint8_t idx = 0;
-    static bool expect_idx = true;
+static void on_row(uint8_t idx, const char* text, void*) { draw_row(idx, text); }
+static cycluno::RowLinkDecoder decoder(on_row);
 
+void loop() {
     while (link.available()) {
         int b = link.read();
         if (b < 0) break;
-        if (expect_idx) {
-            idx = (uint8_t)b;
-            len = 0;
-            expect_idx = false;
-        } else if (b == '\n') {
-            buf[len] = 0;
-            draw_row(idx, buf);
-            expect_idx = true;
-        } else if (len < COLS) {
-            buf[len++] = (char)b;
-        }
-        // overflow past COLS is dropped until the delimiting newline
+        decoder.push((uint8_t)b);
     }
 }

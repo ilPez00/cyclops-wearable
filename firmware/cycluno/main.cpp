@@ -20,12 +20,17 @@
 // RAM: UnoHud is ~160 B (host-gated < 400), FrameDecoder 262 B, SSD1306Ascii
 // is text-mode (no framebuffer) — comfortably inside the ATmega328P's 2 KB.
 #include <Arduino.h>
-#include <Wire.h>
 #include <SoftwareSerial.h>
-#include "SSD1306Ascii.h"
-#include "SSD1306AsciiWire.h"
 #include "cyclops_shared.h"
 #include "cycluno.h"
+#include "rowlink.h"
+// Local 128x32 OLED is optional: build with -DNO_LOCAL_OLED (env:cycluno_headless)
+// for a headless controller whose only display is the big-display board.
+#ifndef NO_LOCAL_OLED
+#include <Wire.h>
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiWire.h"
+#endif
 
 // ---- pin map (2 joysticks, 2 buttons = the joystick pushes) ----
 #define PIN_J1_X  A0
@@ -39,7 +44,9 @@
 #define DISP_BAUD 19200
 #define OLED_ADDR 0x3C
 
+#ifndef NO_LOCAL_OLED
 static SSD1306AsciiWire oled;
+#endif
 static SoftwareSerial disp(PIN_DISP_RX, PIN_DISP_TX);  // RX, TX
 static cycluno::UnoHud hud;
 
@@ -100,23 +107,27 @@ static bool pressed(uint8_t pin, uint8_t& state) {
 // delimiter.
 struct OledSink : cycluno::RowSink {
     void row(uint8_t idx, const char* text) override {
+#ifndef NO_LOCAL_OLED
         oled.setCursor(0, idx);   // one text row per display row
         oled.print(text);
         oled.clearToEOL();
-        disp.write(idx);
-        disp.print(text);
-        disp.write('\n');
+#endif
+        uint8_t frame[cycluno::ROWLINK_MAX_TEXT + 2];
+        uint8_t n = cycluno::rowlink_encode(idx, text, frame, sizeof(frame));
+        disp.write(frame, n);
     }
 };
 static OledSink sink;
 
 void setup() {
     Serial.begin(115200);
+#ifndef NO_LOCAL_OLED
     Wire.begin();
     Wire.setClock(400000L);
     oled.begin(&Adafruit128x32, OLED_ADDR);  // 128x64 works too: rows 0..3 used
     oled.setFont(System5x7);
     oled.clear();
+#endif
 
     disp.begin(DISP_BAUD);   // one-way link to the big-display board
 

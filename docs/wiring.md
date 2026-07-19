@@ -123,6 +123,11 @@ mirrors the 4 HUD rows to the display board over one wire.
 No LEDs. No extra buttons. The two joystick pushes **are** the two buttons.
 "Ask agent" and "Home" moved into the on-screen MENU (press B, then A).
 
+**Headless option** (`env:cycluno_headless`, `-DNO_LOCAL_OLED`): drop the local
+128×32 OLED entirely — A4/A5 left unwired — and rely only on the big-display
+board. Same pin map minus the OLED rows. Pure input board: 2 joysticks + the
+link out.
+
 ### 2.2 OLED — SSD1306 128×32 (I2C, addr 0x3C)
 
 | OLED pin | Uno pin |
