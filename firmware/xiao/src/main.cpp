@@ -40,8 +40,33 @@ static cyclops::Transparent151I2CScreen screen(0, 0, 0, 0, 0, 0, -1);
 
 #define PIN_WHEEL_A 0
 #define PIN_WHEEL_B 4
-#define PIN_BTN_A  3
-#define PIN_BTN_B  5   // was 4 (aliased WHEEL_B); GPIO5 is free on XIAO S3
+#define PIN_BTN_A  3   // sole button: single=OK double=photo long=video
+
+// Onboard user LED (active-LOW) doubles as the REC indicator. It sits on
+// GPIO21 — the same pin as the SD slot's CS — so the SD logger is disabled on
+// this build (SD is only wired on the I2C-OLED variant anyway).
+#ifndef REC_LED_PIN
+#define REC_LED_PIN 21
+#endif
+#define REC_LED_ON  LOW
+#define REC_LED_OFF HIGH
+
+// Optional analog joystick (env xiao_128x32_joy, -DINPUT_JOYSTICK). It sits
+// ALONGSIDE the scrollwheel, not instead of it: Y scrolls (center-locked),
+// the push is a second source of button-A gestures, X is reserved. Needs the
+// I2C screen so the SPI pins stay free for the ADC lines. Pins are GPIO
+// numbers (silk: GPIO1=D1, GPIO2=D2, GPIO6=D5) — override if you wired others.
+#ifdef INPUT_JOYSTICK
+#ifndef PIN_JOY_X
+#define PIN_JOY_X 1    // VRx -> ADC (reserved)
+#endif
+#ifndef PIN_JOY_Y
+#define PIN_JOY_Y 2    // VRy -> ADC (scroll)
+#endif
+#ifndef PIN_JOY_SW
+#define PIN_JOY_SW 6   // push -> button A, active-LOW
+#endif
+#endif
 
 // Onboard mic (XIAO S3 Sense MSM261D) is a PDM mic: clock GPIO42, data GPIO41.
 // Verified on metal 2026-07-12 — standard I2S on 40/41/42 reads silence, and
@@ -263,6 +288,7 @@ static void start_capture() {
     i2s_driver_install((i2s_port_t)0, &cfg, 0, NULL);
     i2s_set_pin((i2s_port_t)0, &pins);
     capturing = true;
+    digitalWrite(REC_LED_PIN, REC_LED_ON);
     // announce format once: bits, rate, channels, codec (meta[5])
     uint8_t meta[8]; meta[0]=16; meta[1]=0; meta[2]=MIC_RATE&0xFF; meta[3]=(MIC_RATE>>8)&0xFF;
     meta[4]=1; meta[5]=cyclops::AUDIO_CODEC_ADPCM; meta[6]=0; meta[7]=0;
@@ -278,6 +304,7 @@ static void stop_capture() {
     delay(120);
     i2s_driver_uninstall((i2s_port_t)0);
     send_frame(cyclops::MSG_AUDIO_STOP, NULL, 0);
+    digitalWrite(REC_LED_PIN, REC_LED_OFF);
     hud.recording = false;
     cyclops::sd_log_line("rec", "stop");
 }
@@ -298,16 +325,24 @@ void setup() {
 #endif
     screen.begin();
     Serial.println("[boot] screen.begin ok");
-    pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
+    pinMode(REC_LED_PIN, OUTPUT); digitalWrite(REC_LED_PIN, REC_LED_OFF);
+    pinMode(PIN_BTN_A, INPUT_PULLUP);
     pinMode(PIN_WHEEL_A, INPUT_PULLUP); pinMode(PIN_WHEEL_B, INPUT_PULLUP);
+#ifdef INPUT_JOYSTICK
+    pinMode(PIN_JOY_SW, INPUT_PULLUP);   // analog axes need no pinMode
+#endif
     attachInterrupt(digitalPinToInterrupt(PIN_WHEEL_A), wheel_isr, CHANGE);
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
     hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
     hud.init();
     Serial.println("[boot] hud.init ok");
+#if REC_LED_PIN == 21
+    Serial.println("[boot] sd disabled (GPIO21 drives the REC LED)");
+#else
     if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
     else Serial.println("[boot] sd card NOT present (logging disabled)");
+#endif
     NimBLEDevice::init("CyclopsXIAO");
     srv = NimBLEDevice::createServer();
     srv->setCallbacks(new SrvCb());
@@ -329,17 +364,40 @@ void setup() {
 }
 
 static uint32_t last_hb=0;
-static cyclops::GestureDetector gest_a, gest_b;   // A="eye", B="ear"
+static cyclops::GestureDetector gest_a;   // sole button (A="eye")
+#ifdef INPUT_JOYSTICK
+static cyclops::GestureDetector gest_joy; // joystick push = 2nd source of A
+// Center-locked step: one event per deflection, no auto-repeat while held.
+// 12-bit ADC (0..4095), center ~2048.
+static int8_t joy_step(uint8_t pin, int8_t& state, int lo = 1350, int hi = 2750) {
+    int v = analogRead(pin);
+    if (state == 0) {
+        if (v > hi) { state = 1;  return 1; }
+        if (v < lo) { state = -1; return -1; }
+    } else if (v >= lo && v <= hi) {
+        state = 0;
+    }
+    return 0;
+}
+#endif
 
 void loop() {
     static int prev = 0;
     if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
     uint32_t now = millis();
-    // buttons are active-low; detector wants pressed=true
+    // button is active-low; detector wants pressed=true
     cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
-    cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
     if (ga) hud.fire_gesture(0, ga);   // A: single=OK double=photo long=video
-    if (gb) hud.fire_gesture(1, gb);   // B: single=back double=voice-note long=voice-cmd
+    // (button B removed — its back/voice-note/voice-cmd gestures are gone;
+    // navigation is the scrollwheel, selection is A.)
+#ifdef INPUT_JOYSTICK
+    // Joystick alongside the wheel: Y scrolls, push is a 2nd button-A source.
+    static int8_t jy = 0;
+    int8_t jd = joy_step(PIN_JOY_Y, jy);
+    if (jd) hud.on_wheel(jd);
+    cyclops::Gesture gj = gest_joy.poll(!digitalRead(PIN_JOY_SW), now);
+    if (gj) hud.fire_gesture(0, gj);
+#endif
 #ifdef ENABLE_RING
     ring.update();
     if (ring.connected()) {
