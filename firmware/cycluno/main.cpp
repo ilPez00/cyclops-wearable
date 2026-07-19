@@ -55,9 +55,14 @@ static cyclops::FrameDecoder dec(on_frame, nullptr);
 
 // ---- outgoing ---------------------------------------------------------
 static void send_frame(uint8_t type, const uint8_t* payload, size_t n) {
+#ifdef DEBUG_INPUT
+    (void)type; (void)payload; (void)n;   // keep the serial stream plain text
+    return;
+#else
     uint8_t buf[96];  // status/cmd frames only — audio never originates here
     size_t k = cyclops::encode_frame(type, payload, n, buf, sizeof(buf));
     if (k) Serial.write(buf, k);
+#endif
 }
 
 static void send_cmd(uint8_t act) {
@@ -148,16 +153,43 @@ void loop() {
 
     // joystick Y axes -> scroll (center-locked single steps)
     static int8_t j1y = 0, j2y = 0;
-    int8_t d = 0;
-    d += joy_step(PIN_J1_Y, j1y);
-    d += joy_step(PIN_J2_Y, j2y);
+    int8_t s1 = joy_step(PIN_J1_Y, j1y);
+    int8_t s2 = joy_step(PIN_J2_Y, j2y);
+#ifdef DEBUG_INPUT
+    if (s1) { Serial.print(F("STEP joy1 ")); Serial.println((int)s1); }
+    if (s2) { Serial.print(F("STEP joy2 ")); Serial.println((int)s2); }
+#endif
+    int8_t d = s1 + s2;
     if (d) hud.on_wheel(d > 0 ? 1 : -1);
 
     // joystick pushes = the two buttons (A = select/REC, B = menu/back).
     // Agent + Home moved into the MENU (reachable via B then A).
     static uint8_t sj1 = 0, sj2 = 0;
-    if (pressed(PIN_J1_SW, sj1)) hud.on_btn_a();   // select / REC
-    if (pressed(PIN_J2_SW, sj2)) hud.on_btn_b();   // menu / back
+    if (pressed(PIN_J1_SW, sj1)) {
+#ifdef DEBUG_INPUT
+        Serial.println(F("BTN A press"));
+#endif
+        hud.on_btn_a();   // select / REC
+    }
+    if (pressed(PIN_J2_SW, sj2)) {
+#ifdef DEBUG_INPUT
+        Serial.println(F("BTN B press"));
+#endif
+        hud.on_btn_b();   // menu / back
+    }
+
+#ifdef DEBUG_INPUT
+    // 5 Hz raw axis dump — watch each ADC move while wiring/calibrating.
+    static unsigned long last_axes = 0;
+    if (millis() - last_axes >= 200) {
+        last_axes = millis();
+        Serial.print(F("AXES "));
+        Serial.print(analogRead(PIN_J1_X)); Serial.print(' ');
+        Serial.print(analogRead(PIN_J1_Y)); Serial.print(' ');
+        Serial.print(analogRead(PIN_J2_X)); Serial.print(' ');
+        Serial.println(analogRead(PIN_J2_Y));
+    }
+#endif
 
     // 1 Hz: toast decay + status frame out (link state implied by OLED updates)
     static unsigned long last_tick = 0;

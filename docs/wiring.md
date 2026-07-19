@@ -148,6 +148,19 @@ link out.
      SW   ── D2  (= Button A)   SW   ── D3  (= Button B)
 ```
 
+### 2.3b Bringup / verify (no display board)
+
+Flash the debug build and watch every input on the serial port:
+
+```
+pio run -e cycluno_debug -t upload
+python3 tools/monitor_events.py        # auto-picks the port
+```
+
+Move a stick → `AXES` numbers change + `STEP joyN ±1`; click → `BTN A/B press`.
+An axis that never moves = mis-wired VRx/VRy; a click that prints nothing =
+wrong SW pin (A=D2, B=D3).
+
 ### 2.4 Link to the display board
 
 ```
