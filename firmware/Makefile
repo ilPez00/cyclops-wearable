@@ -51,6 +51,8 @@ proto:
 	/tmp/cyclops_test_adpcm
 	$(CXX) $(CXXFLAGS) $(INC) shared/test_cycluno.cpp -o /tmp/cyclops_test_cycluno
 	/tmp/cyclops_test_cycluno
+	$(CXX) $(CXXFLAGS) $(INC) shared/test_rowlink.cpp -o /tmp/cyclops_test_rowlink
+	/tmp/cyclops_test_rowlink
 
 ota:
 	$(CXX) $(CXXFLAGS) $(INC) shared/test_ota.cpp -o /tmp/cyclops_test_ota

@@ -1,45 +1,53 @@
-// CyclUno — Cyclops dev unit on an Arduino Uno.
+// CyclUno — Cyclops dev unit on an Arduino Uno (controller half).
 //
-// Hardware (revised bench build — NO encoder, NO LEDs):
-//   OLED SSD1306 128x32 or 128x64, I2C (A4=SDA A5=SCL, addr 0x3C)
-//   2 joysticks (analog, active-low push):
-//       J1  VRx=A0  VRy=A1  SW=D2   (primary nav: scroll + select)
-//       J2  VRx=A2  VRy=A3  SW=D3   (secondary: back / menu)
-//   4 buttons (active-low, internal pullup):
-//       B1=D4  select / REC toggle   (same as J1 push)
-//       B2=D5  menu / back           (same as J2 push)
-//       B3=D6  ask agent
-//       B4=D7  home
-//   No physical LEDs — REC / link state is shown on the OLED only.
+// Hardware (minimal build — 2 joysticks, 2 buttons, no encoder/LEDs):
+//   OLED SSD1306 128x32, I2C (A4=SDA A5=SCL, addr 0x3C) — local glance HUD
+//   2 joysticks (analog, active-low push — the pushes ARE the two buttons):
+//       J1  VRx=A0  VRy=A1  SW=D2   A: select / REC toggle
+//       J2  VRx=A2  VRy=A3  SW=D3   B: menu / back
+//   No physical LEDs — REC / link state is shown on the OLED.
 //
-// Link: USB serial @115200 speaking the shared v2 framing — the same frames
-// the XIAO speaks over BLE, so the whole brain pipeline is reused unchanged.
-// The brain side is device/transport.py CableTransport (or demo_cycluno.py
-// feeding prerecorded fixtures).
+// Companion display board: the same 4 HUD rows are forwarded over
+// SoftwareSerial (D4 TX @19200) to a second Arduino driving a big 128x128
+// ST7735 (env:cyclobig, cyclobig/main.cpp). D4->that board's RX, GND<->GND.
+// One-way link: the controller owns all state; the display just renders rows.
+//
+// Link to the brain: USB serial @115200 speaking the shared v2 framing — the
+// same frames the XIAO speaks over BLE, so the whole brain pipeline is reused
+// unchanged. The brain side is device/transport.py CableTransport (or
+// demo_cycluno.py feeding prerecorded fixtures).
 //
 // RAM: UnoHud is ~160 B (host-gated < 400), FrameDecoder 262 B, SSD1306Ascii
 // is text-mode (no framebuffer) — comfortably inside the ATmega328P's 2 KB.
 #include <Arduino.h>
+#include <SoftwareSerial.h>
+#include "cyclops_shared.h"
+#include "cycluno.h"
+#include "rowlink.h"
+// Local 128x32 OLED is optional: build with -DNO_LOCAL_OLED (env:cycluno_headless)
+// for a headless controller whose only display is the big-display board.
+#ifndef NO_LOCAL_OLED
 #include <Wire.h>
 #include "SSD1306Ascii.h"
 #include "SSD1306AsciiWire.h"
-#include "cyclops_shared.h"
-#include "cycluno.h"
+#endif
 
-// ---- pin map (revised: 2 joysticks + 4 buttons, no encoder/LEDs) ----
+// ---- pin map (2 joysticks, 2 buttons = the joystick pushes) ----
 #define PIN_J1_X  A0
 #define PIN_J1_Y  A1
-#define PIN_J1_SW 2
+#define PIN_J1_SW 2     // button A: select / REC
 #define PIN_J2_X  A2
 #define PIN_J2_Y  A3
-#define PIN_J2_SW 3
-#define PIN_B1    4
-#define PIN_B2    5
-#define PIN_B3    6
-#define PIN_B4    7
+#define PIN_J2_SW 3     // button B: menu / back
+#define PIN_DISP_TX 4   // -> big-display board RX (SoftwareSerial, one-way)
+#define PIN_DISP_RX 5   // unused (SoftwareSerial needs a pin; nothing wired)
+#define DISP_BAUD 19200
 #define OLED_ADDR 0x3C
 
+#ifndef NO_LOCAL_OLED
 static SSD1306AsciiWire oled;
+#endif
+static SoftwareSerial disp(PIN_DISP_RX, PIN_DISP_TX);  // RX, TX
 static cycluno::UnoHud hud;
 
 static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx);
@@ -47,9 +55,14 @@ static cyclops::FrameDecoder dec(on_frame, nullptr);
 
 // ---- outgoing ---------------------------------------------------------
 static void send_frame(uint8_t type, const uint8_t* payload, size_t n) {
+#ifdef DEBUG_INPUT
+    (void)type; (void)payload; (void)n;   // keep the serial stream plain text
+    return;
+#else
     uint8_t buf[96];  // status/cmd frames only — audio never originates here
     size_t k = cyclops::encode_frame(type, payload, n, buf, sizeof(buf));
     if (k) Serial.write(buf, k);
+#endif
 }
 
 static void send_cmd(uint8_t act) {
@@ -93,30 +106,39 @@ static bool pressed(uint8_t pin, uint8_t& state) {
 }
 
 // ---- render sink ------------------------------------------------------
+// Draws locally on the 128x32 OLED and mirrors every row to the big-display
+// board. Wire frame per row: [idx byte 0..3][text ASCII]['\n']. idx (<=3) and
+// the REC bell (0x07) can never be '\n', so the newline is an unambiguous
+// delimiter.
 struct OledSink : cycluno::RowSink {
     void row(uint8_t idx, const char* text) override {
+#ifndef NO_LOCAL_OLED
         oled.setCursor(0, idx);   // one text row per display row
         oled.print(text);
         oled.clearToEOL();
+#endif
+        uint8_t frame[cycluno::ROWLINK_MAX_TEXT + 2];
+        uint8_t n = cycluno::rowlink_encode(idx, text, frame, sizeof(frame));
+        disp.write(frame, n);
     }
 };
 static OledSink sink;
 
 void setup() {
     Serial.begin(115200);
+#ifndef NO_LOCAL_OLED
     Wire.begin();
     Wire.setClock(400000L);
     oled.begin(&Adafruit128x32, OLED_ADDR);  // 128x64 works too: rows 0..3 used
     oled.setFont(System5x7);
     oled.clear();
+#endif
 
-    // joystick pushes + 4 buttons: all active-low with internal pullups
+    disp.begin(DISP_BAUD);   // one-way link to the big-display board
+
+    // joystick pushes are the two buttons: active-low, internal pullup
     pinMode(PIN_J1_SW, INPUT_PULLUP);
     pinMode(PIN_J2_SW, INPUT_PULLUP);
-    pinMode(PIN_B1, INPUT_PULLUP);
-    pinMode(PIN_B2, INPUT_PULLUP);
-    pinMode(PIN_B3, INPUT_PULLUP);
-    pinMode(PIN_B4, INPUT_PULLUP);
     // analog joystick axes need no pinMode (ADC)
 
     hud.send_cmd = send_cmd;
@@ -131,22 +153,43 @@ void loop() {
 
     // joystick Y axes -> scroll (center-locked single steps)
     static int8_t j1y = 0, j2y = 0;
-    int8_t d = 0;
-    d += joy_step(PIN_J1_Y, j1y);
-    d += joy_step(PIN_J2_Y, j2y);
+    int8_t s1 = joy_step(PIN_J1_Y, j1y);
+    int8_t s2 = joy_step(PIN_J2_Y, j2y);
+#ifdef DEBUG_INPUT
+    if (s1) { Serial.print(F("STEP joy1 ")); Serial.println((int)s1); }
+    if (s2) { Serial.print(F("STEP joy2 ")); Serial.println((int)s2); }
+#endif
+    int8_t d = s1 + s2;
     if (d) hud.on_wheel(d > 0 ? 1 : -1);
 
-    // joystick pushes
+    // joystick pushes = the two buttons (A = select/REC, B = menu/back).
+    // Agent + Home moved into the MENU (reachable via B then A).
     static uint8_t sj1 = 0, sj2 = 0;
-    if (pressed(PIN_J1_SW, sj1)) hud.on_btn_a();   // select / REC
-    if (pressed(PIN_J2_SW, sj2)) hud.on_btn_b();   // menu / back
+    if (pressed(PIN_J1_SW, sj1)) {
+#ifdef DEBUG_INPUT
+        Serial.println(F("BTN A press"));
+#endif
+        hud.on_btn_a();   // select / REC
+    }
+    if (pressed(PIN_J2_SW, sj2)) {
+#ifdef DEBUG_INPUT
+        Serial.println(F("BTN B press"));
+#endif
+        hud.on_btn_b();   // menu / back
+    }
 
-    // 4 buttons
-    static uint8_t sb1 = 0, sb2 = 0, sb3 = 0, sb4 = 0;
-    if (pressed(PIN_B1, sb1)) hud.on_btn_a();
-    if (pressed(PIN_B2, sb2)) hud.on_btn_b();
-    if (pressed(PIN_B3, sb3)) { send_cmd(cycluno::ACT_AGENT); hud.toast("agent…"); }
-    if (pressed(PIN_B4, sb4)) hud.go_home();
+#ifdef DEBUG_INPUT
+    // 5 Hz raw axis dump — watch each ADC move while wiring/calibrating.
+    static unsigned long last_axes = 0;
+    if (millis() - last_axes >= 200) {
+        last_axes = millis();
+        Serial.print(F("AXES "));
+        Serial.print(analogRead(PIN_J1_X)); Serial.print(' ');
+        Serial.print(analogRead(PIN_J1_Y)); Serial.print(' ');
+        Serial.print(analogRead(PIN_J2_X)); Serial.print(' ');
+        Serial.println(analogRead(PIN_J2_Y));
+    }
+#endif
 
     // 1 Hz: toast decay + status frame out (link state implied by OLED updates)
     static unsigned long last_tick = 0;
