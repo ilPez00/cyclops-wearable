@@ -19,7 +19,7 @@ from brain.protocol_v2 import (
     ACT_VOICE_CMD,
     ACT_VOICE_NOTE,
     decode,
-    encode,
+    encode_v2,
 )
 from brain.store import NoteStore
 from brain.transcriber import StubTranscriber
@@ -84,7 +84,7 @@ def test_cmd_roundtrip_parse():
     cap = Cap()
     br = HudBridge(cap)
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    frame = encode(MSG["CMD"], payload)
+    frame = encode_v2(MSG["CMD"], payload)
     typ, pl = decode(frame)
     assert typ == MSG["CMD"]
     res = br.handle_cmd(pl)
@@ -94,13 +94,13 @@ def test_cmd_roundtrip_parse():
 def test_frame_receiver_end_to_end():
     # simulate the firmware emitting a v2 MSG_CMD frame over a byte stream
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol_v2 import encode
+    from brain.protocol_v2 import encode_v2
 
     cap = Cap()
     br = HudBridge(cap)
     # firmware builds the same frame the MCU would: MSG_CMD with translate action
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    frame = encode(MSG_CMD, payload)
+    frame = encode_v2(MSG_CMD, payload)
     rcv = FrameReceiver(br)
     rcv.feed(frame)
     assert any(b"TR:" in f for f in cap.frames), (
@@ -111,12 +111,12 @@ def test_frame_receiver_end_to_end():
 def test_frame_receiver_rejects_bad_crc():
     # a corrupted payload byte must not reach the bridge (mirrors firmware CRC gate)
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol_v2 import encode
+    from brain.protocol_v2 import encode_v2
 
     cap = Cap()
     br = HudBridge(cap)
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    frame = bytearray(encode(MSG_CMD, payload))
+    frame = bytearray(encode_v2(MSG_CMD, payload))
     frame[-1] ^= 0xFF  # corrupt the CRC itself; payload stays valid JSON
     rcv = FrameReceiver(br)
     rcv.feed(bytes(frame))
@@ -129,7 +129,7 @@ def test_frame_receiver_recovers_from_oversized_frame():
     # a declared length beyond buffer capacity must be rejected, and the
     # receiver must resync on the next valid frame (mirrors firmware decoder)
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol_v2 import encode
+    from brain.protocol_v2 import encode_v2
 
     cap = Cap()
     br = HudBridge(cap)
@@ -139,7 +139,7 @@ def test_frame_receiver_recovers_from_oversized_frame():
     rcv.feed(b"\x00" * 100)
     # then a valid frame — it must still dispatch
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    rcv.feed(encode(MSG_CMD, payload))
+    rcv.feed(encode_v2(MSG_CMD, payload))
     assert any(b"TR:" in f for f in cap.frames), (
         "receiver must recover after an oversized frame"
     )

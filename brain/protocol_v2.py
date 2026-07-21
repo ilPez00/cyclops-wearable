@@ -62,13 +62,18 @@ MSG_PEER_STATUS = MSGV2["PEER_STATUS"]
 from .protocol import MAGIC1, MAGIC2, crc16_ccitt_false  # noqa: E402
 
 
-def encode(typ, payload):
+def encode_v2(typ, payload):
     if isinstance(payload, str):
         payload = payload.encode()
     # CRC covers len(2)+type(1)+payload — firmware/Kotlin wire-contract window
     window = struct.pack("<H", len(payload)) + bytes([typ]) + payload
     crc = crc16_ccitt_false(window)
     return bytes([MAGIC1, MAGIC2]) + window + struct.pack("<H", crc)
+
+
+# Alias for backward compat during migration. Renamed from encode() to avoid
+# shadowing protocol.encode (same signature, different frame format).
+encode = encode_v2
 
 
 def decode(frame):
