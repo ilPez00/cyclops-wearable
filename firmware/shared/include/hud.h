@@ -171,7 +171,6 @@ struct Hud {
         sp = 0; push(HOME); note_count = 0; menu_sel = 0; hud_len = 0; toast_ttl = 0;
         notif_wp = 0; notif_count = 0;
         for (uint8_t i = 0; i < RING_SIZE; ++i) { notifs[i].ttl = 0; notifs[i].kind = NOTE_INFO; notifs[i].text[0] = 0; }
-        for (uint8_t i = 0; i < RING_SIZE; ++i) { notifs[i].ttl = 0; notifs[i].kind = NOTE_INFO; notifs[i].text[0] = 0; }
     }
     void push(Mode m) { if (sp < STACK) stack[sp++] = m; }
     Mode top() const { return sp > 0 ? stack[sp-1] : HOME; }
