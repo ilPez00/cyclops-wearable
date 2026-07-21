@@ -10,12 +10,14 @@ from .extractor import NOTE_TYPES, Note
 
 
 class NoteStore:
-    def __init__(self, path: str = "~/.cyclops/notes.jsonl", vault=None):
+    def __init__(self, path: str = "~/.cyclops/notes.jsonl", vault=None, max_notes: int = 0):
         # `vault` is an optional brain.obsidian.ObsidianVault: every stored
         # note is mirrored into the vault as a linked .md page. None = off.
+        # `max_notes` caps the total stored notes (0 = unlimited).
         self.path = os.path.expanduser(path)
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         self.vault = vault
+        self.max_notes = max_notes
         self.notes: list[Note] = []
         self._load()
 
@@ -31,9 +33,11 @@ class NoteStore:
                     self.notes.append(Note(**json.loads(line)))
                 except Exception:
                     pass
+        self._trim()
 
     def add(self, note: Note) -> Note:
         self.notes.append(note)
+        self._trim()
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(note)) + "\n")
         if self.vault is not None:
@@ -102,6 +106,25 @@ class NoteStore:
         with open(out, "w", encoding="utf-8") as f:
             f.write(txt)
         return txt
+
+    def _trim(self):
+        """Trim in-memory notes to max_notes (oldest first)."""
+        if self.max_notes > 0 and len(self.notes) > self.max_notes:
+            self.notes = self.notes[-self.max_notes:]
+
+    def prune(self, keep: int = 0):
+        """Explicitly trim notes to the given count, rewriting the file.
+        When keep=0 uses self.max_notes (no-op if max_notes is 0)."""
+        n = keep or self.max_notes
+        if n > 0 and len(self.notes) > n:
+            self.notes = self.notes[-n:]
+            self._rewrite()
+
+    def _rewrite(self):
+        """Rewrite the JSONL file to match current in-memory state."""
+        with open(self.path, "w", encoding="utf-8") as f:
+            for n in self.notes:
+                f.write(json.dumps(asdict(n)) + "\n")
 
     def clear(self):
         self.notes = []
