@@ -557,11 +557,12 @@ def main():
         pass
     # Agent core: Hermes-style loop with tools (terminal/whatsapp/media/device/brain).
     # Local-first; uses CYCLOPS_LOCAL / provider env to pick cloud vs local model.
-    agent = Agent(
-        AgentConfig.load(env=dict(os.environ)),
-        registry=build_registry(AgentConfig.load(), context_assembler=assembler),
-        context=assembler,
-    )
+    with _AGENT_LOCK:
+        agent = Agent(
+            AgentConfig.load(env=dict(os.environ)),
+            registry=build_registry(AgentConfig.load(), context_assembler=assembler),
+            context=assembler,
+        )
     # HUD bridge: fulfills wearable MSG_CMD locally and pushes glanceable banners
     # back to the glasses. Wired with the agent so the device's AGENT command uses
     # the real core. Sink is a no-op here; the phone/BLE side swaps in a real writer.
@@ -574,14 +575,14 @@ def main():
         def render_text(self, t):
             pass
 
-    global bridge
-    bridge = HudBridge(
-        _NullSink(),
-        store=store,
-        transcriber=getattr(pipeline, "trans", None) if pipeline else None,
-        health=None,
-        agent=agent,
-    )
+    with _AGENT_LOCK:
+        bridge = HudBridge(
+            _NullSink(),
+            store=store,
+            transcriber=getattr(pipeline, "trans", None) if pipeline else None,
+            health=None,
+            agent=agent,
+        )
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
     # LAN discovery beacon so clients can find us without typing an IP.
     # Convenience only: a taken UDP port degrades to "no beacon", never blocks.
