@@ -46,12 +46,13 @@ from .protocol import MSG as _MSG  # noqa: E402
 from .transcriber import get_transcriber  # noqa: E402
 
 # lifeOS sink: Cyclops maintains each user's lifeOS with extracted wearable notes.
-# Single source of truth lives at /home/gio/vault/lifeos_sink.py; import it if
-# present (home box), else this stays a no-op so production deploys aren't tied
-# to the vault path.
+# Set CYCLOPS_VAULT env var to the vault directory (default: ~/.cyclops/vault).
+# If the vault isn't available, this stays a no-op so production deploys aren't
+# tied to a specific path.
 try:
+    import os as _os
     import sys as _sys
-    _VAULT = "/home/gio/vault"
+    _VAULT = _os.environ.get("CYCLOPS_VAULT", _os.path.expanduser("~/.cyclops/vault"))
     if _VAULT not in _sys.path:
         _sys.path.insert(0, _VAULT)
     from lifeos_sink import Cyclops as _CyclopsSink  # type: ignore

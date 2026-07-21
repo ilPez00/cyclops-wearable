@@ -18,9 +18,9 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # allow running from anywhere: if this script is inside the repo use it,
-# otherwise fall back to the known healthy location.
+# otherwise fall back to $HOME/cyclops (set CYCLOPS_DIR to override).
 if [[ ! -f "$REPO_DIR/app/server.py" ]]; then
-  REPO_DIR="/home/gio/cyclops"
+  REPO_DIR="${CYCLOPS_DIR:-$HOME/cyclops}"
 fi
 
 PORT=8080
@@ -53,7 +53,7 @@ else
 fi
 
 # --- AI-stack check -------------------------------------------------------
-AI_TXT="${CYCLOPS_AI_API_TXT:-/home/gio/ai_api.txt}"
+AI_TXT="${CYCLOPS_AI_API_TXT:-$HOME/.cyclops/ai_api.txt}"
 if [[ -f "$AI_TXT" ]]; then
   echo "ai keys: $AI_TXT ($(grep -c ':' "$AI_TXT" 2>/dev/null || echo 0) entries)"
 else
