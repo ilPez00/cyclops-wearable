@@ -15,6 +15,7 @@
 #include "sd_log.h"
 #include "imu.h"
 #include "presence.h"
+#include "posture.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -68,6 +69,11 @@ static cyclops::Imu imu(0x68, 1);      // HW-123 ITG/MPU on I2C (D6/D7), INT->D1
 // even with the BLE link down), same fail-closed principle as the phone-side
 // HITL gate. Re-worn (motion resumes) restores consent immediately.
 static cyclops::PresenceDetector presence;
+// Posture cue: calibrated to "neutral" on first read after boot and again
+// whenever the device is re-worn (presence edge on->off->on), since pin/
+// lapel mounting angle isn't fixed. 30 deg sustained 10 min, per the product
+// pitch; breathing-rate is real DSP work (chest-rise extraction), deferred.
+static cyclops::PostureDetector posture(30, 600000);
 #endif
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
@@ -367,6 +373,11 @@ void loop() {
             hud.notify(off ? "off-body: sensors off" : "on-body: sensors on",
                        cyclops::Hud::NOTE_WARN, 2);
             cyclops::sd_log_line("presence", off ? "off" : "on");
+            if (!off) posture.calibrate(s.pitch);  // just re-worn: reset "neutral"
+        }
+        if (!posture.calibrated() && !off) posture.calibrate(s.pitch);  // first read after boot
+        if (!off && posture.poll(s.pitch, now) && posture.changed()) {
+            hud.notify("posture: sit up straight", cyclops::Hud::NOTE_INFO, 3);
         }
     }
 #endif

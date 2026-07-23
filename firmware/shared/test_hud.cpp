@@ -4,6 +4,7 @@
 #include "ring_proto.h"
 #include "gestures.h"
 #include "presence.h"
+#include "posture.h"
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -680,6 +681,34 @@ int main() {
         assert(p3.poll(1000, 0, 0, 0)   == false);
         assert(p3.poll(1000, 0, 0, 300) == false);
         assert(p3.off_body() == false);
+    }
+
+    // ---- posture detector: sustained slouch beyond a calibrated baseline ----
+    {
+        // uncalibrated: never fires, no matter the pitch
+        PostureDetector u;
+        assert(u.poll(90, 100000) == false);
+
+        PostureDetector p(30, 1000);  // 1s sustain for a fast test
+        p.calibrate(5);               // "neutral" baseline pitch
+        assert(p.poll(5, 0)    == false);  // upright: no slouch
+        assert(p.poll(10, 100) == false);  // small drift: within band
+        assert(p.poll(40, 200) == false);  // slouch begins, timer not elapsed
+        assert(p.changed() == false);
+        assert(p.poll(38, 1300) == true);  // sustained 1.1s past onset -> fires
+        assert(p.changed() == true);
+        assert(p.poll(37, 1400) == true);  // stays flagged
+        assert(p.changed() == false);      // no re-trigger while unchanged
+        assert(p.poll(6, 1500)  == false); // sits back up -> clears immediately
+        assert(p.changed() == true);
+
+        // a brief slouch that never sustains must not fire
+        PostureDetector p2(30, 1000);
+        p2.calibrate(0);
+        assert(p2.poll(50, 0)   == false);
+        assert(p2.poll(0, 500)  == false);  // back to neutral before 1s elapsed
+        assert(p2.poll(50, 600) == false);  // slouch restarts its own timer
+        assert(p2.poll(50, 1500) == false); // only 900ms into this bout
     }
 
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);
