@@ -3,6 +3,7 @@
 #include "screen.h"
 #include "ring_proto.h"
 #include "gestures.h"
+#include "presence.h"
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -647,6 +648,38 @@ int main() {
         GridScreen gd1; hd.render(gd1); dump(gd1, a);
         GridScreen gd2; hd.render(gd2); dump(gd2, b);
         assert(memcmp(a, b, sizeof(a)) == 0);
+    }
+
+    // ---- presence detector: off-body latches on sustained stillness ----
+    {
+        PresenceDetector p(1000, 0.02f);  // 1s window for a fast test
+        // worn: magnitude jitters continuously -> never latches off-body
+        assert(p.poll(1000, 0, 0, 0)    == false);
+        assert(p.poll(1050, 20, -10, 200) == false);
+        assert(p.poll(980, -15, 25, 400)  == false);
+        assert(p.poll(1030, 10, -5, 900)  == false);
+        assert(p.off_body() == false);
+
+        // set down: magnitude goes flat and stays flat past stable_ms
+        PresenceDetector p2(1000, 0.02f);
+        assert(p2.poll(0, 0, 4096, 0)   == false);  // anchor
+        assert(p2.poll(0, 0, 4096, 500) == false);  // still flat, window not elapsed
+        assert(p2.changed() == false);
+        assert(p2.poll(0, 0, 4096, 1100) == true);  // 1.1s flat -> off-body
+        assert(p2.changed() == true);
+        assert(p2.poll(0, 0, 4096, 1200) == true);  // stays latched
+        assert(p2.changed() == false);              // no re-trigger while unchanged
+
+        // picked back up: a real motion excursion clears the latch immediately
+        assert(p2.poll(600, 300, 3000, 1250) == false);
+        assert(p2.changed() == true);
+
+        // a single still MOMENT (e.g. genuinely holding a pose) must not trip
+        // it before stable_ms has actually elapsed
+        PresenceDetector p3(1000, 0.02f);
+        assert(p3.poll(1000, 0, 0, 0)   == false);
+        assert(p3.poll(1000, 0, 0, 300) == false);
+        assert(p3.off_body() == false);
     }
 
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);

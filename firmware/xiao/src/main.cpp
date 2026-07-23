@@ -14,6 +14,7 @@
 #include "ring_ble.h"
 #include "sd_log.h"
 #include "imu.h"
+#include "presence.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -61,6 +62,12 @@ static cyclops::RingBle ring;          // COLMI R02 BLE central (opt-in)
 #endif
 #ifdef ENABLE_IMU
 static cyclops::Imu imu(0x68, 1);      // HW-123 ITG/MPU on I2C (D6/D7), INT->D1
+// Off-body privacy gate: a device resting on a surface reads a near-constant
+// gravity vector for 4s straight -> consent forced off + any capture already
+// running is force-stopped. This must be a firmware-local invariant (holds
+// even with the BLE link down), same fail-closed principle as the phone-side
+// HITL gate. Re-worn (motion resumes) restores consent immediately.
+static cyclops::PresenceDetector presence;
 #endif
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
@@ -352,6 +359,15 @@ void loop() {
         hud.nav_head = imu.sample().heading;           // tilt/nav heading
         int tilt = imu.scroll_tilt();
         if (tilt != 0) hud.on_wheel(tilt);             // tilt = scroll
+        const auto& s = imu.sample();
+        bool off = presence.poll(s.ax, s.ay, s.az, now);
+        if (presence.changed()) {
+            hud.set_consent(!off);
+            if (off && capturing) stop_capture();  // guarantee, not just a future gate
+            hud.notify(off ? "off-body: sensors off" : "on-body: sensors on",
+                       cyclops::Hud::NOTE_WARN, 2);
+            cyclops::sd_log_line("presence", off ? "off" : "on");
+        }
     }
 #endif
     if (millis()-last_hb > 5000) {
