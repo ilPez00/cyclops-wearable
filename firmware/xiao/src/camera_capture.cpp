@@ -49,7 +49,8 @@ static WebServer* g_server = nullptr;
 
 static void handle_capture() {
     camera_fb_t* fb = esp_camera_fb_get();
-    if (!fb) { g_server->send(503, "text/plain", "capture failed"); return; }
+    if (!fb) { Serial.println("[cam-cap] GET /capture -> fb_get failed"); g_server->send(503, "text/plain", "capture failed"); return; }
+    Serial.printf("[cam-cap] GET /capture -> %u bytes\n", (unsigned)fb->len);
     g_server->send_P(200, "image/jpeg", (const char*)fb->buf, fb->len);
     esp_camera_fb_return(fb);
 }
@@ -73,7 +74,10 @@ bool CameraCapture::ensure_camera() {
         c.frame_size = FRAMESIZE_QVGA; c.jpeg_quality = 15; c.fb_count = 1;
         c.fb_location = CAMERA_FB_IN_DRAM;
     }
-    cam_ready_ = (esp_camera_init(&c) == ESP_OK);
+    esp_err_t err = esp_camera_init(&c);
+    cam_ready_ = (err == ESP_OK);
+    Serial.printf("[cam-cap] camera init %s (err=0x%x, psram=%d)\n",
+                  cam_ready_ ? "OK" : "FAIL", err, psramFound());
     return cam_ready_;
 }
 
@@ -82,13 +86,14 @@ bool CameraCapture::ensure_camera() {
 // or file is absent -- this feature is then simply unavailable, not a hard
 // failure (same convention as everything else that stubs without config).
 static bool read_wifi_creds(char* ssid, size_t ssid_len, char* pass, size_t pass_len) {
-    if (!sd_ready()) return false;
+    if (!sd_ready()) { Serial.println("[cam-cap] sd not ready"); return false; }
     File f = SD.open("/wifi.txt", FILE_READ);
-    if (!f) return false;
+    if (!f) { Serial.println("[cam-cap] /wifi.txt not found"); return false; }
     String s = f.readStringUntil('\n'); s.trim();
     String p = f.readStringUntil('\n'); p.trim();
     f.close();
-    if (s.length() == 0) return false;
+    if (s.length() == 0) { Serial.println("[cam-cap] /wifi.txt empty ssid line"); return false; }
+    Serial.printf("[cam-cap] read wifi.txt ssid='%s' len(pass)=%d\n", s.c_str(), p.length());
     s.toCharArray(ssid, ssid_len);
     p.toCharArray(pass, pass_len);
     return true;
@@ -96,26 +101,38 @@ static bool read_wifi_creds(char* ssid, size_t ssid_len, char* pass, size_t pass
 
 bool CameraCapture::ensure_wifi_and_server() {
     if (server_up_) return true;
-    if (!ensure_camera()) return false;
+    Serial.printf("[cam-cap] sd_ready()=%d before camera init\n", sd_ready());
+    if (!ensure_camera()) { Serial.println("[cam-cap] camera init failed"); return false; }
+    Serial.printf("[cam-cap] sd_ready()=%d after camera init\n", sd_ready());
     char ssid[64] = "", pass[64] = "";
-    if (!read_wifi_creds(ssid, sizeof(ssid), pass, sizeof(pass))) return false;
+    if (!read_wifi_creds(ssid, sizeof(ssid), pass, sizeof(pass))) {
+        Serial.println("[cam-cap] no wifi.txt / sd not ready");
+        return false;
+    }
+    Serial.printf("[cam-cap] joining wifi ssid='%s'...\n", ssid);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, pass);
     // Bounded wait -- this runs on the main task (called from loop()), so a
     // long/unbounded join must not stall button/BLE handling indefinitely.
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) delay(100);
-    if (WiFi.status() != WL_CONNECTED) { WiFi.mode(WIFI_OFF); return false; }
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.printf("[cam-cap] wifi join FAILED status=%d\n", (int)WiFi.status());
+        WiFi.mode(WIFI_OFF);
+        return false;
+    }
     g_server = new WebServer(80);
     g_server->on("/capture", handle_capture);
     g_server->begin();
     snprintf(url_, sizeof(url_), "http://%s/capture", WiFi.localIP().toString().c_str());
     server_up_ = true;
+    Serial.printf("[cam-cap] server up at %s\n", url_);
     return true;
 }
 
 void CameraCapture::teardown_wifi() {
     if (!server_up_) return;
+    Serial.println("[cam-cap] idle teardown -- wifi off, ble undisturbed");
     g_server->stop();
     delete g_server;
     g_server = nullptr;
