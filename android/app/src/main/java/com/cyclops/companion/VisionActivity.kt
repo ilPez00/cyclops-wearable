@@ -11,14 +11,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Vision: pick an image, ask the brain about it. Sends {image, prompt} to
  * POST /api/vision (the agent's vision tool — offline-safe stub → VLM).
  * Kept deliberately small; the heavy lifting is server-side.
  */
-class VisionActivity : AppCompatActivity() {
+class VisionActivity : BaseActivity() {
 
     private lateinit var preview: ImageView
     private lateinit var promptBox: EditText
@@ -35,10 +34,9 @@ class VisionActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Vision"
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
+            setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
         }
         val choose = Button(this).apply {
             text = "Choose image"
@@ -51,7 +49,7 @@ class VisionActivity : AppCompatActivity() {
         }
         preview = ImageView(this).apply {
             setAdjustViewBounds(true)
-            setMaxHeight(700)
+            setMaxHeight(700)  // raw px cap, not a dp-shaped value — leave as-is
         }
         promptBox = EditText(this).apply {
             hint = "What should I look for? (default: describe it)"
@@ -61,11 +59,11 @@ class VisionActivity : AppCompatActivity() {
             setOnClickListener { submit() }
         }
         result = TextView(this).apply {
-            setPadding(0, 24, 0, 0); setTextIsSelectable(true)
+            setPadding(0, 12.dp(), 0, 0); setTextIsSelectable(true)
         }
         root.addView(choose); root.addView(preview)
         root.addView(promptBox); root.addView(ask); root.addView(result)
-        setContentView(root)
+        setContentViewWithToolbar(root, "Vision")
     }
 
     private fun loadImage(uri: Uri) {

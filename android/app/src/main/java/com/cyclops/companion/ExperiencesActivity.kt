@@ -6,7 +6,6 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.databinding.ActivityExperiencesBinding
 
 /**
@@ -14,7 +13,7 @@ import com.cyclops.companion.databinding.ActivityExperiencesBinding
  * Record an action in an area with a 0..1 grade; areas roll up to a PDCA
  * state with a colored badge. The value-learning surface.
  */
-class ExperiencesActivity : AppCompatActivity() {
+class ExperiencesActivity : BaseActivity() {
 
     private lateinit var binding: ActivityExperiencesBinding
     private val labels = listOf("fail", "poor", "fair", "good", "great")
@@ -22,7 +21,7 @@ class ExperiencesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityExperiencesBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Progress")
 
         binding.seekGrade.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
@@ -78,7 +77,7 @@ class ExperiencesActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
                 setBackgroundResource(R.drawable.bg_panel)
-                setPadding(28, 28, 28, 28)
+                setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
             }
             val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             left.addView(TextView(this).apply {
@@ -97,7 +96,7 @@ class ExperiencesActivity : AppCompatActivity() {
             val badge = TextView(this).apply {
                 text = d.pdca
                 textSize = 12f
-                setPadding(20, 8, 20, 8)
+                setPadding(12.dp(), 4.dp(), 12.dp(), 4.dp())
                 setBackgroundResource(R.drawable.bg_hud_banner)
                 setTextColor(getColor(pdcaColor(d.pdca)))
             }
@@ -105,7 +104,7 @@ class ExperiencesActivity : AppCompatActivity() {
 
             val lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            lp.bottomMargin = 16
+            lp.bottomMargin = 8.dp()
             binding.domList.addView(row, lp)
         }
     }

@@ -6,7 +6,6 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -15,7 +14,7 @@ import androidx.recyclerview.widget.RecyclerView
  * (notes, chat turns, HUD banner), aggregated by GET /api/feed. Idea lifted
  * from the sibling AURA app's sync-feed; polls every 5 s while visible.
  */
-class FeedActivity : AppCompatActivity() {
+class FeedActivity : BaseActivity() {
 
     private val items = mutableListOf<CyclopsApi.FeedEvent>()
     private lateinit var adapter: FeedAdapter
@@ -28,7 +27,6 @@ class FeedActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Activity"
         val list = RecyclerView(this).apply {
             layoutManager = LinearLayoutManager(this@FeedActivity)
         }
@@ -36,13 +34,13 @@ class FeedActivity : AppCompatActivity() {
         list.adapter = adapter
         empty = TextView(this).apply {
             text = "No activity yet.\nCapture a note or ask the brain."
-            setPadding(48, 64, 48, 0)
+            setPadding(24.dp(), 32.dp(), 24.dp(), 0)
             setTextColor(getColor(R.color.cyclops_secondary))
         }
         val root = android.widget.FrameLayout(this)
         root.addView(list)
         root.addView(empty)
-        setContentView(root)
+        setContentViewWithToolbar(root, "Activity")
     }
 
     override fun onResume() { super.onResume(); handler.post(poll) }
@@ -66,7 +64,7 @@ class FeedActivity : AppCompatActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val tv = LayoutInflater.from(parent.context)
                 .inflate(android.R.layout.simple_list_item_1, parent, false) as TextView
-            tv.setPadding(24, 20, 24, 20)
+            tv.setPadding(16.dp(parent.context), 12.dp(parent.context), 16.dp(parent.context), 12.dp(parent.context))
             return VH(tv)
         }
 
