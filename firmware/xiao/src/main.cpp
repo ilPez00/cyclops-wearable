@@ -17,6 +17,7 @@
 #include "presence.h"
 #include "posture.h"
 #include "audio_trigger.h"
+#include "camera_capture.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -102,6 +103,9 @@ static TaskHandle_t cap_task = nullptr;
 // existing plain-bool cross-task convention.
 static cyclops::AudioTrigger audio_trigger;
 static volatile bool loud_flag = false;
+// On-demand photo capture (#1): camera + WiFi + HTTP come up only when a
+// photo is actually requested, torn down after 60s idle. See camera_capture.h.
+static cyclops::CameraCapture camera_capture;
 
 class NoteCb : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* c) override {
@@ -328,6 +332,12 @@ void setup() {
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
     hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
+    hud.on_photo = []() -> const char* {
+        const char* url = camera_capture.request(millis());
+        if (url[0]) cyclops::sd_log_line("photo", url);
+        else hud.toast("photo: no wifi.txt / cam fail", 3);
+        return url;
+    };
     hud.init();
     Serial.println("[boot] hud.init ok");
     if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
@@ -364,6 +374,7 @@ void loop() {
         hud.notify("loud sound detected", cyclops::Hud::NOTE_WARN, 3);
         cyclops::sd_log_line("audio_trigger", "loud");
     }
+    camera_capture.tick(now);
     // buttons are active-low; detector wants pressed=true
     cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
     cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
@@ -386,6 +397,7 @@ void loop() {
         if (presence.changed()) {
             hud.set_consent(!off);
             if (off && capturing) stop_capture();  // guarantee, not just a future gate
+            if (off) camera_capture.shutdown();    // camera+WiFi off too, immediately
             hud.notify(off ? "off-body: sensors off" : "on-body: sensors on",
                        cyclops::Hud::NOTE_WARN, 2);
             cyclops::sd_log_line("presence", off ? "off" : "on");
