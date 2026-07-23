@@ -5,6 +5,7 @@
 #include "gestures.h"
 #include "presence.h"
 #include "posture.h"
+#include "audio_trigger.h"
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -709,6 +710,29 @@ int main() {
         assert(p2.poll(0, 500)  == false);  // back to neutral before 1s elapsed
         assert(p2.poll(50, 600) == false);  // slouch restarts its own timer
         assert(p2.poll(50, 1500) == false); // only 900ms into this bout
+    }
+
+    // ---- audio trigger: sudden loud-sound detector w/ refractory window ----
+    {
+        AudioTrigger t(20000, 1000);  // 1s refractory for a fast test
+        int16_t quiet[8] = {100, -200, 150, -80, 90, -60, 70, -50};
+        assert(t.feed(quiet, 8, 0) == false);
+        assert(t.last_peak() == 200);
+
+        int16_t loud[8] = {100, -25000, 200, 300, -100, 50, 60, -30};
+        assert(t.feed(loud, 8, 500) == true);   // crosses threshold -> fires
+        assert(t.last_peak() == 25000);
+        assert(t.feed(loud, 8, 600) == false);  // same alarm still ringing -> refractory
+        assert(t.feed(loud, 8, 1600) == true);  // 1.1s later -> refractory elapsed, fires again
+        assert(t.feed(quiet, 8, 1650) == false); // quiet chunk: no fire regardless of timing
+
+        // exactly-at-threshold does not count (">= thresh" would be an
+        // off-by-one a shout at exactly half-scale shouldn't trip on)
+        AudioTrigger t2(1000, 0);
+        int16_t edge[2] = {1000, -1000};
+        assert(t2.feed(edge, 2, 0) == false);
+        int16_t over[2] = {1001, 0};
+        assert(t2.feed(over, 2, 1) == true);
     }
 
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);

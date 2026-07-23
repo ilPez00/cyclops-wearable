@@ -16,6 +16,7 @@
 #include "imu.h"
 #include "presence.h"
 #include "posture.h"
+#include "audio_trigger.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -92,6 +93,15 @@ static void audio_task(void*);
 static cyclops::FrameDecoder dec(on_frame, nullptr);
 static bool capturing = false;
 static TaskHandle_t cap_task = nullptr;
+// Sudden loud-sound tier (#6): only runs on chunks already being read for an
+// active capture — piggybacks on the existing mic path rather than adding a
+// new always-on listen loop, which would need real hardware to power/false-
+// positive tune before it's safe to leave running unattended. Set by
+// audio_task (a separate FreeRTOS task); loop() picks it up on the main task
+// so hud.notify() is only ever touched from one task, same as `capturing`'s
+// existing plain-bool cross-task convention.
+static cyclops::AudioTrigger audio_trigger;
+static volatile bool loud_flag = false;
 
 class NoteCb : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* c) override {
@@ -242,6 +252,7 @@ static void audio_task(void*) {
     while (capturing) {
         i2s_read((i2s_port_t)0, samples, sizeof(samples), &rd, pdMS_TO_TICKS(100));
         if (rd > 0) {
+            if (audio_trigger.feed(samples, rd / 2, millis())) loud_flag = true;
             // Backpressure: only stream audio when a phone is actually
             // connected to receive it. Sending into the void wastes the BLE
             // queue and battery; drop the chunk instead. (D)
@@ -348,6 +359,11 @@ void loop() {
     static int prev = 0;
     if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
     uint32_t now = millis();
+    if (loud_flag) {
+        loud_flag = false;
+        hud.notify("loud sound detected", cyclops::Hud::NOTE_WARN, 3);
+        cyclops::sd_log_line("audio_trigger", "loud");
+    }
     // buttons are active-low; detector wants pressed=true
     cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
     cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
