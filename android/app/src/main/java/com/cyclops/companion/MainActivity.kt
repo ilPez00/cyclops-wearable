@@ -1,6 +1,5 @@
 package com.cyclops.companion
 
-import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -140,12 +139,53 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        binding.btnGateApprove.setOnClickListener { resolveGate(true) }
+        binding.btnGateReject.setOnClickListener { resolveGate(false) }
+
         refresh()
     }
 
     override fun onResume() {
         super.onResume()
         updateStatusPill()
+        handler.post(gateTick)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(gateTick)
+    }
+
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val gateTick = object : Runnable {
+        override fun run() {
+            checkGate()
+            handler.postDelayed(this, 3000)
+        }
+    }
+
+    /** Polls for a pending HITL gate (a wearable-requested risky action, e.g.
+     *  SSH) and shows/hides the approval banner. Resolving relays through the
+     *  same ACT_CONFIRM_YES/NO path a physical wearable button press takes. */
+    private fun checkGate() {
+        if (!CyclopsApi.configured) return
+        CyclopsApi.gate(
+            onResult = { g ->
+                if (g != null) {
+                    binding.gateBanner.visibility = View.VISIBLE
+                    binding.txtGate.text = "⚠ ${g.action.uppercase()}: ${g.arg}"
+                } else {
+                    binding.gateBanner.visibility = View.GONE
+                }
+            },
+            onError = { }
+        )
+    }
+
+    private fun resolveGate(approved: Boolean) {
+        CyclopsApi.resolveGate(approved,
+            onResult = { binding.gateBanner.visibility = View.GONE; checkGate() },
+            onError = { toast(it) })
     }
 
     /** Status pill: not configured / online / offline. Carries the connection
@@ -176,129 +216,6 @@ class MainActivity : AppCompatActivity() {
             // toast per background call was pure spam on a fresh install
             onError = { binding.emptyState.visibility = View.VISIBLE }
         )
-    }
-
-    private fun showMemory() {
-        val ctx = this
-        val scroll = ScrollView(this)
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 16)
-        }
-        scroll.addView(layout)
-
-        // top action bar: Learn + Add
-        val bar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
-        val learnBtn = Button(ctx).apply {
-            text = "Learn from history"; setOnClickListener {
-                CyclopsApi.learn(
-                    onResult = { u, a -> toast("Learned: $u user, $a agent facts"); refreshMemory(layout, scroll) },
-                    onError = { toast(it) })
-            }
-        }
-        val addBtn = Button(ctx).apply {
-            text = "Add"; setOnClickListener { addMemoryCard() }
-        }
-        bar.addView(learnBtn); bar.addView(addBtn)
-        layout.addView(bar)
-        refreshMemory(layout, scroll)
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.memory)
-            .setView(scroll)
-            .setPositiveButton("Close", null)
-            .show()
-    }
-
-    private fun editMemoryCard(target: String, index: Int, current: String) {
-        val ed = EditText(this).apply { setText(current); setPadding(48, 24, 48, 24) }
-        AlertDialog.Builder(this)
-            .setTitle("Edit $target #$index")
-            .setView(ed)
-            .setPositiveButton("Save") { _, _ ->
-                val txt = ed.text.toString().trim()
-                if (txt.isNotEmpty())
-                    CyclopsApi.memoryEdit("edit", target, index = index, note = txt,
-                        onResult = { toast(if (it) "updated" else "failed") },
-                        onError = { toast(it) })
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun addMemoryCard() {
-        val ed = EditText(this).apply { hint = "fact to remember"; setPadding(48, 24, 48, 24) }
-        val targ = Spinner(this).apply {
-            adapter = ArrayAdapter(ctx, android.R.layout.simple_spinner_item,
-                listOf("user", "agent")).also {
-                it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
-        }
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(48, 24, 48, 24)
-            addView(ed); addView(targ)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Add memory")
-            .setView(box)
-            .setPositiveButton("Add") { _, _ ->
-                val txt = ed.text.toString().trim()
-                val t = targ.selectedItem?.toString() ?: "user"
-                if (txt.isNotEmpty())
-                    CyclopsApi.memoryEdit("append", t, note = txt,
-                        onResult = { toast(if (it) "remembered" else "failed") },
-                        onError = { toast(it) })
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun cardRow(body: String, target: String, index: Int, root: LinearLayout, scroll: ScrollView): LinearLayout {
-        val row = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 4, 0, 4)
-        }
-        val tv = TextView(ctx).apply {
-            text = "[$target #$index] $body"
-            textSize = 13f
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val edit = Button(ctx).apply {
-            text = "✎"; textSize = 12f; setPadding(4, 0, 4, 0)
-            setOnClickListener { editMemoryCard(target, index, body) }
-        }
-        val del = Button(ctx).apply {
-            text = "🗑"; textSize = 12f; setPadding(4, 0, 4, 0)
-            setOnClickListener {
-                CyclopsApi.memoryEdit("delete", target, index = index,
-                    onResult = { refreshMemory(root, scroll) },
-                    onError = { toast(it) })
-            }
-        }
-        row.addView(tv); row.addView(edit); row.addView(del)
-        return row
-    }
-
-    private fun header(title: String) = TextView(ctx).apply {
-        text = title; textSize = 15f; setPadding(0, 12, 0, 4)
-    }
-
-    private fun refreshMemory(root: LinearLayout, scroll: ScrollView) {
-        root.removeAllViews()
-        CyclopsApi.memory(
-            onResult = { agentArr, userArr ->
-                root.removeAllViews()
-                root.addView(header("USER PROFILE (who the user is)"))
-                for (i in 0 until userArr.length())
-                    root.addView(cardRow(userArr.getJSONObject(i).optString("text", ""), "user", i, root, scroll))
-                if (userArr.length() == 0) root.addView(TextView(ctx).apply {
-                    text = "(none yet — talk to the brain, or tap Learn)"; textSize = 12f; setPadding(0, 4, 0, 4) })
-                root.addView(header("AGENT MEMORY (world / environment)"))
-                for (i in 0 until agentArr.length())
-                    root.addView(cardRow(agentArr.getJSONObject(i).optString("text", ""), "agent", i, root, scroll))
-                if (agentArr.length() == 0) root.addView(TextView(ctx).apply {
-                    text = "(none yet)"; textSize = 12f; setPadding(0, 4, 0, 4) })
-            },
-            onError = { toast(it) })
     }
 
     private fun showSettings() {

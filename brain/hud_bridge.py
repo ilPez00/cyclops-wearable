@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 
+from .hitl import get_gatebook
 from .protocol import MSG, crc16_ccitt_false, encode
 from .protocol_v2 import (
     ACT_AGENT,
@@ -298,12 +299,24 @@ class HudBridge:
             self._emit_text("IMG: OCR/describe (stub)")
             return ("image_analysis", "stub")
         if act == ACT_SSH:
-            self._emit_text("SSH: $ " + (arg or "whoami"))
-            return ("ssh", arg)
+            # Remote command exec is gated, not run inline — the wearable/phone
+            # must send ACT_CONFIRM_YES before this cmd actually fires. Same
+            # never-auto-commit principle the app already applies to notes.
+            gate = get_gatebook().request("ssh", arg or "whoami")
+            self._emit_text("SSH: awaiting approval — $ " + gate.arg)
+            return ("ssh_pending", gate.to_dict())
         if act == ACT_CONFIRM_YES:
+            gate = get_gatebook().resolve_latest(True)
+            if gate is not None:
+                self._emit_text("APPROVED: " + gate.action)
+                return ("gate_approved", gate.to_dict())
             self._emit_text("CONFIRMED")
             return ("confirm_yes", None)
         if act == ACT_CONFIRM_NO:
+            gate = get_gatebook().resolve_latest(False)
+            if gate is not None:
+                self._emit_text("REJECTED: " + gate.action)
+                return ("gate_rejected", gate.to_dict())
             self._emit_text("CANCELLED")
             return ("confirm_no", None)
         if act == ACT_CHOICE_SELECT:

@@ -45,6 +45,7 @@ class HudBridge(
 
     private var audioBuf = ByteArray(0)
     private var audioRate = 16000
+    private val gates = GateBook()
 
     fun handleCmd(payload: ByteArray) {
         // payload is JSON {"a":<act>,"arg":"..."} — parsed without a JSON lib (tiny subset)
@@ -83,9 +84,22 @@ class HudBridge(
             val r = vision?.analyze(ByteArray(0)) ?: "stub: OCR/describe"
             emitText("IMG: $r"); r
         }
-        ACT_SSH -> { emitText("SSH: \$ ${arg.ifEmpty { "whoami" }}"); "ssh" }
-        ACT_CONFIRM_YES -> { emitText("CONFIRMED"); "confirm_yes" }
-        ACT_CONFIRM_NO -> { emitText("CANCELLED"); "confirm_no" }
+        ACT_SSH -> {
+            // Gated, not run inline — the wearable's own button (ACT_CONFIRM_YES)
+            // must approve before this cmd actually fires. Never auto-commit.
+            val g = gates.request("ssh", arg.ifEmpty { "whoami" })
+            emitText("SSH: awaiting approval - \$ ${g.arg}"); "ssh_pending"
+        }
+        ACT_CONFIRM_YES -> {
+            val g = gates.resolveLatest(true)
+            if (g != null) { emitText("APPROVED: ${g.action}"); "gate_approved" }
+            else { emitText("CONFIRMED"); "confirm_yes" }
+        }
+        ACT_CONFIRM_NO -> {
+            val g = gates.resolveLatest(false)
+            if (g != null) { emitText("REJECTED: ${g.action}"); "gate_rejected" }
+            else { emitText("CANCELLED"); "confirm_no" }
+        }
         else -> null
     }
 

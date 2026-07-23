@@ -79,6 +79,20 @@ def test_each_action_returns_frame():
         assert len(c.frames) >= 1
 
 
+def test_ssh_is_gated_not_executed():
+    from brain.hitl import get_gatebook
+
+    get_gatebook().clear_resolved()
+    cap = Cap()
+    br = HudBridge(cap)
+    kind, payload = br.dispatch(ACT_SSH, "rm -rf /")
+    assert kind == "ssh_pending"
+    assert get_gatebook().has_pending()
+    kind, payload = br.dispatch(ACT_CONFIRM_YES)
+    assert kind == "gate_approved"
+    assert not get_gatebook().has_pending()
+
+
 def test_cmd_roundtrip_parse():
     # firmware emits MSG_CMD; bridge parses it back
     cap = Cap()

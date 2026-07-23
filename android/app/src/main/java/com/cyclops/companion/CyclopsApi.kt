@@ -140,6 +140,31 @@ object CyclopsApi {
         catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
+    data class Gate(val id: String, val action: String, val arg: String)
+
+    /** Poll for a pending HITL approval gate (e.g. a wearable-requested SSH
+     *  cmd) piggybacked on /api/status's "gate" field. Null = nothing pending. */
+    fun gate(onResult: (Gate?) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/status")))
+            val g = obj.optJSONObject("gate")
+            val out = if (g == null) null else Gate(
+                g.optString("id", ""), g.optString("action", ""), g.optString("arg", ""))
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    // Resolve the pending gate via the wearable's own confirm actions
+    // (ACT_CONFIRM_YES=11 / ACT_CONFIRM_NO=12) — same path a physical button
+    // press on the device would take.
+    fun resolveGate(approved: Boolean, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val act = if (approved) "11" else "12"
+            get(url("/api/hud_cmd", "a" to act, "arg" to ""))
+            onMain { onResult(true) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
     fun ingest(text: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
             get(url("/api/ingest", "text" to text))

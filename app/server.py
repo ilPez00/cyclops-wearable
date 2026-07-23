@@ -398,6 +398,9 @@ class H(BaseHTTPRequestHandler):
             except Exception:
                 pass
             b = bridge
+            from brain.hitl import get_gatebook
+
+            gate = get_gatebook().latest_pending()
             st = {
                 "t": 8,
                 "rec": 1 if (b and b.recording) else 0,
@@ -405,6 +408,7 @@ class H(BaseHTTPRequestHandler):
                 "notes": note_count,
                 "banner": (b.last_banner if b else ""),
                 "online": True,
+                "gate": gate.to_dict() if gate else None,
             }
             return self._send(200, json.dumps(st))
         self._send(404, json.dumps({"error": "not found"}))
