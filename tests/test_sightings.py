@@ -3,7 +3,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from brain.sightings import SightingLog, capture_and_tag
+from brain.sightings import SightingLog, _fetch, _is_allowed_host, capture_and_tag
 
 
 def _tmp_log():
@@ -74,6 +74,42 @@ def test_capture_and_tag_vision_exception_returns_none():
 
     assert capture_and_tag("http://device/capture", boom, log, fetch=fetch) is None
     assert log.all() == []
+
+
+def test_fetch_rejects_non_http_scheme():
+    # firmware's ACT_PHOTO arg is relayed unauthenticated over
+    # /api/hud_cmd?a=16&arg=<url> -- must reject file:// etc even if
+    # something upstream forgets to validate.
+    assert _fetch("file:///etc/passwd") is None
+    assert _fetch("ftp://192.168.1.50/capture") is None
+
+
+def test_fetch_rejects_loopback_and_link_local():
+    # link-local specifically because 169.254.169.254 is the cloud metadata
+    # endpoint on AWS/GCP/Azure -- the canonical SSRF target.
+    assert _fetch("http://127.0.0.1/capture") is None
+    assert _fetch("http://169.254.169.254/latest/meta-data/") is None
+
+
+def test_fetch_rejects_public_host():
+    assert _fetch("http://8.8.8.8/capture") is None
+
+
+def test_is_allowed_host_accepts_private_ranges():
+    # the wearable's actual IP shape: DHCP-assigned on a private LAN
+    assert _is_allowed_host("192.168.1.50") is True
+    assert _is_allowed_host("10.0.0.5") is True
+    assert _is_allowed_host("172.16.0.5") is True
+
+
+def test_is_allowed_host_rejects_loopback_link_local_public():
+    assert _is_allowed_host("127.0.0.1") is False
+    assert _is_allowed_host("169.254.169.254") is False  # cloud metadata
+    assert _is_allowed_host("8.8.8.8") is False
+
+
+def test_is_allowed_host_rejects_unresolvable():
+    assert _is_allowed_host("this-does-not-resolve.invalid") is False
 
 
 def test_capture_and_tag_offline_or_error_stub_not_logged():

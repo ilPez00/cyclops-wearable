@@ -16,12 +16,35 @@ wired in app/server.py from agent/tools/vision.py's make_vision_tool.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import os
+import socket
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Callable, Optional
+
+# _fetch's url comes from the wearable's ACT_PHOTO arg, relayed over BLE ->
+# app/server.py's /api/hud_cmd?a=16&arg=<url> -- an unauthenticated LAN
+# client can hit that endpoint directly with ANY url, not just the real
+# capture URL the firmware would announce. Restrict to http(s) + a private,
+# non-loopback, non-link-local host, so this can't be turned into an SSRF
+# probe against cloud metadata (169.254.169.254), localhost-bound internal
+# services, or file://. An opener with only HTTP(S) handlers registered is
+# the second layer, in case scheme validation is ever bypassed upstream.
+_HTTP_ONLY_OPENER = urllib.request.build_opener(
+    urllib.request.HTTPHandler, urllib.request.HTTPSHandler
+)
+
+
+def _is_allowed_host(hostname: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+    except (OSError, ValueError):
+        return False
+    return ip.is_private and not ip.is_loopback and not ip.is_link_local
 
 DEFAULT_LOG = os.path.expanduser("~/.cyclops/sightings.jsonl")
 
@@ -64,8 +87,13 @@ class SightingLog:
 
 
 def _fetch(url: str, timeout: float = 10.0) -> Optional[bytes]:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return None
+    if not parsed.hostname or not _is_allowed_host(parsed.hostname):
+        return None
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+        with _HTTP_ONLY_OPENER.open(url, timeout=timeout) as resp:
             return resp.read()
     except Exception:
         return None
