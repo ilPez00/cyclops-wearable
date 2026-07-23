@@ -34,6 +34,12 @@ object Providers {
             exampleModel = "meta-llama/Llama-3.3-70B-Instruct"),
         Provider("together", "Together AI", keyUrl = "https://api.together.xyz/settings/api-keys",
             exampleModel = "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+        // The brain's own default LLM backend (brain/factory.py, llm_extractor.py
+        // default to CYCLOPS_LLM_PROVIDER=omniroute) — a local router that already
+        // fronts both static-key providers AND OAuth-backed ones (~/.omniroute/oauth),
+        // so picking it here doesn't require Cyclops to implement OAuth itself.
+        Provider("omniroute", "OmniRoute (local router)", local = true,
+            endpoint = "http://127.0.0.1:20128/v1", exampleModel = "auto/best-coding"),
         Provider("ollama", "Ollama (local)", local = true,
             endpoint = "http://127.0.0.1:11434/v1", exampleModel = "llama3.1"),
         Provider("lmstudio", "LM Studio (local)", local = true,

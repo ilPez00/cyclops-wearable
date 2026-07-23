@@ -171,9 +171,11 @@ class MainActivity : AppCompatActivity() {
         if (!CyclopsApi.configured) return
         CyclopsApi.gate(
             onResult = { g ->
+                gateWasPending = g != null
                 if (g != null) {
                     binding.gateBanner.visibility = View.VISIBLE
-                    binding.txtGate.text = "⚠ ${g.action.uppercase()}: ${g.arg}"
+                    binding.txtGate.text = "⚠ ${g.action.uppercase()}: ${g.arg}\n" +
+                        "(or press Volume Up = approve, Volume Down = reject)"
                 } else {
                     binding.gateBanner.visibility = View.GONE
                 }
@@ -186,6 +188,23 @@ class MainActivity : AppCompatActivity() {
         CyclopsApi.resolveGate(approved,
             onResult = { binding.gateBanner.visibility = View.GONE; checkGate() },
             onError = { toast(it) })
+    }
+
+    private var gateWasPending = false
+
+    // Stand-in for the wearable's own two buttons (A·EYE / B·EAR) when no
+    // Cyclops device is paired yet: volume up/down approve/reject a pending
+    // gate exactly like a physical ACT_CONFIRM_YES/NO press would. Only
+    // intercepted while a gate is actually pending — otherwise falls through
+    // to normal system volume control.
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN && gateWasPending) {
+            when (event.keyCode) {
+                android.view.KeyEvent.KEYCODE_VOLUME_UP -> { resolveGate(true); return true }
+                android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> { resolveGate(false); return true }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** Status pill: not configured / online / offline. Carries the connection
