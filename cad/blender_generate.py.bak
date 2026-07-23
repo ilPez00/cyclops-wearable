@@ -1,0 +1,362 @@
+"""Cyclops — Parametric enclosure generator for Blender 4.3+
+
+Generates body + lid with screen window, USB-C cutout, button holes,
+strap slots, and optional ventilation.  Run:
+
+    blender --background --python blender_generate.py
+
+Environment variables:
+    VARIANT=pebble|tech|skeleton  (default pebble)
+    EXPORT_STL=1                  (export STLs alongside .blend)
+"""
+
+import os, sys, math
+import bpy  # noqa: E402 — Blender adds this to path
+
+# ---- parameters (match existing OpenSCAD dimensions) ----
+XIAO_L = 21.0        # board length
+XIAO_W = 17.5        # board width
+WALL   = 2.0         # wall thickness
+BASE_H = 6.0         # pocket floor depth
+POCKET_H = 9.0       # interior pocket height
+LIP_H  = 2.4         # lock lip height
+BODY_H = BASE_H + POCKET_H          # 15.0
+BODY_HH = BODY_H + LIP_H            # 17.4 total with lip
+
+SCREEN_GLASS = 28.0
+BODY_L = SCREEN_GLASS + 2 * WALL + 4   # 36.0
+BODY_W = SCREEN_GLASS + 2 * WALL + 2   # 34.0
+
+LID_OVERHANG = 1.5
+LID_L = BODY_L + 2 * LID_OVERHANG  # 39.0
+LID_W = BODY_W + 2 * LID_OVERHANG  # 37.0
+WIN   = 24.0       # viewing window
+LID_T = 2.0        # lid thickness
+
+TAB_W    = 5.0
+TAB_DROP = 4.2
+TAB_HOOK = 3.0
+RATCH_D  = 1.8
+C        = TAB_W / 2 + 0.5
+
+# ventilation
+VENT_ROWS  = 3
+VENT_COLS  = 4
+VENT_W     = 2.2
+VENT_H     = 5.0
+VENT_GAP_X = 3.0
+VENT_GAP_Y = 3.0
+VENT_Z     = 7.0
+MIC_PORT_D = 4.0
+
+$fn = 48   # subdivision count for curves
+
+
+def clear_scene():
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
+
+
+def bevel_edges(obj, width=0.8, segments=3):
+    """Add a bevel modifier to an object."""
+    mod = obj.modifiers.new(name='Bevel', type='BEVEL')
+    mod.width = width
+    mod.segments = segments
+    mod.limit_method = 'ANGLE'
+    mod.angle_limit = math.radians(30)
+    return mod
+
+
+def subdiv_mesh(obj, levels=1):
+    """Add subdivision surface modifier for smoother curves."""
+    mod = obj.modifiers.new(name='Subdivision', type='SUBSURF')
+    mod.levels = levels
+    mod.render_levels = levels
+    return mod
+
+
+def make_rounded_box(l, w, h, r=2.0, name='Box'):
+    """Create a rounded box using a cube with bevel."""
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.scale = (l / 2, w / 2, h / 2)
+    bpy.ops.object.transform_apply(scale=True)
+    bevel_edges(obj, width=r, segments=6)
+    return obj
+
+
+def make_cylinder(d, h, name='Cyl'):
+    """Create a cylinder."""
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=32, depth=h, radius=d / 2
+    )
+    obj = bpy.context.active_object
+    obj.name = name
+    return obj
+
+
+def bool_difference(target, cutter):
+    """Subtract cutter from target using Boolean modifier."""
+    mod = target.modifiers.new(name='Bool_Diff', type='BOOLEAN')
+    mod.operation = 'DIFFERENCE'
+    mod.object = cutter
+    bpy.context.view_layer.objects.active = target
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+    bpy.data.objects.remove(cutter, do_unlink=True)
+
+
+def bool_union(target, union_with):
+    """Union union_with into target."""
+    mod = target.modifiers.new(name='Bool_Union', type='BOOLEAN')
+    mod.operation = 'UNION'
+    mod.object = union_with
+    bpy.context.view_layer.objects.active = target
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+    bpy.data.objects.remove(union_with, do_unlink=True)
+
+
+def build_body(variant='pebble'):
+    """Build the body shell with interior pocket, cutouts, and variant styling."""
+    # ---- outer shell ----
+    body = make_rounded_box(BODY_L, BODY_W, BODY_HH, r=3.0, name='Body')
+
+    # ---- hollow interior pocket ----
+    pocket = make_rounded_box(
+        BODY_L - 2 * WALL,
+        BODY_W - 2 * WALL,
+        BODY_HH - BASE_H + 0.1,
+        r=2.0,
+        name='Pocket'
+    )
+    pocket.location = (0, 0, BASE_H + (BODY_HH - BASE_H) / 2 - 0.05)
+    bool_difference(body, pocket)
+
+    if variant == 'skeleton':
+        blend_soft(body)
+
+    # ---- USB-C cutout (-X end) ----
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    usb = bpy.context.active_object
+    usb.name = 'USB_Cutout'
+    usb.scale = (6 / 2, 10 / 2, 5 / 2)
+    bpy.ops.object.transform_apply(scale=True)
+    usb.location = (-BODY_L / 2 - 1, 0, BASE_H + 1 + 5 / 2)
+    bool_difference(body, usb)
+
+    # ---- button holes (+X end) ----
+    for i, y_off in enumerate([-7, 0, 7]):
+        btn = make_cylinder(6.0, 8, name=f'Btn_{i}')
+        btn.location = (BODY_L / 2 + 0.5, y_off, BASE_H + 4.0 + (0.5 if i == 1 else 0))
+        bool_difference(body, btn)
+
+    # ---- strap/lanyard slots (-X end) ----
+    for y_off in [-11, 3]:
+        bpy.ops.mesh.primitive_cube_add(size=1)
+        slot = bpy.context.active_object
+        slot.name = f'StrapSlot_{y_off}'
+        slot.scale = (4 / 2, 8 / 2, 3 / 2)
+        bpy.ops.object.transform_apply(scale=True)
+        slot.location = (-BODY_L / 2 + 1, y_off, BODY_HH / 2)
+        bool_difference(body, slot)
+
+    # ---- mic port (-Y wall) ----
+    mic = make_cylinder(MIC_PORT_D, WALL + 3, name='MicPort')
+    mic.location = (0, -BODY_W / 2 + 0.5, BASE_H + 3)
+    bool_difference(body, mic)
+
+    # ---- variant-specific features ----
+    if variant == 'tech':
+        add_ventilation(body)
+    elif variant == 'skeleton':
+        add_skeleton_cutouts(body)
+
+    return body
+
+
+def add_ventilation(body):
+    """Add vent slots on both long side walls."""
+    for side in [-1, 1]:
+        y_face = side * (BODY_W / 2 - WALL / 2)
+        for r in range(VENT_ROWS):
+            for col in range(VENT_COLS):
+                vx = (col - (VENT_COLS - 1) / 2) * VENT_GAP_X
+                vz = VENT_Z + r * VENT_GAP_Y
+                bpy.ops.mesh.primitive_cube_add(size=1)
+                vent = bpy.context.active_object
+                vent.name = f'Vent_{side}_{r}_{col}'
+                vent.scale = (VENT_W / 2, WALL + 3, VENT_H / 2)
+                bpy.ops.object.transform_apply(scale=True)
+                vent.location = (vx, y_face, vz)
+                bool_difference(body, vent)
+
+
+def add_skeleton_cutouts(body):
+    """Add weight-reduction windows for skeleton variant."""
+    for side_y, y_pos in [(-1, 0), (1, BODY_W)]:
+        bpy.ops.mesh.primitive_cube_add(size=1)
+        cut = bpy.context.active_object
+        cut.name = f'SkeletonCut_{side_y}'
+        cut.scale = (18 / 2, 3 / 2, 6 / 2)
+        bpy.ops.object.transform_apply(scale=True)
+        cut.location = (0, side_y * (BODY_W / 2 - 1), BASE_H + 1 + 3)
+        bool_difference(body, cut)
+
+
+def blend_soft(body):
+    """Add subdivision for softer look."""
+    subdiv_mesh(body, levels=1)
+
+
+def build_lid(variant='pebble'):
+    """Build the snap-fit lid with viewing window and claws."""
+    lid = make_rounded_box(LID_L, LID_W, LID_T, r=3.0, name='Lid')
+
+    # ---- viewing window ----
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    win = bpy.context.active_object
+    win.name = 'WindowCutout'
+    win.scale = (WIN / 2, WIN / 2, (LID_T + 2) / 2)
+    bpy.ops.object.transform_apply(scale=True)
+    win.location = (0, 0, -1)
+    bool_difference(lid, win)
+
+    # ---- snap claws (4 corners) ----
+    for sx in [-1, 1]:
+        for sy in [-1, 1]:
+            cx = sx * (LID_L / 2 - C)
+            cy = sy * (LID_W / 2 - C)
+            bpy.ops.mesh.primitive_cube_add(size=1)
+            claw = bpy.context.active_object
+            claw.name = f'Claw_{sx}_{sy}'
+            claw.scale = (TAB_W / 2, TAB_W / 2, (TAB_DROP + 0.6) / 2)
+            bpy.ops.object.transform_apply(scale=True)
+            claw.location = (cx, cy, -TAB_DROP / 2 + 0.3)
+            bool_union(lid, claw)
+
+            # inward hook at bottom
+            bpy.ops.mesh.primitive_cube_add(size=1)
+            hook = bpy.context.active_object
+            hook.name = f'Hook_{sx}_{sy}'
+            hook_h = 1.4
+            hook.scale = (sx * TAB_HOOK / 2 or 0.01,
+                          sy * TAB_HOOK / 2 or 0.01,
+                          hook_h / 2)
+            # fix zero-dimension axes
+            if sx == 0 or abs(sx * TAB_HOOK) < 0.01:
+                hook.scale[0] = 0.5
+            if sy == 0 or abs(sy * TAB_HOOK) < 0.01:
+                hook.scale[1] = 0.5
+            bpy.ops.object.transform_apply(scale=True)
+            hook.location = (
+                cx + sx * (TAB_W / 2 - TAB_HOOK / 2),
+                cy + sy * (TAB_W / 2 - TAB_HOOK / 2),
+                -TAB_DROP - 0.5
+            )
+            bool_union(lid, hook)
+
+    # ---- ratchet detent dots ----
+    for sx in [-1, 1]:
+        for sy in [-1, 1]:
+            px = sx * (LID_L / 2 - (WALL + 3))
+            py = sy * (LID_W / 2 - (WALL + 3))
+            bpy.ops.mesh.primitive_uv_sphere_add(
+                radius=RATCH_D / 2, segments=16, ring_count=8
+            )
+            dot = bpy.context.active_object
+            dot.name = f'Ratchet_{sx}_{sy}'
+            dot.location = (px, py, LID_T / 2)
+            bool_union(lid, dot)
+
+    return lid
+
+
+def center_origin(obj):
+    """Set origin to geometry center."""
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+    obj.location = (0, 0, 0)
+
+
+def export_stl(obj, path):
+    """Export object as STL."""
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.ops.wm.stl_export(
+        filepath=path,
+        use_selection=True,
+        global_scale=1.0,
+        use_scene_unit=True,
+        ascii=False,
+    )
+    obj.select_set(False)
+
+
+def main():
+    variant = os.environ.get('VARIANT', 'pebble')
+    export_stl_flag = os.environ.get('EXPORT_STL', '0') == '1'
+    output_dir = os.path.dirname(os.path.abspath(__file__))
+
+    clear_scene()
+    bpy.ops.object.select_all(action='DESELECT')
+
+    # ---- build ----
+    body = build_body(variant)
+    center_origin(body)
+
+    lid = build_lid(variant)
+    # place lid above body for display
+    lid.location = (BODY_L + 8, 0, 0)
+    center_origin(lid)
+
+    # ---- materials (for visualization) ----
+    mat_body = bpy.data.materials.new(name='Body_Material')
+    mat_body.use_nodes = True
+    bsdf = mat_body.node_tree.nodes.get('Principled BSDF')
+    if bsdf:
+        color_map = {'pebble': (0.15, 0.15, 0.15, 1),
+                     'tech': (0.1, 0.25, 0.15, 1),
+                     'skeleton': (0.3, 0.15, 0.1, 1)}
+        bsdf.inputs['Base Color'].default_value = color_map.get(variant, (0.2, 0.2, 0.2, 1))
+        bsdf.inputs['Roughness'].default_value = 0.4
+        bsdf.inputs['Metallic'].default_value = 0.0
+    if body.data.materials:
+        body.data.materials[0] = mat_body
+    else:
+        body.data.materials.append(mat_body)
+
+    mat_lid = bpy.data.materials.new(name='Lid_Material')
+    mat_lid.use_nodes = True
+    bsdf2 = mat_lid.node_tree.nodes.get('Principled BSDF')
+    if bsdf2:
+        bsdf2.inputs['Base Color'].default_value = (0.25, 0.25, 0.28, 1)
+        bsdf2.inputs['Roughness'].default_value = 0.3
+        bsdf2.inputs['Metallic'].default_value = 0.05
+    if lid.data.materials:
+        lid.data.materials[0] = mat_lid
+    else:
+        lid.data.materials.append(mat_lid)
+
+    # ---- setup scene ----
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+    bpy.context.scene.eevee.use_taa = True
+
+    # ---- save .blend ----
+    blend_path = os.path.join(output_dir, f'cyclops_{variant}.blend')
+    bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+    print(f'[cyclops]  Saved: {blend_path}')
+
+    # ---- export STLs ----
+    if export_stl_flag:
+        stl_dir = os.path.join(output_dir, 'stl')
+        os.makedirs(stl_dir, exist_ok=True)
+        export_stl(body, os.path.join(stl_dir, f'{variant}_body.stl'))
+        export_stl(lid, os.path.join(stl_dir, f'{variant}_lid.stl'))
+        print(f'[cyclops]  STLs exported to {stl_dir}/')
+
+    print(f'[cyclops]  Done — variant={variant}')
+
+
+if __name__ == '__main__':
+    main()
