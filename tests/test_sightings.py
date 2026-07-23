@@ -3,7 +3,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from brain.sightings import SightingLog, _fetch, _is_allowed_host, capture_and_tag
+from brain.sightings import SightingLog, _fetch, _resolve_allowed_ip, capture_and_tag
 
 
 def _tmp_log():
@@ -95,21 +95,55 @@ def test_fetch_rejects_public_host():
     assert _fetch("http://8.8.8.8/capture") is None
 
 
-def test_is_allowed_host_accepts_private_ranges():
+def test_resolve_allowed_ip_accepts_private_ranges():
     # the wearable's actual IP shape: DHCP-assigned on a private LAN
-    assert _is_allowed_host("192.168.1.50") is True
-    assert _is_allowed_host("10.0.0.5") is True
-    assert _is_allowed_host("172.16.0.5") is True
+    assert _resolve_allowed_ip("192.168.1.50") == "192.168.1.50"
+    assert _resolve_allowed_ip("10.0.0.5") == "10.0.0.5"
+    assert _resolve_allowed_ip("172.16.0.5") == "172.16.0.5"
 
 
-def test_is_allowed_host_rejects_loopback_link_local_public():
-    assert _is_allowed_host("127.0.0.1") is False
-    assert _is_allowed_host("169.254.169.254") is False  # cloud metadata
-    assert _is_allowed_host("8.8.8.8") is False
+def test_resolve_allowed_ip_rejects_loopback_link_local_public():
+    assert _resolve_allowed_ip("127.0.0.1") is None
+    assert _resolve_allowed_ip("169.254.169.254") is None  # cloud metadata
+    assert _resolve_allowed_ip("8.8.8.8") is None
 
 
-def test_is_allowed_host_rejects_unresolvable():
-    assert _is_allowed_host("this-does-not-resolve.invalid") is False
+def test_resolve_allowed_ip_rejects_unresolvable():
+    assert _resolve_allowed_ip("this-does-not-resolve.invalid") is None
+
+
+def test_fetch_does_not_follow_redirect_to_unvalidated_target():
+    # A host that passes the IP-allow check but responds 3xx toward a
+    # public/metadata target must not be transparently followed -- there is
+    # no redirect-following here at all, any non-2xx is just a failure.
+    # 127.0.0.1 is loopback and would normally be rejected by the allow
+    # check itself; monkeypatch it through so this test isolates the
+    # redirect behavior specifically, not the host check (covered above).
+    import http.server
+    import threading
+
+    import brain.sightings as sightings
+
+    class RedirectHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(302)
+            self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), RedirectHandler)
+    port = srv.server_port
+    t = threading.Thread(target=srv.serve_forever, daemon=True)
+    t.start()
+    real_resolve = sightings._resolve_allowed_ip
+    sightings._resolve_allowed_ip = lambda host: "127.0.0.1"
+    try:
+        assert _fetch(f"http://127.0.0.1:{port}/capture") is None
+    finally:
+        sightings._resolve_allowed_ip = real_resolve
+        srv.shutdown()
 
 
 def test_capture_and_tag_offline_or_error_stub_not_logged():

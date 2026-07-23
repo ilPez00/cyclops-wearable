@@ -16,35 +16,46 @@ wired in app/server.py from agent/tools/vision.py's make_vision_tool.
 from __future__ import annotations
 
 import base64
+import http.client
 import ipaddress
 import json
 import os
 import socket
 import time
 import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Callable, Optional
 
 # _fetch's url comes from the wearable's ACT_PHOTO arg, relayed over BLE ->
 # app/server.py's /api/hud_cmd?a=16&arg=<url> -- an unauthenticated LAN
 # client can hit that endpoint directly with ANY url, not just the real
-# capture URL the firmware would announce. Restrict to http(s) + a private,
-# non-loopback, non-link-local host, so this can't be turned into an SSRF
-# probe against cloud metadata (169.254.169.254), localhost-bound internal
-# services, or file://. An opener with only HTTP(S) handlers registered is
-# the second layer, in case scheme validation is ever bypassed upstream.
-_HTTP_ONLY_OPENER = urllib.request.build_opener(
-    urllib.request.HTTPHandler, urllib.request.HTTPSHandler
-)
+# capture URL the firmware would announce. This is deliberately built on
+# http.client, not urllib.request.build_opener(): an opener still wires in
+# FileHandler/FTPHandler/HTTPRedirectHandler by default unless you pass
+# overrides for those exact classes too (an earlier version of this file
+# claimed passing HTTPHandler/HTTPSHandler alone was a second defense layer
+# against file:// -- that was false; FileHandler was still present). And
+# resolve-then-fetch-by-hostname is DNS-rebinding TOCTOU: whatever passed
+# the check can resolve to something else by the time the connection
+# actually opens. Fixed here by resolving+validating once, then connecting
+# directly to that literal IP -- nothing left to re-resolve. There is also
+# no redirect-following at all (a non-2xx response is just a failure), so a
+# 3xx to an unvalidated target is never chased.
 
 
-def _is_allowed_host(hostname: str) -> bool:
+def _resolve_allowed_ip(hostname: str) -> Optional[str]:
+    """Resolve hostname once and require the result be a private,
+    non-loopback, non-link-local address (rejects the 169.254.169.254 cloud
+    metadata endpoint specifically, plus localhost and public hosts)."""
     try:
-        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+        ip_str = socket.gethostbyname(hostname)
+        ip = ipaddress.ip_address(ip_str)
     except (OSError, ValueError):
-        return False
-    return ip.is_private and not ip.is_loopback and not ip.is_link_local
+        return None
+    if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+        return ip_str
+    return None
+
 
 DEFAULT_LOG = os.path.expanduser("~/.cyclops/sightings.jsonl")
 
@@ -90,13 +101,33 @@ def _fetch(url: str, timeout: float = 10.0) -> Optional[bytes]:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
         return None
-    if not parsed.hostname or not _is_allowed_host(parsed.hostname):
+    if not parsed.hostname:
         return None
+    ip = _resolve_allowed_ip(parsed.hostname)
+    if ip is None:
+        return None
+    path = parsed.path or "/"
+    if parsed.query:
+        path += "?" + parsed.query
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+    # Connect to the validated IP literal, not the hostname -- see module
+    # docstring. Host header carries the original hostname for correctness;
+    # for https this also means TLS validates the cert against the IP, not
+    # the hostname, which fails closed for any normal cert rather than
+    # reopening a rebinding path via SNI-hostname override.
+    conn = conn_cls(ip, port, timeout=timeout)
     try:
-        with _HTTP_ONLY_OPENER.open(url, timeout=timeout) as resp:
-            return resp.read()
+        conn.request("GET", path, headers={"Host": parsed.hostname})
+        resp = conn.getresponse()
+        body = resp.read()
+        if resp.status != 200:
+            return None
+        return body
     except Exception:
         return None
+    finally:
+        conn.close()
 
 
 def capture_and_tag(
