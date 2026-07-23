@@ -79,6 +79,48 @@ def test_each_action_returns_frame():
         assert len(c.frames) >= 1
 
 
+def test_photo_with_url_and_vision_tags_and_discards():
+    if os.path.exists("/tmp/cyclops_sightings.jsonl"):
+        os.remove("/tmp/cyclops_sightings.jsonl")
+    import brain.sightings as sightings
+
+    sightings_log = sightings.SightingLog("/tmp/cyclops_sightings.jsonl")
+    fake_fetch = lambda url: b"\xff\xd8FAKEJPEG\xff\xd9"
+    real_add_and_tag = sightings.capture_and_tag
+    try:
+        sightings.capture_and_tag = lambda url, vision_fn, log=None, fetch=None: (
+            real_add_and_tag(url, vision_fn, sightings_log, fetch=fake_fetch)
+        )
+        cap = Cap()
+        vision_calls = []
+
+        def fake_vision(b64, prompt):
+            vision_calls.append((b64, prompt))
+            return "desk, laptop, coffee cup"
+
+        br = HudBridge(cap, vision=fake_vision)
+        kind, line = br.dispatch(ACT_PHOTO, "http://192.168.1.50/capture")
+        assert kind == "photo"
+        assert "desk, laptop, coffee cup" in line
+        assert len(vision_calls) == 1
+        assert "FAKEJPEG" not in vision_calls[0][0]  # b64, not raw bytes
+        entries = sightings_log.all()
+        assert len(entries) == 1
+        assert entries[0]["tags"] == "desk, laptop, coffee cup"
+    finally:
+        sightings.capture_and_tag = real_add_and_tag
+        if os.path.exists("/tmp/cyclops_sightings.jsonl"):
+            os.remove("/tmp/cyclops_sightings.jsonl")
+
+
+def test_photo_without_vision_stays_stub():
+    cap = Cap()
+    br = HudBridge(cap)  # no vision wired
+    kind, line = br.dispatch(ACT_PHOTO, "http://192.168.1.50/capture")
+    assert kind == "photo"
+    assert line == "PHOTO: captured (stub)"
+
+
 def test_ssh_is_gated_not_executed():
     from brain.hitl import get_gatebook
 

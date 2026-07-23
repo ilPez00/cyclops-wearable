@@ -27,10 +27,36 @@ PORT = 8080
 pipeline = None
 agent = None
 bridge = None
+_vision_fn = None  # lazy-built plain (image_b64, prompt) -> str callable
 # serializes access to the shared agent (ThreadingHTTPServer handles requests
 # concurrently; agent.run() mutates history/cfg with no locking of its own)
 _AGENT_LOCK = threading.Lock()
 DREAM_INTERVAL_S = 1800  # background review cadence (30 min)
+
+
+def _get_vision_fn():
+    """Lazily build the (image_b64, prompt) -> str callable HudBridge uses
+    to tag sightings (#1). Built once, cached module-level -- constructing
+    a Tool + HTTP session per request would be wasteful given /api/hud_cmd
+    already builds a throwaway HudBridge per call.
+
+    NOTE: make_vision_tool()'s offline-stub check reads its own `session`
+    parameter, not the `session or _urllib_session()` fallback it computes
+    internally -- omitting session (as app/server.py's /api/vision handler
+    does) leaves it permanently stubbed regardless of configured API keys.
+    session must be passed explicitly to get a real vision backend, same as
+    agent/tools/__init__.py's build_registry already does for every other
+    tool wired into the conversational agent.
+    """
+    global _vision_fn
+    if _vision_fn is None:
+        from agent.models import _urllib_session
+        from agent.tools.vision import make_vision_tool
+
+        cfg = AgentConfig.load(env=dict(os.environ))
+        tool = make_vision_tool(cfg, session=_urllib_session())
+        _vision_fn = lambda b64, prompt: tool.run({"image": b64, "prompt": prompt})
+    return _vision_fn
 
 
 def _run_dream_review():
@@ -296,6 +322,7 @@ class H(BaseHTTPRequestHandler):
                     store=getattr(pipeline, "store", None) if pipeline else None,
                     transcriber=getattr(pipeline, "trans", None) if pipeline else None,
                     health=None,
+                    vision=_get_vision_fn(),
                 )
                 res = br.dispatch(act, arg)
                 return self._send(
@@ -387,6 +414,15 @@ class H(BaseHTTPRequestHandler):
 
             q = parse_qs(p.query).get("q", [""])[0]
             return self._send(200, json.dumps(EntityStore().search(q)))
+        if p.path == "/api/sightings":
+            # Zero-photo memory (#1): "when did I last see my keys" queries
+            # the text-tag log, never a photo library. ?q= filters; omitted
+            # returns everything, newest last (same order as the JSONL).
+            from brain.sightings import SightingLog
+
+            q = parse_qs(p.query).get("q", [""])[0]
+            log = SightingLog()
+            return self._send(200, json.dumps(log.search(q) if q else log.all()))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
@@ -455,15 +491,9 @@ class H(BaseHTTPRequestHandler):
             # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
             # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
             try:
-                from agent.tools.vision import make_vision_tool
-
-                cfg = AgentConfig.load(env=dict(os.environ))
-                tool = make_vision_tool(cfg)
-                out = tool.run(
-                    {
-                        "image": data.get("image", ""),
-                        "prompt": data.get("prompt", "Describe this image concisely."),
-                    }
+                out = _get_vision_fn()(
+                    data.get("image", ""),
+                    data.get("prompt", "Describe this image concisely."),
                 )
                 return self._send(200, json.dumps({"result": out}))
             except Exception as e:
@@ -586,6 +616,7 @@ def main():
             transcriber=getattr(pipeline, "trans", None) if pipeline else None,
             health=None,
             agent=agent,
+            vision=_get_vision_fn(),
         )
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
     # LAN discovery beacon so clients can find us without typing an IP.

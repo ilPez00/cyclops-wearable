@@ -89,7 +89,10 @@ _MASK = 0xFF
 
 
 class HudBridge:
-    def __init__(self, sink, store=None, transcriber=None, health=None, agent=None, user_id="wearer"):
+    def __init__(
+        self, sink, store=None, transcriber=None, health=None, agent=None,
+        vision=None, user_id="wearer",
+    ):
         self.sink = sink
         self.store = store
         self.user_id = user_id  # who this wearable serves (lifeOS target)
@@ -98,6 +101,9 @@ class HudBridge:
         self.health = health
         # agent core (cyclops.agent.loop.Agent) — wired by the server; None = stub
         self.agent = agent
+        # vision_fn(image_b64, prompt) -> str — wired by the server from
+        # agent/tools/vision.py; None = zero-photo memory (#1) stays a stub
+        self.vision = vision
         self.tele_script = []
         self.ssh_lines = ["$ ", "cyclops@phone:~# "]
         self._last_detail = ""
@@ -375,8 +381,18 @@ class HudBridge:
             self._emit_text("AGENT: aborted")
             return ("agent_abort", None)
         if act == ACT_PHOTO:
-            # B-long path: capture a frame, analyze, speak the result back (TTS).
-            line = "PHOTO: captured (stub)"
+            # arg is the wearable's announced capture URL (camera_capture.h)
+            # once wired end-to-end; "" means no wifi.txt / camera failed on
+            # the device side. Tag-and-discard (#1) only runs when both a
+            # real URL and a vision backend are wired — otherwise stays the
+            # same stub behavior tests already expect.
+            if arg and self.vision:
+                from .sightings import capture_and_tag
+
+                entry = capture_and_tag(arg, self.vision)
+                line = f"PHOTO: {entry['tags']}" if entry else "PHOTO: capture/tag failed"
+            else:
+                line = "PHOTO: captured (stub)"
             self._emit_text(line)
             self._emit_tts("Photo captured.")
             return ("photo", line)
