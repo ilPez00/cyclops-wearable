@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -82,6 +83,10 @@ def test_dead_provider_skipped_until_backoff():
 def test_all_dead_raises_last_error():
     sess = ScriptedSession([(500, {}), (500, {})])
     r = CascadingRouter(_cfg(), session=sess, keys=FakeKeys(["groq", "openrouter"]))
+    # fcm/OmniRoute is tried before the keyed cascade (priority 0, see chat());
+    # this test is about the keyed-provider list exhausting, so pre-mark fcm
+    # dead rather than consuming one of the two scripted responses on it.
+    r._dead_until["fcm"] = time.time() + 999
     try:
         r.chat([{"role": "user", "content": "x"}])
         assert False, "should raise when every provider fails"
