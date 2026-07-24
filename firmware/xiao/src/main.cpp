@@ -103,6 +103,9 @@ static TaskHandle_t cap_task = nullptr;
 // existing plain-bool cross-task convention.
 static cyclops::AudioTrigger audio_trigger;
 static volatile bool loud_flag = false;
+// Deferred ACT_PHOTO handoff from BLE-callback-context to the main loop
+// task -- see hud.on_photo below for why this can't just do the work inline.
+static volatile bool photo_flag = false;
 // On-demand photo capture (#1): camera + WiFi + HTTP come up only when a
 // photo is actually requested, torn down after 60s idle. See camera_capture.h.
 static cyclops::CameraCapture camera_capture;
@@ -332,12 +335,19 @@ void setup() {
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
     hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
-    hud.on_photo = []() -> const char* {
-        const char* url = camera_capture.request(millis());
-        if (url[0]) cyclops::sd_log_line("photo", url);
-        else hud.toast("photo: no wifi.txt / cam fail", 3);
-        return url;
-    };
+    // Deliberately just sets a flag -- do_action(ACT_PHOTO) (and therefore
+    // this callback) can run on the NimBLE host task's own stack when
+    // triggered by a phone-relayed MSG_CMD (on_frame() -> do_action() is
+    // called directly from the GATT write callback), not the main loop
+    // task. That stack is small by default; esp_camera_init()'s local
+    // camera_config_t plus WiFi.begin()'s blocking join loop, run directly
+    // on it, is a real overflow risk -- and a strong suspect for the
+    // "sd_ready() false right after camera init succeeds" bug seen live on
+    // metal (smashed static BSS is exactly this failure's shape). The
+    // actual capture work now happens in loop() on the main task instead;
+    // see photo_flag below. The immediate cmd(ACT_PHOTO,"") notify is
+    // cheap/safe here -- it's just a function-pointer call, no blocking I/O.
+    hud.on_photo = []() -> const char* { photo_flag = true; return ""; };
     hud.init();
     Serial.println("[boot] hud.init ok");
     if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
@@ -373,6 +383,13 @@ void loop() {
         loud_flag = false;
         hud.notify("loud sound detected", cyclops::Hud::NOTE_WARN, 3);
         cyclops::sd_log_line("audio_trigger", "loud");
+    }
+    if (photo_flag) {
+        photo_flag = false;
+        const char* url = camera_capture.request(now);
+        if (url[0]) cyclops::sd_log_line("photo", url);
+        else hud.toast("photo: no wifi.txt / cam fail", 3);
+        hud.notify_result(cyclops::ACT_PHOTO, url);
     }
     camera_capture.tick(now);
     // buttons are active-low; detector wants pressed=true

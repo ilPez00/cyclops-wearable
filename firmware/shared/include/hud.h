@@ -80,6 +80,13 @@ struct Hud {
         if (on_note) on_note(s.text);
     }
 
+    // For a result that completes asynchronously, after do_action() already
+    // returned (e.g. a capture finished on a later loop() tick, not
+    // synchronously inside the triggering action) -- same wire effect as
+    // the private cmd(), public because the caller isn't reacting to a menu
+    // action in progress, it's reporting a result that happened later.
+    void notify_result(uint8_t a, const char* arg = nullptr) { cmd(a, arg); }
+
     Mode stack[STACK];
     int sp = 0;                  // top = stack[sp-1]
     int menu_sel = 0;
