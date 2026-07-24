@@ -1,9 +1,15 @@
-// On-demand photo capture served over WiFi HTTP (#1, zero-photo memory).
+// On-demand photo capture + live MJPEG stream served over WiFi HTTP.
 // Camera + WiFi + a tiny HTTP server come up only when a photo is actually
 // requested, and tear back down (WiFi off) after an idle window with no new
 // request -- BLE's radio time is undisturbed the rest of the time, and no
 // permanent WiFi/BLE coexistence overhead is paid for a feature that fires
 // a few times an hour at most.
+//
+// Endpoints:
+//   /capture  — single JPEG, no Content-Disposition
+//   /snap     — single JPEG with filename snap.jpg
+//   /stream   — MJPEG multipart/x-mixed-replace (~10 fps)
+//   /         — HTML page with embedded <img src="/stream">
 //
 // WiFi credentials come from /sdcard/wifi.txt (line 1 = SSID, line 2 =
 // password). If the file or the SD card itself is absent, this feature is

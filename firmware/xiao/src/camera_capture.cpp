@@ -46,6 +46,8 @@ void CameraCapture::teardown_wifi() {}
 namespace cyclops {
 
 static WebServer* g_server = nullptr;
+static const char* STREAM_BOUNDARY = "\r\n--frame\r\n";
+static const char* STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
 static void handle_capture() {
     camera_fb_t* fb = esp_camera_fb_get();
@@ -53,6 +55,48 @@ static void handle_capture() {
     Serial.printf("[cam-cap] GET /capture -> %u bytes\n", (unsigned)fb->len);
     g_server->send_P(200, "image/jpeg", (const char*)fb->buf, fb->len);
     esp_camera_fb_return(fb);
+}
+
+static void handle_snap() {
+    camera_fb_t* fb = esp_camera_fb_get();
+    if (!fb) { g_server->send(500, "text/plain", "capture failed"); return; }
+    g_server->sendHeader("Content-Disposition", "inline; filename=snap.jpg");
+    g_server->send_P(200, "image/jpeg", (const char*)fb->buf, fb->len);
+    esp_camera_fb_return(fb);
+}
+
+static void handle_stream_root() {
+    String html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+        "<title>Cyclops Camera</title>"
+        "<style>body{margin:0;background:#111;color:#eee;"
+        "font-family:system-ui,sans-serif;text-align:center}"
+        "h1{padding:1em}img{max-width:100%;height:auto}</style></head><body>"
+        "<h1>Cyclops &mdash; live</h1>"
+        "<img src=\"/stream\" /></body></html>";
+    g_server->send(200, "text/html; charset=utf-8", html);
+}
+
+static void handle_stream() {
+    Serial.println("[cam-cap] /stream requested");
+    WiFiClient client = g_server->client();
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: multipart/x-mixed-replace; boundary=frame");
+    client.println("Cache-Control: no-cache");
+    client.println("Connection: close");
+    client.println();
+    char part_buf[64];
+    while (client.connected()) {
+        camera_fb_t* fb = esp_camera_fb_get();
+        if (!fb) { delay(100); continue; }
+        client.print(STREAM_BOUNDARY);
+        size_t hlen = snprintf(part_buf, sizeof(part_buf), STREAM_PART, fb->len);
+        client.write((const uint8_t*)part_buf, hlen);
+        size_t sent = client.write(fb->buf, fb->len);
+        esp_camera_fb_return(fb);
+        if (sent != fb->len) { Serial.println("[cam-cap] /stream short write"); break; }
+        delay(100);  // ~10 fps
+    }
+    Serial.println("[cam-cap] /stream closed");
 }
 
 // Camera init profile — tries multiple configs and falls back.
@@ -152,6 +196,9 @@ bool CameraCapture::ensure_wifi_and_server() {
     }
     g_server = new WebServer(80);
     g_server->on("/capture", handle_capture);
+    g_server->on("/snap", handle_snap);
+    g_server->on("/stream", handle_stream);
+    g_server->on("/", handle_stream_root);
     g_server->begin();
     snprintf(url_, sizeof(url_), "http://%s/capture", WiFi.localIP().toString().c_str());
     server_up_ = true;
