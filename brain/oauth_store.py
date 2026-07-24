@@ -73,7 +73,17 @@ class OAuthStore:
 
     def _write_all(self, data: dict) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # OAuth tokens (especially refresh_token) are longer-lived and
+        # broader-scoped than a single static API key -- write owner-only
+        # (0600) rather than inheriting the process umask (typically 0644,
+        # group/world-readable). os.open + fdopen so the restrictive mode
+        # applies atomically at creation, not as a chmod race after the
+        # fact (a window where the file briefly exists at the umask default
+        # would defeat the point).
+        fd = os.open(str(self.path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2))
+        os.chmod(self.path, 0o600)  # belt-and-suspenders in case the file pre-existed with looser perms
 
     def save(
         self, provider: str, access_token: str, refresh_token: str = "", expires_in: int = 0

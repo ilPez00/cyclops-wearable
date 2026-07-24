@@ -17,6 +17,18 @@ def _tmp_store():
     return OAuthStore(path=os.path.join(d, "oauth_tokens.json"))
 
 
+def test_save_writes_owner_only_permissions():
+    # Tokens (especially refresh_token) are longer-lived, broader-scoped
+    # credentials than a static API key -- must not inherit the umask default
+    # (typically 0644, group/world-readable).
+    import stat
+
+    s = _tmp_store()
+    s.save("kimi", "tok_a", "ref_a", expires_in=3600)
+    mode = stat.S_IMODE(os.stat(s.path).st_mode)
+    assert mode == 0o600, f"expected 0600, got {oct(mode)}"
+
+
 def test_save_and_get():
     s = _tmp_store()
     s.save("kimi", "tok_a", "ref_a", expires_in=3600)

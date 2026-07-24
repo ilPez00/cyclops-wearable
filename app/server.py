@@ -28,6 +28,15 @@ pipeline = None
 agent = None
 bridge = None
 _vision_fn = None  # lazy-built plain (image_b64, prompt) -> str callable
+# In-flight OAuth device-flow attempts, keyed by provider name -- /api/oauth/
+# poll needs the device_code from the matching /api/oauth/start call, but the
+# client only has the provider name. One request server-does-one-poll design
+# (see brain/oauth_device.py's poll_once docstring): a device code can be
+# outstanding for ~15 min (RFC 8628), and a ThreadingHTTPServer request
+# thread blocking that long per in-flight auth would be a real resource risk
+# -- the phone re-polls on an interval instead, server does one upstream
+# check per phone request.
+_oauth_pending: dict = {}
 # serializes access to the shared agent (ThreadingHTTPServer handles requests
 # concurrently; agent.run() mutates history/cfg with no locking of its own)
 _AGENT_LOCK = threading.Lock()
@@ -414,6 +423,46 @@ class H(BaseHTTPRequestHandler):
 
             q = parse_qs(p.query).get("q", [""])[0]
             return self._send(200, json.dumps(EntityStore().search(q)))
+        if p.path == "/api/oauth/providers":
+            # Device-flow-capable providers the user has configured (see
+            # brain/oauth_store.py's load_provider_configs -- reads
+            # ~/.cyclops/oauth_providers.json, user-supplied, not committed).
+            # Never returns client secrets, just names -- the app shows a picker.
+            from brain.oauth_store import load_provider_configs
+
+            names = sorted(load_provider_configs().keys())
+            return self._send(200, json.dumps(names))
+        if p.path == "/api/oauth/poll":
+            # One device-flow poll attempt for a provider with an in-flight
+            # /api/oauth/start (see _oauth_pending). Non-blocking by design.
+            provider = parse_qs(p.query).get("provider", [""])[0]
+            pending = _oauth_pending.get(provider)
+            if not pending:
+                return self._send(404, json.dumps({"status": "not_started"}))
+            from brain.oauth_device import poll_once
+            from brain.oauth_store import OAuthStore
+
+            try:
+                r = poll_once(
+                    pending["cfg"], pending["device_code"], pending["session"],
+                    default_interval=pending["interval"],
+                )
+            except Exception as e:
+                _oauth_pending.pop(provider, None)
+                return self._send(200, json.dumps({"status": "error", "error": str(e)}))
+            if r.status == "complete":
+                OAuthStore().save(
+                    provider, r.token.access_token, r.token.refresh_token, r.token.expires_in
+                )
+                _oauth_pending.pop(provider, None)
+                return self._send(200, json.dumps({"status": "complete"}))
+            if r.status in ("expired", "denied"):
+                _oauth_pending.pop(provider, None)
+                return self._send(200, json.dumps({"status": r.status}))
+            # RFC 8628 3.5: on slow_down, use the bumped interval going
+            # forward, not just for this one response.
+            pending["interval"] = r.retry_after
+            return self._send(200, json.dumps({"status": "pending", "retry_after": r.retry_after}))
         if p.path == "/api/sightings":
             # Zero-photo memory (#1): "when did I last see my keys" queries
             # the text-tag log, never a photo library. ?q= filters; omitted
@@ -457,6 +506,43 @@ class H(BaseHTTPRequestHandler):
             data = json.loads(body or b"{}")
         except Exception:
             data = {}
+        if p.path == "/api/oauth/start":
+            # Begin a device-flow authentication: {"provider": "kimi"}. Does
+            # NOT block waiting for the user to complete it in a browser --
+            # returns the code/URL to show immediately; the app polls
+            # /api/oauth/poll?provider=... afterward.
+            from brain.oauth_device import OAuthError, start_device_flow
+            from brain.oauth_store import load_provider_configs
+
+            provider = data.get("provider", "")
+            cfg = load_provider_configs().get(provider)
+            if cfg is None:
+                return self._send(404, json.dumps({"error": f"unknown provider: {provider}"}))
+            from agent.models import _urllib_session
+
+            session = _urllib_session()
+            try:
+                dc = start_device_flow(cfg, session)
+            except OAuthError as e:
+                return self._send(200, json.dumps({"error": str(e)}))
+            _oauth_pending[provider] = {
+                "cfg": cfg,
+                "device_code": dc.device_code,
+                "session": session,
+                "interval": dc.interval,
+            }
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "user_code": dc.user_code,
+                        "verification_uri": dc.verification_uri,
+                        "verification_uri_complete": dc.verification_uri_complete,
+                        "expires_in": dc.expires_in,
+                        "interval": dc.interval,
+                    }
+                ),
+            )
         if p.path == "/api/experience":
             # record a graded experience: {domain, action, grade(0..1), note}
             from brain.experiences import ExperienceStore
