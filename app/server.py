@@ -568,7 +568,7 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
-    global pipeline, agent, PORT, STORE_PATH
+    global pipeline, agent, bridge, PORT, STORE_PATH
     if len(sys.argv) > 1:
         PORT = int(sys.argv[1])
     if len(sys.argv) > 2:
