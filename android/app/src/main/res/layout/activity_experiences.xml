@@ -13,15 +13,6 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Progress"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="@color/cyclops_primary" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
             android:text="Grade what you did, by area. Cyclops rolls it up into a Plan / Do / Check / Act state per area."
             android:textSize="13sp"
             android:textColor="@color/cyclops_secondary" />

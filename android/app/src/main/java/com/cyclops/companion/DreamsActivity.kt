@@ -7,21 +7,20 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.databinding.ActivityDreamsBinding
 
 /**
  * Proposals inbox — the proactive dream loop (brain /api/dreams). Each card
  * is an insight/proposal/risk with a Dismiss; "Review now" triggers a review.
  */
-class DreamsActivity : AppCompatActivity() {
+class DreamsActivity : BaseActivity() {
 
     private lateinit var binding: ActivityDreamsBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityDreamsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Proposals")
         binding.btnReview.setOnClickListener {
             if (!CyclopsApi.configured) {
                 Toast.makeText(this, "set the brain server in Settings first", Toast.LENGTH_LONG).show()
@@ -40,21 +39,22 @@ class DreamsActivity : AppCompatActivity() {
     private fun load() {
         if (!CyclopsApi.configured) {
             binding.dreamEmpty.text = "Set the brain server in Settings first."
+            binding.dreamEmptyContainer.visibility = View.VISIBLE
             return
         }
         CyclopsApi.dreams(
             onResult = { render(it) },
-            onError = { binding.dreamEmpty.visibility = View.VISIBLE })
+            onError = { binding.dreamEmptyContainer.visibility = View.VISIBLE })
     }
 
     private fun render(dreams: List<CyclopsApi.Dream>) {
         binding.dreamList.removeAllViews()
-        binding.dreamEmpty.visibility = if (dreams.isEmpty()) View.VISIBLE else View.GONE
+        binding.dreamEmptyContainer.visibility = if (dreams.isEmpty()) View.VISIBLE else View.GONE
         for (d in dreams) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundResource(R.drawable.bg_panel)
-                setPadding(28, 24, 28, 24)
+                setPadding(16.dp(), 12.dp(), 16.dp(), 12.dp())
             }
             card.addView(TextView(this).apply {
                 text = d.kind.uppercase()
@@ -64,7 +64,7 @@ class DreamsActivity : AppCompatActivity() {
             card.addView(TextView(this).apply {
                 text = d.message
                 textSize = 15f
-                setPadding(0, 6, 0, 0)
+                setPadding(0, 4.dp(), 0, 0)
                 setTextColor(getColor(R.color.cyclops_on_surface))
             })
             val dismiss = Button(this).apply {
@@ -77,12 +77,12 @@ class DreamsActivity : AppCompatActivity() {
             val dlp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             dlp.gravity = Gravity.END
-            dlp.topMargin = 4
+            dlp.topMargin = 2.dp()
             card.addView(dismiss, dlp)
 
             val lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            lp.bottomMargin = 12
+            lp.bottomMargin = 8.dp()
             binding.dreamList.addView(card, lp)
         }
     }

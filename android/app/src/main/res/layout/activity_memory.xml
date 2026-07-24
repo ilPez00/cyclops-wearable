@@ -5,14 +5,6 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Memory"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@color/cyclops_primary" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -61,22 +53,45 @@
 
     </com.google.android.material.chip.ChipGroup>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerMemory"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="8dp"
-        android:contentDescription="Memory list" />
+        android:layout_marginTop="8dp">
 
-    <TextView
-        android:id="@+id/txtMemoryEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="No memories yet. Talk to your brain to build context."
-        android:textSize="14sp"
-        android:textColor="#8A9BA8"
-        android:visibility="gone" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerMemory"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Memory list" />
+
+        <LinearLayout
+            android:id="@+id/memoryEmptyContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◈"
+                android:textSize="56sp"
+                android:textColor="@color/cyclops_primary" />
+
+            <TextView
+                android:id="@+id/txtMemoryEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="No memories yet. Talk to your brain to build context."
+                android:textSize="15sp"
+                android:textColor="@color/cyclops_secondary" />
+        </LinearLayout>
+    </FrameLayout>
 
 </LinearLayout>

@@ -4,14 +4,13 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.EditText
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.cyclops.companion.databinding.ActivityMemoryBinding
 import com.google.android.material.chip.Chip
 import org.json.JSONArray
 import org.json.JSONObject
 
-class MemoryActivity : AppCompatActivity() {
+class MemoryActivity : BaseActivity() {
 
     private lateinit var binding: ActivityMemoryBinding
     private val adapter = MemoryAdapter()
@@ -21,7 +20,7 @@ class MemoryActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMemoryBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Memory")
 
         binding.recyclerMemory.layoutManager = LinearLayoutManager(this)
         binding.recyclerMemory.adapter = adapter
@@ -51,7 +50,7 @@ class MemoryActivity : AppCompatActivity() {
             onError = { msg ->
                 runOnUiThread {
                     binding.txtMemoryEmpty.text = "Couldn't load memory: $msg"
-                    binding.txtMemoryEmpty.visibility = android.view.View.VISIBLE
+                    binding.memoryEmptyContainer.visibility = android.view.View.VISIBLE
                 }
             }
         )
@@ -72,7 +71,7 @@ class MemoryActivity : AppCompatActivity() {
             (q.isEmpty() || m.text.lowercase().contains(q))
         }
         adapter.setData(filtered)
-        binding.txtMemoryEmpty.visibility =
+        binding.memoryEmptyContainer.visibility =
             if (filtered.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
     }
 }
