@@ -57,10 +57,20 @@ class TelegramSink:
 
     def inbound_note(self, text: str, source: str = "telegram") -> dict:
         """Pass inbound text through NoteStore so it shows up across all sinks."""
+        from datetime import datetime
+        created_str = datetime.now().isoformat(timespec="seconds")
+        nid = "n_" + created_str.replace(":", "").replace("-", "").replace(".", "")
         record = {"text": text, "source": source, "ts": int(time.time())}
         if self.store:
-          try:
-            self.store.add(Note(**record))
-          except Exception:
-            pass
+            try:
+                note = Note(
+                    id=nid,
+                    type="task",
+                    text=text,
+                    created=created_str,
+                    source=source
+                )
+                self.store.add(note)
+            except Exception:
+                pass
         return record
