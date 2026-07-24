@@ -18,6 +18,9 @@
 #include "posture.h"
 #include "audio_trigger.h"
 #include "camera_capture.h"
+#include "soc/rtc_cntl_reg.h"
+#include "config_store.h"
+#include "config_portal.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -102,6 +105,7 @@ static TaskHandle_t cap_task = nullptr;
 // so hud.notify() is only ever touched from one task, same as `capturing`'s
 // existing plain-bool cross-task convention.
 static cyclops::AudioTrigger audio_trigger;
+static cyclops::VadGate vad_gate;
 static volatile bool loud_flag = false;
 // Deferred ACT_PHOTO handoff from BLE-callback-context to the main loop
 // task -- see hud.on_photo below for why this can't just do the work inline.
@@ -260,6 +264,12 @@ static void audio_task(void*) {
         i2s_read((i2s_port_t)0, samples, sizeof(samples), &rd, pdMS_TO_TICKS(100));
         if (rd > 0) {
             if (audio_trigger.feed(samples, rd / 2, millis())) loud_flag = true;
+            // VAD gate: skip silence to save BLE bandwidth and battery.
+            // Only streams when RMS exceeds the adaptive threshold.
+            if (!vad_gate.feed(samples, rd / 2)) {
+                cyclops::audio_dropped++;  // silence -> drop
+                continue;
+            }
             // Backpressure: only stream audio when a phone is actually
             // connected to receive it. Sending into the void wastes the BLE
             // queue and battery; drop the chunk instead. (D)
@@ -314,8 +324,20 @@ static void stop_capture() {
 }
 
 void setup() {
+    // Brownout detector disable — prevents random resets under high load
+    // (camera + WiFi + BLE concurrently). From xiao-esp32s3-edge-ai reference.
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
     Serial.begin(115200);
     Serial.println("[boot] Cyclops XIAO S3 Sense");
+    // Factory reset: hold both buttons at boot
+    pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
+    delay(50);
+    if (!digitalRead(PIN_BTN_A) && !digitalRead(PIN_BTN_B)) {
+        Serial.println("[boot] BTN_A+BTN_B held — factory reset");
+        cyclops::ConfigStore::instance().reset();
+    }
+    cyclops::ConfigStore::instance().load();
 #ifdef SCREEN_ST7735
     Serial.println("[boot] screen=ST7735 128x128");
 #elif defined(SCREEN_128x64)
@@ -329,6 +351,15 @@ void setup() {
 #endif
     screen.begin();
     Serial.println("[boot] screen.begin ok");
+    if (!cyclops::ConfigStore::instance().is_configured()) {
+        Serial.println("[boot] not configured — starting config portal");
+        config_portal_start();
+        Serial.printf("[boot] Connect to Cyclops-Setup-XXXX, open http://192.168.4.1\n");
+        while (true) {
+            config_portal_tick();
+            delay(10);
+        }
+    }
     pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
     pinMode(PIN_WHEEL_A, INPUT_PULLUP); pinMode(PIN_WHEEL_B, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(PIN_WHEEL_A), wheel_isr, CHANGE);
@@ -376,6 +407,7 @@ static uint32_t last_hb=0;
 static cyclops::GestureDetector gest_a, gest_b;   // A="eye", B="ear"
 
 void loop() {
+    config_portal_tick();
     static int prev = 0;
     if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
     uint32_t now = millis();

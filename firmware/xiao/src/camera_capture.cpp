@@ -55,30 +55,59 @@ static void handle_capture() {
     esp_camera_fb_return(fb);
 }
 
+// Camera init profile — tries multiple configs and falls back.
+// Pattern from Complete-voice-and-vision-AI-using-XIAO-ESP32-S3-Sense.
+struct CameraProfile {
+    framesize_t frame_size;
+    uint32_t xclk_hz;
+};
+static const CameraProfile CAM_PROFILES[] = {
+    {FRAMESIZE_VGA,  20000000},
+    {FRAMESIZE_VGA,  16000000},
+    {FRAMESIZE_QVGA, 20000000},
+};
+static constexpr int NUM_CAM_PROFILES = sizeof(CAM_PROFILES) / sizeof(CAM_PROFILES[0]);
+
 bool CameraCapture::ensure_camera() {
     if (cam_ready_) return true;
-    camera_config_t c = {};
-    c.ledc_channel = LEDC_CHANNEL_0;
-    c.ledc_timer = LEDC_TIMER_0;
-    c.pin_pwdn = CAM_PWDN; c.pin_reset = CAM_RESET; c.pin_xclk = CAM_XCLK;
-    c.pin_sccb_sda = CAM_SIOD; c.pin_sccb_scl = CAM_SIOC;
-    c.pin_d7 = CAM_Y9; c.pin_d6 = CAM_Y8; c.pin_d5 = CAM_Y7; c.pin_d4 = CAM_Y6;
-    c.pin_d3 = CAM_Y5; c.pin_d2 = CAM_Y4; c.pin_d1 = CAM_Y3; c.pin_d0 = CAM_Y2;
-    c.pin_vsync = CAM_VSYNC; c.pin_href = CAM_HREF; c.pin_pclk = CAM_PCLK;
-    c.xclk_freq_hz = 20000000;
-    c.pixel_format = PIXFORMAT_JPEG;
-    if (psramFound()) {
-        c.frame_size = FRAMESIZE_VGA; c.jpeg_quality = 12; c.fb_count = 2;
-        c.fb_location = CAMERA_FB_IN_PSRAM;
-    } else {
-        c.frame_size = FRAMESIZE_QVGA; c.jpeg_quality = 15; c.fb_count = 1;
-        c.fb_location = CAMERA_FB_IN_DRAM;
+    bool has_psram = psramFound();
+    for (int i = 0; i < NUM_CAM_PROFILES; ++i) {
+        if (i > 0) {
+            esp_camera_deinit();
+            delay(50);
+        }
+        camera_config_t c = {};
+        c.ledc_channel = LEDC_CHANNEL_0;
+        c.ledc_timer = LEDC_TIMER_0;
+        c.pin_pwdn = CAM_PWDN; c.pin_reset = CAM_RESET; c.pin_xclk = CAM_XCLK;
+        c.pin_sccb_sda = CAM_SIOD; c.pin_sccb_scl = CAM_SIOC;
+        c.pin_d7 = CAM_Y9; c.pin_d6 = CAM_Y8; c.pin_d5 = CAM_Y7; c.pin_d4 = CAM_Y6;
+        c.pin_d3 = CAM_Y5; c.pin_d2 = CAM_Y4; c.pin_d1 = CAM_Y3; c.pin_d0 = CAM_Y2;
+        c.pin_vsync = CAM_VSYNC; c.pin_href = CAM_HREF; c.pin_pclk = CAM_PCLK;
+        c.xclk_freq_hz = CAM_PROFILES[i].xclk_hz;
+        c.pixel_format = PIXFORMAT_JPEG;
+        c.frame_size = CAM_PROFILES[i].frame_size;
+        if (has_psram) {
+            c.jpeg_quality = 12; c.fb_count = 2;
+            c.fb_location = CAMERA_FB_IN_PSRAM;
+            c.grab_mode = CAMERA_GRAB_LATEST;
+        } else {
+            c.jpeg_quality = 15; c.fb_count = 1;
+            c.fb_location = CAMERA_FB_IN_DRAM;
+            c.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
+        }
+        esp_err_t err = esp_camera_init(&c);
+        if (err == ESP_OK) {
+            cam_ready_ = true;
+            Serial.printf("[cam-cap] camera OK profile=%dx%d@%dHz psram=%d\n",
+                          (int)c.frame_size, (int)c.frame_size, (int)c.xclk_freq_hz, has_psram);
+            return true;
+        }
+        Serial.printf("[cam-cap] camera FAIL profile=%dx%d@%dHz err=0x%x\n",
+                      (int)c.frame_size, (int)c.frame_size, (int)c.xclk_freq_hz, err);
     }
-    esp_err_t err = esp_camera_init(&c);
-    cam_ready_ = (err == ESP_OK);
-    Serial.printf("[cam-cap] camera init %s (err=0x%x, psram=%d)\n",
-                  cam_ready_ ? "OK" : "FAIL", err, psramFound());
-    return cam_ready_;
+    Serial.println("[cam-cap] all camera profiles exhausted");
+    return false;
 }
 
 // Reads SSID (line 1) + password (line 2) from /wifi.txt on the already-
