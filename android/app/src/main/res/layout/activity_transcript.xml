@@ -6,42 +6,52 @@
     android:background="@color/cyclops_surface"
     android:padding="12dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
+    <Button
+        android:id="@+id/btnTranscriptRefresh"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingBottom="8dp">
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Transcript"
-            android:textColor="@color/cyclops_primary"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-        <Button
-            android:id="@+id/btnTranscriptRefresh"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Refresh"
-            android:contentDescription="Refresh transcript" />
-    </LinearLayout>
+        android:layout_gravity="end"
+        android:layout_marginBottom="8dp"
+        android:text="Refresh"
+        android:contentDescription="Refresh transcript" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/listTranscript"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:scrollbars="vertical" />
+        android:layout_weight="1">
 
-    <TextView
-        android:id="@+id/txtTranscriptEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingTop="24dp"
-        android:text="No conversation yet"
-        android:textColor="@color/cyclops_secondary"
-        android:visibility="gone" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/listTranscript"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="vertical" />
+
+        <LinearLayout
+            android:id="@+id/transcriptEmptyContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◎"
+                android:textSize="56sp"
+                android:textColor="@color/cyclops_primary" />
+
+            <TextView
+                android:id="@+id/txtTranscriptEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="No conversation yet"
+                android:textSize="15sp"
+                android:textColor="@color/cyclops_secondary" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

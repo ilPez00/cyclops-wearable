@@ -4,12 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.cyclops.companion.databinding.ActivityTranscriptBinding
 
-class TranscriptActivity : AppCompatActivity() {
+class TranscriptActivity : BaseActivity() {
     private lateinit var binding: ActivityTranscriptBinding
     private val turns = mutableListOf<Pair<String, String>>()
     private lateinit var adapter: TurnAdapter
@@ -17,7 +16,7 @@ class TranscriptActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityTranscriptBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Transcript")
         binding.listTranscript.layoutManager = LinearLayoutManager(this)
         adapter = TurnAdapter(turns)
         binding.listTranscript.adapter = adapter
@@ -35,14 +34,14 @@ class TranscriptActivity : AppCompatActivity() {
             onResult = { list ->
                 runOnUiThread {
                     turns.clear(); turns.addAll(list); adapter.notifyDataSetChanged()
-                    binding.txtTranscriptEmpty.visibility =
+                    binding.transcriptEmptyContainer.visibility =
                         if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
                 }
             },
             onError = { msg ->
                 runOnUiThread {
                     binding.txtTranscriptEmpty.text = "Failed: $msg"
-                    binding.txtTranscriptEmpty.visibility = android.view.View.VISIBLE
+                    binding.transcriptEmptyContainer.visibility = android.view.View.VISIBLE
                 }
             }
         )
@@ -55,7 +54,7 @@ class TranscriptActivity : AppCompatActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val tv = LayoutInflater.from(parent.context)
                 .inflate(android.R.layout.simple_list_item_1, parent, false) as TextView
-            tv.setPadding(8, 12, 8, 12)
+            tv.setPadding(4.dp(parent.context), 8.dp(parent.context), 4.dp(parent.context), 8.dp(parent.context))
             return VH(tv)
         }
         override fun onBindViewHolder(h: VH, pos: Int) {

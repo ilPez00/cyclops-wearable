@@ -6,7 +6,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import android.content.Intent
 import com.cyclops.companion.core.Providers
 import com.cyclops.companion.databinding.ActivitySettingsBinding
@@ -19,7 +18,7 @@ import org.json.JSONObject
  * Pref keys are unchanged, so existing installs keep their values, and
  * Save still pushes the profile to the brain like the dialog did.
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : BaseActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private val TOOLS = listOf("vision", "web_search", "web_fetch", "translate", "brain")
@@ -29,8 +28,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        title = getString(R.string.settings)
+        setContentViewWithToolbar(binding.root, getString(R.string.settings))
 
         val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
         fun get(key: String) = prefs.getString(key, "") ?: ""

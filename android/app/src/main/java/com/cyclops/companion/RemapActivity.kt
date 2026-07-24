@@ -9,7 +9,6 @@ import android.widget.TableLayout
 import android.widget.TableRow
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.core.RingProto
 import com.cyclops.companion.databinding.ActivityRemapBinding
 
@@ -18,7 +17,7 @@ import com.cyclops.companion.databinding.ActivityRemapBinding
  * Each cell maps to a firmware Action id; changes are pushed to the device
  * via CyclopsApi.bind() (DISPLAY_CMD {"kind":"bind",...}).
  */
-class RemapActivity : AppCompatActivity() {
+class RemapActivity : BaseActivity() {
 
     // (actionId, label) — mirrors firmware Action enum (hud.h).
     private val actions = listOf(
@@ -43,7 +42,7 @@ class RemapActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val binding = ActivityRemapBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Button remap")
         for (b in 0..1) for (g in 1..3) grid[b][g] = defaults[b][g]
 
         val labels = actions.map { it.second }.toTypedArray()

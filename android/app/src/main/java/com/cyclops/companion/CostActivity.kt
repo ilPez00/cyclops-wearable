@@ -5,24 +5,24 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.databinding.ActivityCostBinding
 
 /** Usage & cost — per-provider token + estimated USD spend (brain /api/cost). */
-class CostActivity : AppCompatActivity() {
+class CostActivity : BaseActivity() {
 
     private lateinit var binding: ActivityCostBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCostBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Usage & cost")
         load()
     }
 
     private fun load() {
         if (!CyclopsApi.configured) {
             binding.costEmpty.text = "Set the brain server in Settings first."
+            binding.costEmptyContainer.visibility = View.VISIBLE
             return
         }
         CyclopsApi.cost(
@@ -30,13 +30,13 @@ class CostActivity : AppCompatActivity() {
                 binding.costTotal.text = "$" + String.format("%.2f", s.totalUsd)
                 binding.costCalls.text = if (s.totalCalls == 1) "1 call" else "${s.totalCalls} calls"
                 binding.costList.removeAllViews()
-                binding.costEmpty.visibility = if (s.rows.isEmpty()) View.VISIBLE else View.GONE
+                binding.costEmptyContainer.visibility = if (s.rows.isEmpty()) View.VISIBLE else View.GONE
                 for (r in s.rows.sortedByDescending { it.usd }) {
                     val row = LinearLayout(this).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER_VERTICAL
                         setBackgroundResource(R.drawable.bg_panel)
-                        setPadding(28, 24, 28, 24)
+                        setPadding(16.dp(), 12.dp(), 16.dp(), 12.dp())
                     }
                     val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                     left.addView(TextView(this).apply {
@@ -56,10 +56,10 @@ class CostActivity : AppCompatActivity() {
                     })
                     val lp = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                    lp.bottomMargin = 12
+                    lp.bottomMargin = 8.dp()
                     binding.costList.addView(row, lp)
                 }
             },
-            onError = { binding.costEmpty.visibility = View.VISIBLE })
+            onError = { binding.costEmptyContainer.visibility = View.VISIBLE })
     }
 }

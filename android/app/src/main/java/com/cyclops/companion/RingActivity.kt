@@ -14,7 +14,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.core.GaugeGeometry
 import androidx.core.app.ActivityCompat
 import com.cyclops.companion.core.RingProto
@@ -29,7 +28,7 @@ import com.cyclops.companion.databinding.ActivityRingBinding
  * SERVICE 6E40FFF0-...-E50E24DCCA9E, RX 6E400002-..., TX 6E400003-...
  * Every frame is 16 bytes; CRC = sum(byte[0..14]) & 0xFF.
  */
-class RingActivity : AppCompatActivity() {
+class RingActivity : BaseActivity() {
 
     private lateinit var binding: ActivityRingBinding
 
@@ -55,7 +54,7 @@ class RingActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRingBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, getString(R.string.ring_title))
         binding.btnRingConnect.setOnClickListener { toggleConnect() }
         binding.gaugeHr.unit = "bpm"
         binding.gaugeSpo2.unit = "SpO2 %"
