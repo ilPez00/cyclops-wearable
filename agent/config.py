@@ -176,7 +176,24 @@ class AgentConfig:
         prov = provider or self.provider
         if self.local_mode or prov in ("ollama", "lmstudio", "custom"):
             return self.local_base_url or self.base_url or "http://127.0.0.1:11434/v1"
-        return self.base_url or "https://openrouter.ai/api/v1"
+        if self.base_url:
+            return self.base_url
+        # per-provider endpoint (static ai_api.txt/.env entry, or an
+        # authenticated OAuth device-flow provider's api_base_url) takes
+        # priority over the hardcoded OpenRouter default -- without this, a
+        # provider whose *key* resolves correctly (resolve_key() below does
+        # consult AiKeys generically) still had every request sent to
+        # OpenRouter's URL regardless.
+        if prov and prov != "auto":
+            try:
+                from brain.aikeys import AiKeys
+
+                ep = AiKeys().get_endpoint(prov)
+                if ep:
+                    return ep
+            except Exception:
+                pass  # AiKeys is best-effort here; fall through to the default
+        return "https://openrouter.ai/api/v1"
 
     def provider_for(self, capability: str) -> dict:
         """Return a per-capability provider override if configured in env.

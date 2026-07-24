@@ -70,3 +70,81 @@ def test_has_and_available():
         assert k.has("gemini")
         assert k.has("groq")
         assert "gemini" in k.available() and "groq" in k.available()
+
+
+class _FakeOAuthStore:
+    """Minimal double matching brain.oauth_store.OAuthStore's public shape,
+    for testing AiKeys' fallback to OAuth tokens without touching disk."""
+
+    def __init__(self, tokens=None):
+        self._tokens = tokens or {}
+
+    def get_valid_key(self, provider, provider_cfg=None):
+        return self._tokens.get(provider)
+
+    def available_providers(self):
+        return sorted(self._tokens)
+
+
+def test_get_key_falls_back_to_oauth_when_no_static_key():
+    with tempfile.TemporaryDirectory() as d:
+        p = _make(d)  # has gemini/groq, nothing for "kimi"
+        oauth = _FakeOAuthStore({"kimi": "oauth-tok-123"})
+        k = AiKeys(ai_api_txt=p, env_paths=[], oauth_store=oauth)
+        assert k.get_key("kimi") == "oauth-tok-123"
+
+
+def test_get_key_prefers_static_over_oauth():
+    with tempfile.TemporaryDirectory() as d:
+        p = _make(d)  # groq:gsk_test
+        oauth = _FakeOAuthStore({"groq": "should-not-be-used"})
+        k = AiKeys(ai_api_txt=p, env_paths=[], oauth_store=oauth)
+        assert k.get_key("groq") == "gsk_test"
+
+
+def test_available_includes_oauth_only_providers():
+    with tempfile.TemporaryDirectory() as d:
+        p = _make(d)
+        oauth = _FakeOAuthStore({"kimi": "tok"})
+        k = AiKeys(ai_api_txt=p, env_paths=[], oauth_store=oauth)
+        assert "kimi" in k.available()
+        assert "gemini" in k.available()  # static providers still present too
+
+
+def test_get_key_no_static_no_oauth_is_none():
+    with tempfile.TemporaryDirectory() as d:
+        p = _make(d)
+        k = AiKeys(ai_api_txt=p, env_paths=[], oauth_store=_FakeOAuthStore())
+        assert k.get_key("nonexistent_provider") is None
+
+
+def test_get_endpoint_falls_back_to_oauth_provider_api_base_url():
+    import json
+
+    with tempfile.TemporaryDirectory() as d:
+        p = _make(d)
+        providers_path = os.path.join(d, "oauth_providers.json")
+        with open(providers_path, "w") as f:
+            json.dump(
+                {
+                    "kimi": {
+                        "device_auth_url": "https://a/d",
+                        "token_url": "https://a/t",
+                        "client_id": "c",
+                        "api_base_url": "https://api.moonshot.ai/v1",
+                    }
+                },
+                f,
+            )
+        old = os.environ.get("CYCLOPS_OAUTH_PROVIDERS")
+        os.environ["CYCLOPS_OAUTH_PROVIDERS"] = providers_path
+        try:
+            k = AiKeys(ai_api_txt=p, env_paths=[], oauth_store=_FakeOAuthStore({"kimi": "tok"}))
+            assert k.get_endpoint("kimi") == "https://api.moonshot.ai/v1"
+            # a provider with no matching oauth config and no static endpoint is still None
+            assert k.get_endpoint("nonexistent_provider") is None
+        finally:
+            if old is None:
+                os.environ.pop("CYCLOPS_OAUTH_PROVIDERS", None)
+            else:
+                os.environ["CYCLOPS_OAUTH_PROVIDERS"] = old

@@ -72,11 +72,22 @@ class TurnResult:
     tool_calls: int = 0
 
 
+# Sentinel distinguishing "router omitted" (auto-build the cascade) from
+# "router=None passed explicitly" (caller wants no model -- run() must fail
+# fast into the existing "[model error] ..." path, never attempt a real
+# network call). Optional[ModelRouter] = None as the plain default made these
+# indistinguishable: Agent(cfg, router=None, ...) silently built a real
+# CascadingRouter and could hang/take minutes making genuine outbound calls
+# to whatever providers happen to have keys on the host, instead of the
+# instant, offline-safe AttributeError the caller clearly asked for.
+_ROUTER_UNSET = object()
+
+
 class Agent:
     def __init__(
         self,
         config: AgentConfig,
-        router: Optional[ModelRouter] = None,
+        router: Optional[ModelRouter] = _ROUTER_UNSET,
         registry: Optional[ToolRegistry] = None,
         skills: Optional[Skills] = None,
         memory: Optional[MemoryStore] = None,
@@ -84,13 +95,14 @@ class Agent:
         context=None,
     ):
         self.cfg = config
-        # cascade across providers when several have keys, else plain router
-        if router is not None:
-            self.router = router
-        else:
+        # cascade across providers when several have keys, else plain router;
+        # only when the caller didn't pass router= at all (see _ROUTER_UNSET)
+        if router is _ROUTER_UNSET:
             from .cascade import build_router
 
             self.router = build_router(config)
+        else:
+            self.router = router  # may be a real router, or None on purpose
         self.registry = registry or ToolRegistry()
         self.skills = skills or Skills(config.skills_dirs)
         self.memory = memory or MemoryStore(config)

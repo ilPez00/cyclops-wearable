@@ -33,7 +33,10 @@ DEFAULT_ENV_PATHS = ("~/.env", "/home/gio/.env", "/home/gio/ai_api.txt")
 
 class AiKeys:
     def __init__(
-        self, ai_api_txt: str | None = None, env_paths: Iterable[str] | None = None
+        self,
+        ai_api_txt: str | None = None,
+        env_paths: Iterable[str] | None = None,
+        oauth_store=None,
     ):
         self.ai_api_txt = ai_api_txt or os.environ.get(
             "CYCLOPS_AI_API_TXT", DEFAULT_AI_API_TXT
@@ -46,6 +49,26 @@ class AiKeys:
         self._endpoints: dict[str, str] = {}
         self._load_ai_api_txt()
         self._load_env()
+        # OAuth device-flow providers (brain/oauth_store.py) are a second,
+        # writable key source layered on top of the static .env/ai_api.txt
+        # ones above -- injectable for tests, lazily constructed for real use
+        # so importing this module never touches the filesystem on its own.
+        self._oauth = oauth_store
+        self._oauth_provider_cfgs = None  # loaded lazily, see _oauth_cfg()
+
+    def _oauth_store(self):
+        if self._oauth is None:
+            from .oauth_store import OAuthStore
+
+            self._oauth = OAuthStore()
+        return self._oauth
+
+    def _oauth_cfg(self, name: str):
+        if self._oauth_provider_cfgs is None:
+            from .oauth_store import load_provider_configs
+
+            self._oauth_provider_cfgs = load_provider_configs()
+        return self._oauth_provider_cfgs.get(name.lower())
 
     # ---------------------------------------------------------------- loading
     def _load_ai_api_txt(self):
@@ -91,15 +114,23 @@ class AiKeys:
 
     # ---------------------------------------------------------------- access
     def get_key(self, name: str) -> str | None:
-        """Return the first available key for `name` (provider-agnostic)."""
+        """Return the first available key for `name` (provider-agnostic).
+        Falls back to a valid (transparently-refreshed) OAuth device-flow
+        token for `name` if no static key is configured."""
         keys = self._keys.get(name.lower())
-        return keys[0] if keys else None
+        if keys:
+            return keys[0]
+        return self._oauth_store().get_valid_key(name.lower(), provider_cfg=self._oauth_cfg(name))
 
     def get_keys(self, name: str) -> list[str]:
         return list(self._keys.get(name.lower(), []))
 
     def get_endpoint(self, name: str) -> str | None:
-        return self._endpoints.get(name.lower())
+        ep = self._endpoints.get(name.lower())
+        if ep:
+            return ep
+        cfg = self._oauth_cfg(name)
+        return cfg.api_base_url if cfg and cfg.api_base_url else None
 
     def has(self, name: str) -> bool:
         return bool(self.get_key(name) or self.get_endpoint(name))
@@ -114,8 +145,8 @@ class AiKeys:
         }
 
     def available(self) -> list[str]:
-        """Names that have at least one key or endpoint."""
-        names = set(self._keys) | set(self._endpoints)
+        """Names that have at least one key or endpoint (static or OAuth)."""
+        names = set(self._keys) | set(self._endpoints) | set(self._oauth_store().available_providers())
         return sorted(n for n in names if self.has(n))
 
     def as_dict(self) -> dict:

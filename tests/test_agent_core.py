@@ -94,6 +94,48 @@ def test_local_mode_endpoint():
     assert cfg.effective_endpoint() == "http://127.0.0.1:1234/v1"
 
 
+def test_agent_router_explicit_none_stays_none_not_auto_cascade():
+    # Regression: Agent(cfg, router=None, ...) used to be indistinguishable
+    # from omitting router= entirely (both defaulted the same way), so an
+    # explicit "no router" call silently built a real CascadingRouter instead
+    # -- which can make real outbound network calls to whatever providers
+    # happen to have keys on the host. router=None must mean exactly that.
+    cfg = AgentConfig()
+    a = Agent(cfg, router=None)
+    assert a.router is None
+    # omitting router= is unaffected -- still auto-builds a router (may be a
+    # plain ModelRouter or a CascadingRouter depending on how many provider
+    # keys this host has; either way it must not be None)
+    a2 = Agent(cfg)
+    assert a2.router is not None
+
+
+def test_effective_endpoint_falls_back_to_aikeys_per_provider_endpoint():
+    # Regression: a provider's *key* already resolved via AiKeys generically
+    # (resolve_key()), but effective_endpoint() ignored AiKeys' endpoint for
+    # every provider except ollama/lmstudio/custom, silently sending every
+    # cascade-routed request to the hardcoded OpenRouter URL instead.
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "ai_api.txt")
+        with open(p, "w") as f:
+            f.write("groq:gsk_test\ngroq_endpoint:https://api.groq.com/openai/v1\n")
+        old = os.environ.get("CYCLOPS_AI_API_TXT")
+        os.environ["CYCLOPS_AI_API_TXT"] = p
+        try:
+            cfg = AgentConfig()  # provider left as "" via effective_endpoint(provider=)
+            assert cfg.effective_endpoint(provider="groq") == "https://api.groq.com/openai/v1"
+            # a provider with no AiKeys entry at all still falls back to the default
+            assert cfg.effective_endpoint(provider="totally_unknown_provider") == "https://openrouter.ai/api/v1"
+            # explicit base_url still wins over any per-provider lookup
+            cfg.base_url = "https://my-proxy.example/v1"
+            assert cfg.effective_endpoint(provider="groq") == "https://my-proxy.example/v1"
+        finally:
+            if old is None:
+                os.environ.pop("CYCLOPS_AI_API_TXT", None)
+            else:
+                os.environ["CYCLOPS_AI_API_TXT"] = old
+
+
 def test_skills_load_from_disk():
     with tempfile.TemporaryDirectory() as d:
         sd = os.path.join(d, "myskill")
