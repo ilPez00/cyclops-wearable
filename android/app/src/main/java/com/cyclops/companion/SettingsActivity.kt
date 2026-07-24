@@ -124,6 +124,10 @@ class SettingsActivity : BaseActivity() {
                 else "▸ Per-tool model overrides (advanced)"
         }
 
+        binding.btnOAuthConnect.setOnClickListener {
+            startActivity(Intent(this, OAuthActivity::class.java))
+        }
+
         binding.btnSave.setOnClickListener { save(); finish() }
     }
 

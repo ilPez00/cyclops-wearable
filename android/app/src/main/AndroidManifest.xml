@@ -92,6 +92,11 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".OAuthActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <!-- Dev-only config injector for adb-driven test installs. Not exported;
              also self-guards against non-debuggable builds. See ConfigReceiver.kt. -->
         <receiver

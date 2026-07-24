@@ -86,6 +86,16 @@
             android:hint="Endpoint (auto-filled for local providers)"
             android:inputType="textUri" />
 
+        <!-- Some providers need a browser sign-in instead of a pasted key
+             (device flow, RFC 8628): a separate screen since it's a
+             multi-step flow (code, browser, poll), not a single field. -->
+        <Button
+            android:id="@+id/btnOAuthConnect"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Connect an OAuth provider…"
+            android:contentDescription="Authenticate a provider that requires browser sign-in" />
+
         <TextView style="@style/SettingsHeader"
             android:id="@+id/hdrPersona"
             android:layout_width="wrap_content" android:layout_height="wrap_content"

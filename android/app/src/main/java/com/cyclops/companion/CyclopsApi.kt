@@ -105,6 +105,51 @@ object CyclopsApi {
         }
     }
 
+    // OAuth device-flow (RFC 8628) providers -- see app/server.py's /api/oauth/*.
+    data class OAuthStart(
+        val userCode: String, val verificationUri: String,
+        val verificationUriComplete: String, val intervalSec: Int
+    )
+    data class OAuthPoll(val status: String, val retryAfterSec: Int, val error: String)
+
+    fun oauthProviders(onResult: (List<String>) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val arr = JSONArray(get(url("/api/oauth/providers")))
+            val out = mutableListOf<String>()
+            for (i in 0 until arr.length()) out += arr.getString(i)
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun oauthStart(provider: String, onResult: (OAuthStart) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val body = JSONObject().put("provider", provider)
+            val resp = JSONObject(post(url("/api/oauth/start"), body.toString()))
+            if (resp.has("error")) { onMain { onError(resp.getString("error")) }; return@thread }
+            onMain {
+                onResult(OAuthStart(
+                    resp.optString("user_code", ""),
+                    resp.optString("verification_uri", ""),
+                    resp.optString("verification_uri_complete", ""),
+                    resp.optInt("interval", 5)
+                ))
+            }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun oauthPoll(provider: String, onResult: (OAuthPoll) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val resp = JSONObject(get(url("/api/oauth/poll", "provider" to provider)))
+            onMain {
+                onResult(OAuthPoll(
+                    resp.optString("status", "error"),
+                    resp.optInt("retry_after", 5),
+                    resp.optString("error", "")
+                ))
+            }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
     fun vision(
         imageDataUri: String, prompt: String,
         onResult: (String) -> Unit, onError: (String) -> Unit
