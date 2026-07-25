@@ -10,9 +10,11 @@
 // Guarded by -DCONFIG_PORTAL=1. When undefined, all calls are no-ops.
 #pragma once
 #include <Arduino.h>
+#ifdef CONFIG_PORTAL
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <WiFi.h>
+#endif
 #include "config_store.h"
 
 static constexpr int CONFIG_PORTAL_DNS_PORT = 53;
@@ -186,7 +188,11 @@ static inline void config_portal_tick() {
 }
 
 static inline bool config_portal_timeout() {
+#ifdef CONFIG_PORTAL
     return g_portal_active && (millis() - g_portal_start_ms >= CONFIG_PORTAL_TIMEOUT_MS);
+#else
+    return false;
+#endif
 }
 
 static inline void config_portal_stop() {

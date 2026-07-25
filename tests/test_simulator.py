@@ -1,6 +1,7 @@
 """Tests for device/simulator.py - the host-side behavioral twin of the
 firmware UI (DeviceSim). Pure Python, offline. Validates the
-input -> display mapping the real C++ device.cpp implements. Run with:
+input -> display mapping the real firmware UI (firmware/xiao/src/main.cpp)
+implements. Run with:
     python3 tests/run_tests.py tests/test_simulator.py
 """
 from device.simulator import DeviceSim

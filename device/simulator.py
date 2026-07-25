@@ -1,8 +1,9 @@
 """Host simulator for the XIAO device: drives the C++ UI via ctypes-free
 Python reimplementation to validate input -> display flow without a compiler.
 
-For the real firmware, see src/device.cpp (compiled by PlatformIO). This module
-is a behavioral twin used by the demo and to test input mapping headlessly.
+For the real firmware, see firmware/xiao/src/main.cpp (compiled by PlatformIO)
+and the shared UI model in firmware/shared/include/hud.h. This module is a
+behavioral twin used by the demo and to test input mapping headlessly.
 """
 
 from __future__ import annotations

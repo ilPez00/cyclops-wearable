@@ -6,24 +6,53 @@ Single source for the Cyclops wearable wiring. Board: Seeed XIAO ESP32-S3 **Sens
 
 ## Firmware pin map (already reserved — DO NOT reuse)
 
-| GPIO (silk) | Function            | Notes |
-|-------------|---------------------|-------|
-| GPIO0 (D0)  | WHEEL_A             | scroll wheel A |
-| GPIO4 (D4)  | WHEEL_B             | scroll wheel B |
-| GPIO3 (D3)  | BTN_A               | short=select, long=back/stop |
-| GPIO5 (D5)  | BTN_B               | cancel/back |
-| GPIO1 (D1)  | ST7735 RST / IMU INT| reset line for ST7735; optional IMU IRQ on I2C builds |
-| GPIO2 (D2)  | ST7735 DC / BAT sense| data/command for ST7735; optional battery divider on I2C builds |
-| GPIO6 (D6-silk, unused) | —          | free on ST7735 build; I2C SDA on I2C builds |
-| GPIO7 (D8)  | SPI SCK / SD SCK    | screen + microSD share VSPI |
-| GPIO8 (D9)  | SPI MISO / SD MISO  | screen + microSD share VSPI |
-| GPIO9 (D10)  | SPI MOSI / SD MOSI | screen + microSD share VSPI |
-| GPIO21      | SD CS               | onboard microSD slot |
-| GPIO40/41/42| MIC (onboard)       | I2S, do not touch |
-| GPIO43 (D6) | I2C SDA             | shared screen + gyro bus (I2C builds only) |
-| GPIO44 (D7) | I2C SCL             | shared screen + gyro bus (I2C builds only) |
+Silk↔GPIO uses the official XIAO ESP32-S3 (Sense) header map (D0=GPIO1,
+D1=GPIO2, D2=GPIO3, D3=GPIO4, D4=GPIO5, D5=GPIO6, D6=GPIO43, D7=GPIO44,
+D8=GPIO7, D9=GPIO8, D10=GPIO9). GPIO0 is the BOOT pad, **not** a header pin.
 
-Free GPIOs for expansion: GPIO10–20, GPIO38/39/45–48.
+| Silk | GPIO | Function     | Notes |
+|------|------|--------------|-------|
+| D0   | 1    | WHEEL_A      | scroll wheel signal A (I2C-screen build) |
+| D2   | 3    | BTN_A        | short=select, long=back/stop |
+| D3   | 4    | WHEEL_B      | scroll wheel signal B |
+| D4   | 5    | BTN_B        | cancel/back (see "Why 2 buttons?" below) |
+| D6   | 43   | I2C SDA      | OLED data line |
+| D7   | 44   | I2C SCL      | OLED clock line |
+| D8   | 7    | SPI SCK      | SD card clock |
+| D9   | 8    | SPI MISO     | SD card data out |
+| D10  | 9    | SPI MOSI     | SD card data in |
+| —    | 21   | SD CS        | onboard microSD chip select |
+| —    | 40/41/42 | MIC     | I2S PDM, onboard |
+| —    | 11–18 | CAM      | OV2640 ribbon, not on headers |
+
+> **WHEEL_A never on GPIO0.** GPIO0 is a boot strapping pin — an encoder
+> pulsing it during reset drops the S3 into download mode and can brick boot.
+> On **SPI-screen** builds (ST7735 / transparent-151-SPI) the screen owns
+> D0/D1/D5 for CS/DC/RST, so WHEEL_A moves to **D7 (GPIO44)** there; on I2C
+> builds it is **D0 (GPIO1)** as above. Firmware picks this automatically.
+
+Free header pads (I2C build): **D1 (GPIO2** — battery sense**)**, **D5 (GPIO6)**.
+Everything else on the 11-pad header is in use. GPIO0 (BOOT) is off-limits for
+signals; GPIO10–20 / 38/39/45–48 are internal (PSRAM/flash/USB/camera) and not
+broken out.
+
+## Why two buttons?
+
+BTN_A (short=select, long=back/stop) and BTN_B (short=cancel) serve different
+purposes — one button can't cover all cases:
+
+| Action | BTN_A | BTN_B |
+|--------|-------|-------|
+| Navigate into a menu/subview | short | — |
+| Go back one level | long (>600ms) | short |
+| Decline a confirm dialog | — | short |
+| Stop recording / abort agent | long | — |
+
+The 3-pin scroll wheel provides navigation (up/down via quadrature A/B) but has
+**no push switch**. Without a push-to-click encoder, two separate buttons are
+needed for select and cancel. The firmware supports a 5-pin encoder (with
+built-in switch) as an alternative — just wire the switch pin to D2 (BTN_A) and
+leave D4 (BTN_B) unwired — but the 3-pin encoder + 2 buttons is the documented build.
 
 ## Display — I2C SSD1306 128×32 OLED (default target)
 
@@ -56,9 +85,9 @@ For an SPI ST7735 128×128 TFT on VSPI (GPIO7/8/9). Firmware env: `xiao_st7735`.
 | SCK        | D8       | 7    | SPI clock |
 | MOSI/SDA   | D10      | 9    | SPI data |
 | MISO/SDO   | D9       | 8    | unused by TFT (shared with SD) |
-| CS         | D6       | 6    | chip select |
-| DC/A0      | D2       | 2    | data/command |
-| RES/RST    | D1       | 1    | reset line |
+| CS         | D5       | 6    | chip select |
+| DC/A0      | D1       | 2    | data/command |
+| RES/RST    | D0       | 1    | reset line |
 
 - Init: `initR(INITR_144GREENTAB)` or `initR(INITR_MINI160x80)` depending on module.
 - 128×128 = 16 text rows → expanded HUD layout (health/notes/REC/consent preview on HOME).
@@ -69,14 +98,19 @@ For an SPI ST7735 128×128 TFT on VSPI (GPIO7/8/9). Firmware env: `xiao_st7735`.
 | Env | Screen | Bus |
 |-----|--------|-----|
 | `xiao_128x64` | SSD1306 128×64 SPI | VSPI (GPIO7/8/9), CS=GPIO6 |
-| `xiao_128x32` | SSD1306 128×32 SPI | VSPI, CS=GPIO5 |
+| `xiao_128x32` | SSD1306 128×32 SPI | VSPI, CS=GPIO6 |
 
-## Gyroscope / IMU — I2C (shared bus, I2C builds only)
+## Gyroscope / IMU — external I2C breakout (optional)
 
-On `xiao_128x32_i2c` / `xiao_128x32` / `xiao_128x64` builds only. The `xiao_st7735`
-SPI build uses GPIO1/2/6 for the TFT and has no I2C bus for an external IMU.
+The XIAO ESP32-**S3** Sense has **no onboard IMU** (camera + PDM mic + microSD
+only — the onboard LSM6DS3 is on the nRF52840 *Nano* Sense, a different board).
+An IMU is optional and needs an external breakout.
 
-I2C breakout (MPU-6050 or LSM6DS3) on D6/D7 shared with OLED:
+On the I2C-screen builds (`xiao_128x32_i2c`, `xiao_transparent_151_i2c`) the IMU
+shares the OLED I2C bus on D6/D7 (GPIO43/44). SPI-screen builds drive the screen
+over SPI, leaving GPIO43/44 free for a dedicated I2C IMU bus if wired.
+
+External I2C breakout (MPU-6050 or LSM6DS3) on D6/D7:
 
 | IMU pin | XIAO pad | GPIO |
 |---------|----------|------|
@@ -84,13 +118,12 @@ I2C breakout (MPU-6050 or LSM6DS3) on D6/D7 shared with OLED:
 | GND     | GND      | —    |
 | SDA     | D6       | 43   |
 | SCL     | D7       | 44   |
-| INT     | D1       | 1    |  (optional; note D1 is ST7735 RST on SPI build)
+| INT     | D5       | 6    |  (optional; GPIO1/D0 is WHEEL_A now — use D5/GPIO6, a free pad) |
 | ADDR    | —        | —    |
 
 - Addresses: MPU-6050 = 0x68 / 0x69, LSM6DS3 = 0x6A / 0x6B. OLED = 0x3C, no clash.
-- The XIAO S3 Sense **onboard** LSM6DS3 sits on the *default* I2C bus (GPIO5/6)
-  which collides with BTN_B (GPIO5). Do NOT use the onboard IMU without first
-  moving BTN_B to a free pin.
+- Do **not** wire an IMU to the S3's *default* I2C bus (GPIO5/6): GPIO5 is BTN_B.
+  Use the D6/D7 (GPIO43/44) bus above.
 
 ## Camera (onboard OV2640, default build)
 
@@ -108,43 +141,65 @@ Firmware initialises it for snapshot (/snap) and MJPEG stream (/stream) over WiF
 - Camera init fallback chain: VGA@20MHz → VGA@16MHz → QVGA@20MHz.
 - WiFi stream serves ~10 fps MJPEG, 60s idle teardown.
 
-## Reserved — leave these alone
+## Reserved (primary build)
 
-- Wheel + buttons: GPIO0/3/4/5 (firmware live).
-- SPI bus: GPIO7/8/9 (screen + SD, shared on `xiao_st7735`).
-- SD: GPIO21/7/8/9 (onboard Sense slot; FAT32 card ≤32 GB).
-- Mic: GPIO40/41/42 (onboard I2S PDM).
-- Camera: GPIO11–18 (onboard ribbon, not on headers).
-- I2C bus (I2C builds): GPIO43/44.
+| Pins | Peripheral | Why |
+|------|------------|-----|
+| D0/D3 | scroll wheel | WHEEL_A/B quadrature, 2 signals + GND = 3 pins |
+| D2/D4 | BTN_A/B | select + cancel, see "Why two buttons?" above |
+| D6/D7 | I2C bus | OLED, do not reuse |
+| D8/D9/D10 | SPI bus | SD card (shared bus even if no card) |
+| GPIO21 | SD CS | onboard microSD |
+| GPIO40/41/42 | I2S PDM mic | onboard, do not touch |
+| GPIO11–18 | camera | OV2640 ribbon, not on headers |
 
-## Battery (optional, not wired by default)
+## Battery (USB-C management board)
 
-The Sense has an onboard charger but **no fuel-gauge ADC** routed. To read
-battery %, add a divider:
+The XIAO S3 Sense has an onboard charger IC but **no fuel-gauge ADC** routed
+to a header pin. Power comes from a separate USB-C battery management board
+(e.g. TP4056/TC4056 with USB-C, IP2312, or similar):
 
 ```
-BAT+ ── 100k ── GPIO2 (D2) ── 100k ── GND
+USB-C battery board        XIAO S3 Sense
+┌─────────────────┐
+│ USB-C (charge in)│
+│                  │
+│ BAT+ │ BAT-      │  ← Li-Po connected here
+│      │           │
+│ OUT+ ────────────→ 5V pin (or USB-C VBUS)
+│ OUT- ────────────→ GND
+│                  │
+│ (opt) BAT_LVL ───→ D1 (GPIO2) via divider if board has fuel-gauge out
+└─────────────────┘
 ```
 
-Leave GPIO2 free for this. Firmware support is added on request
-(`-DENABLE_BATT=1`).
+**Power path:** battery management board's OUT+ → XIAO 5V (or USB-C VBUS pin).
+The XIAO's onboard 3.3V regulator handles the rest. GND must be shared.
+
+**Battery level telemetry:** if your board exposes a battery voltage pin, wire
+it to D1 (GPIO2) through a 100k+100k divider (BAT+ → 100k → D1 → 100k → GND) and add
+`-DENABLE_BATT=1` to `platformio.ini` build flags. If the board has no such
+pin, the firmware shows 0 mV and no battery icon — the device still runs fine,
+you just won't see a percentage.
 
 ## Full layout (one picture)
 
 ```
                  XIAO ESP32-S3 SENSE
    ┌──────────────────────────────────────────┐
-   │  USB-C                                     │
+   │  OLED 128x32 (I2C) ── VCC→3V3 GND→GND     │  4-pin screen
+   │                      SDA→D6  SCL→D7       │
    │                                            │
-   │  OLED 128x32 (I2C) ── SDA→D6  SCL→D7       │  ← screen + gyro bus
-   │  GYRO (I2C)        ── SDA→D6  SCL→D7       │
-   │  GYRO INT (opt)     ── D1                  │
+   │  WHEEL_A→D0  WHEEL_B→D3  (GND→GND)        │  3-pin encoder
+   │  BTN_A→D2    BTN_B→D4                      │  2 buttons
    │                                            │
-   │  WHEEL_A→D0  WHEEL_B→D4                    │
-   │  BTN_A→D3    BTN_B→D5                      │
-   │  BAT sense→D2 (opt, divider)              │
+   │  USB-C battery board ── OUT+→XIAO 5V       │  power + charge
+   │                       ── OUT-→GND          │
+   │                       ── (opt) BAT_LVL→D1  │
+   │                                            │
    │  SD (onboard, GPIO21/7/8/9)               │
    │  MIC (onboard, GPIO40/41/42)              │
+   │  CAM (onboard ribbon, GPIO11-18)          │
    └──────────────────────────────────────────┘
 ```
 

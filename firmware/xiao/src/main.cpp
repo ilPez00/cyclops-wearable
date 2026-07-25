@@ -32,7 +32,8 @@ static cyclops::St7735Screen screen(6, 2, 1, 8, 10, 9);
 #elif defined(SCREEN_128x64)
 static cyclops::Ssd1306_128x64_Screen screen(6, 2, 1, 8, 10, 9, 1);
 #elif defined(SCREEN_128x32)
-static cyclops::Ssd1306_128x32_Screen screen(5, 2, 1, 8, 10, 9, 1);
+// CS=GPIO6(D5) — was GPIO5, which collides with BTN_B; matches ST7735/128x64.
+static cyclops::Ssd1306_128x32_Screen screen(6, 2, 1, 8, 10, 9, 1);
 #elif defined(SCREEN_128x32_I2C)
 // 4-pin I2C OLED: only SDA/SCL/VCC/GND wired. SPI args ignored, rst_pin=-1.
 static cyclops::Ssd1306_128x32_I2C_Screen screen(0, 0, 0, 0, 0, 0, -1);
@@ -45,9 +46,20 @@ static cyclops::Transparent151Screen screen(6, 2, 1, 8, 10, 9, 1);
 static cyclops::Transparent151I2CScreen screen(0, 0, 0, 0, 0, 0, -1);
 #endif
 
-#define PIN_WHEEL_A 0
+// WHEEL_A was GPIO0 — a boot STRAPPING pin. The encoder pulsing it during
+// reset drops the S3 into download mode / can brick boot (suspected board fry).
+// Moved off GPIO0 to a real header pad. SPI-screen builds saturate D0/D1/D5
+// (screen CS/DC/RST), so the free pad differs by screen bus:
+//   I2C screen  -> D0 = GPIO1  (free; matches wiring doc label)
+//   SPI screen  -> D7 = GPIO44 (D0/D1/D5 taken by screen; 43/44 free, no I2C)
+#if defined(SCREEN_128x32_I2C) || defined(SCREEN_TRANSPARENT_151_I2C)
+#define PIN_WHEEL_A 1
+#else
+#define PIN_WHEEL_A 44
+#endif
 #define PIN_WHEEL_B 4
-#define PIN_BTN_A  3
+#define PIN_BTN_A  3   // GPIO3 is a strapping pin (JTAG sel) but idle-HIGH as a
+                       // pull-up button is safe; held-at-boot is a designed combo
 #define PIN_BTN_B  5   // was 4 (aliased WHEEL_B); GPIO5 is free on XIAO S3
 
 // Onboard mic (XIAO S3 Sense MSM261D) is a PDM mic: clock GPIO42, data GPIO41.

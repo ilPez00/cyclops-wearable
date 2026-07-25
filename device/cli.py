@@ -5,8 +5,9 @@ Modes:
   g2      -> EvenRealities G2 glasses HUD over BLE-style sink
   pebble  -> Omi/Pebble wearable mode (audio-first, mic + minimal feedback)
 
-This is the behavioral twin of device/src/device.cpp; the firmware compiles the
-same UI/input model on real hardware.
+This is the behavioral twin of the firmware UI/input model
+(firmware/xiao/src/main.cpp + firmware/shared/include/hud.h); the firmware runs
+the same model on real hardware.
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 > **RECONSTRUCTED DOC** — original `docs/04-protocol.md` (2026-06-15) lost on
 > corrupted `/dev/sde2`, never bundled. Rebuilt 2026-07-10 from
-> `protocol/protocol.md`, `protocol/protocol_v2.md`, `device/src/v2/protocol_v2.cpp`,
+> `protocol/protocol.md`, `protocol/protocol_v2.md`,
 > `brain/protocol.py`, `brain/protocol_v2.py`, `firmware/xiao/src/main.cpp`.
 > This doc consolidates v1 (device↔brain serial) and v2 (multi-peer BLE).
 > **[inferred]** = reconstructed where the source was ambiguous.
@@ -70,7 +70,8 @@ Peers: `bead | glasses | ring | phone | brain`.
 - `lines` max 4 strings, each ≤ 18 chars (G2 ~640×200).
 - `teleprompter`: phone streams one line at a time; glasses auto-scroll slow.
 - Never send raw transcript — only extracted/summarized text.
-- On-device decode is a tiny state machine (`device/src/v2/protocol_v2.cpp`):
+- On-glasses decode is a tiny state machine (spec: `protocol/protocol_v2.md`;
+  glasses decoder: `device/g2.py` `parse_hud`):
   `K<kind>\nL<line0>\nL<line1>... M<more>\n` — no JSON parser on the MCU.
 
 ### v2 time sync (premortem #3)
@@ -87,8 +88,9 @@ brain tolerates gaps; do NOT promise real-time on classic BLE).
 ## 3. Source-of-truth / verification
 
 - Single schema: `protocol/protocol.md` (v1) + `protocol/protocol_v2.md` (v2).
-- Mirrors: `firmware/shared` (`FrameDecoder`, CRC), `device/src/v2/protocol_v2.*`
-  (C++ build/parse), `brain/protocol.py` + `brain/protocol_v2.py` (Python),
+- Mirrors: `firmware/shared` (`FrameDecoder`, CRC; health parse in
+  `firmware/shared/include/hud.h` `on_health_sample`), `brain/protocol.py` +
+  `brain/protocol_v2.py` (Python),
   `android/core/.../RingProto.kt` (Kotlin, CI `:core:test`).
 - Lenient parsers ignore unknown keys; `PEER_HELLO` carries a `v` field.
 - CI test round-trips every message type (`tests/test_wire_contract.py`,
