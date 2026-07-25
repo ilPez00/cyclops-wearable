@@ -93,6 +93,8 @@ static const char CONFIG_SAVED_HTML[] PROGMEM =
 static WebServer* g_portal_server = nullptr;
 static DNSServer g_portal_dns;
 static bool g_portal_active = false;
+static uint32_t g_portal_start_ms = 0;
+static constexpr uint32_t CONFIG_PORTAL_TIMEOUT_MS = 60000;  // 60 s then auto-bypass
 
 static String portal_html() {
     String h = FPSTR(CONFIG_HTML);
@@ -169,8 +171,9 @@ static inline void config_portal_start() {
     g_portal_server->on("/save", HTTP_POST, handle_portal_save);
     g_portal_server->onNotFound(handle_portal_not_found);
     g_portal_server->begin();
+    g_portal_start_ms = millis();
     g_portal_active = true;
-    Serial.println("[portal] Ready. Connect phone to " + ssid);
+    Serial.println("[portal] Ready. Connect phone to " + ssid + " (" + String(CONFIG_PORTAL_TIMEOUT_MS/1000) + "s timeout)");
 #endif
 }
 
@@ -180,6 +183,10 @@ static inline void config_portal_tick() {
     g_portal_dns.processNextRequest();
     g_portal_server->handleClient();
 #endif
+}
+
+static inline bool config_portal_timeout() {
+    return g_portal_active && (millis() - g_portal_start_ms >= CONFIG_PORTAL_TIMEOUT_MS);
 }
 
 static inline void config_portal_stop() {

@@ -355,10 +355,12 @@ void setup() {
         Serial.println("[boot] not configured — starting config portal");
         config_portal_start();
         Serial.printf("[boot] Connect to Cyclops-Setup-XXXX, open http://192.168.4.1\n");
-        while (true) {
+        while (!config_portal_timeout()) {
             config_portal_tick();
             delay(10);
         }
+        config_portal_stop();
+        Serial.println("[boot] portal timeout — continuing boot");
     }
     pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
     pinMode(PIN_WHEEL_A, INPUT_PULLUP); pinMode(PIN_WHEEL_B, INPUT_PULLUP);
