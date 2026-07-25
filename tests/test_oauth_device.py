@@ -1,5 +1,7 @@
 """OAuth device-flow (RFC 8628) client — fully offline, scripted fake HTTP."""
 
+import base64
+import hashlib
 import json
 import os
 import sys
@@ -10,6 +12,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from brain.oauth_device import (
     OAuthError,
     ProviderConfig,
+    build_openrouter_authorize_url,
+    build_pkce_authorize_url,
+    exchange_openrouter_code,
+    exchange_pkce_code,
+    generate_pkce_pair,
+    generate_state,
     poll_once,
     refresh,
     start_device_flow,
@@ -169,3 +177,131 @@ def test_transport_error_wrapped():
     except OAuthError as e:
         assert e.code == "transport_error"
     print("OK transport failure wrapped as OAuthError")
+
+
+# --- PKCE (RFC 7636) --------------------------------------------------------
+
+
+class JsonScriptedSession:
+    """Like ScriptedSession, but for JSON-body POSTs (OpenRouter's exchange)."""
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = []
+
+    def post(self, url, data=None, headers=None, timeout=15):
+        parsed = json.loads(data.decode())
+        self.calls.append((url, parsed, headers))
+        return FakeResp(self.script.pop(0))
+
+
+def _pkce_cfg(**overrides):
+    base = dict(
+        name="google",
+        authorize_url="https://accounts.example/o/auth",
+        token_url="https://oauth.example/token",
+        client_id="client-abc",
+        client_secret="secret-xyz",
+        scope="chat",
+        flow="pkce",
+    )
+    base.update(overrides)
+    return ProviderConfig(**base)
+
+
+def test_generate_pkce_pair_challenge_matches_verifier():
+    verifier, challenge = generate_pkce_pair()
+    expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    assert challenge == expected
+    assert 43 <= len(verifier) <= 128
+    assert "=" not in challenge
+    print("OK generate_pkce_pair: S256 challenge matches verifier, RFC 7636 length bounds")
+
+
+def test_generate_state_is_random_and_nonempty():
+    a, b = generate_state(), generate_state()
+    assert a and b and a != b
+    print("OK generate_state produces distinct non-empty tokens")
+
+
+def test_build_pkce_authorize_url_includes_required_params():
+    url = build_pkce_authorize_url(_pkce_cfg(), "http://host/api/oauth/callback", "state1", "chal1")
+    assert url.startswith("https://accounts.example/o/auth?")
+    qs = dict(urllib.parse.parse_qsl(url.split("?", 1)[1]))
+    assert qs["response_type"] == "code"
+    assert qs["client_id"] == "client-abc"
+    assert qs["redirect_uri"] == "http://host/api/oauth/callback"
+    assert qs["state"] == "state1"
+    assert qs["code_challenge"] == "chal1"
+    assert qs["code_challenge_method"] == "S256"
+    assert qs["scope"] == "chat"
+    print("OK build_pkce_authorize_url includes response_type/client_id/redirect_uri/state/PKCE params")
+
+
+def test_exchange_pkce_code_includes_client_secret_when_set():
+    sess = ScriptedSession([{"access_token": "tok1", "refresh_token": "ref1", "expires_in": 3600}])
+    tok = exchange_pkce_code(_pkce_cfg(), "code1", "http://host/cb", "verifier1", sess)
+    assert tok.access_token == "tok1"
+    assert tok.refresh_token == "ref1"
+    url, form = sess.calls[0]
+    assert url == "https://oauth.example/token"
+    assert form["grant_type"] == "authorization_code"
+    assert form["code"] == "code1"
+    assert form["redirect_uri"] == "http://host/cb"
+    assert form["code_verifier"] == "verifier1"
+    assert form["client_secret"] == "secret-xyz"
+    print("OK exchange_pkce_code sends client_secret when the provider config has one")
+
+
+def test_exchange_pkce_code_omits_client_secret_when_unset():
+    sess = ScriptedSession([{"access_token": "tok1"}])
+    exchange_pkce_code(_pkce_cfg(client_secret=""), "code1", "http://host/cb", "v1", sess)
+    _, form = sess.calls[0]
+    assert "client_secret" not in form
+    print("OK exchange_pkce_code omits client_secret for public clients")
+
+
+def test_exchange_pkce_code_bad_response_raises():
+    sess = ScriptedSession([{"error": "invalid_grant"}])
+    try:
+        exchange_pkce_code(_pkce_cfg(), "code1", "http://host/cb", "v1", sess)
+        assert False, "should raise when access_token is missing"
+    except OAuthError as e:
+        assert e.code == "invalid_grant"
+    print("OK exchange_pkce_code raises OAuthError on failure")
+
+
+# --- OpenRouter's PKCE variant ----------------------------------------------
+
+
+def test_build_openrouter_authorize_url():
+    url = build_openrouter_authorize_url("http://host/cb?state=s1", "chal1")
+    assert url.startswith("https://openrouter.ai/auth?")
+    qs = dict(urllib.parse.parse_qsl(url.split("?", 1)[1]))
+    assert qs["callback_url"] == "http://host/cb?state=s1"
+    assert qs["code_challenge"] == "chal1"
+    assert qs["code_challenge_method"] == "S256"
+    print("OK build_openrouter_authorize_url: callback_url + PKCE params, no client_id")
+
+
+def test_exchange_openrouter_code_maps_key_to_access_token():
+    sess = JsonScriptedSession([{"key": "sk-or-v1-abc"}])
+    tok = exchange_openrouter_code("code1", "verifier1", sess)
+    assert tok.access_token == "sk-or-v1-abc"
+    assert tok.refresh_token == ""
+    assert tok.expires_in == 0  # OpenRouter keys don't expire
+    url, body, headers = sess.calls[0]
+    assert url == "https://openrouter.ai/api/v1/auth/keys"
+    assert body == {"code": "code1", "code_verifier": "verifier1", "code_challenge_method": "S256"}
+    assert headers["Content-Type"] == "application/json"
+    print("OK exchange_openrouter_code: JSON body, 'key' field maps to access_token, never expires")
+
+
+def test_exchange_openrouter_code_bad_response_raises():
+    sess = JsonScriptedSession([{"error": "invalid_code"}])
+    try:
+        exchange_openrouter_code("code1", "v1", sess)
+        assert False, "should raise when key is missing"
+    except OAuthError as e:
+        assert e.code == "invalid_code"
+    print("OK exchange_openrouter_code raises OAuthError on failure")

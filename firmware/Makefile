@@ -22,7 +22,7 @@ CXXFLAGS ?= -std=c++17 -Wall -Wextra
 INC      := -I shared/include -I lib/cyclops_shared/include -I xiao/src
 
 # Which pio environment to build. Override with SCREEN=...
-SCREEN   ?= xiao_st7735
+SCREEN   ?= xiao_128x32_i2c
 # Extra build flags forwarded to the compiler (e.g. -DENABLE_RING).
 EXTRA_FLAGS ?=
 ifeq ($(ENABLE_RING),1)

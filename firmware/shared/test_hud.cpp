@@ -593,10 +593,71 @@ int main() {
         bool home_ok = (strstr(a[0], "BT-") != nullptr) || (strstr(a[0], "BT+") != nullptr);
         assert(home_ok);
 
-        // HOME (recording): status strip (row1) carries the REC flag.
+        // HOME (recording): REC timer + consent shown on expanded layout.
         Hud h0r; h0r.send_cmd = on_cmd; h0r.init(); h0r.recording = true;
+        for (int i = 0; i < 4; ++i) h0r.tick_sec();  // settle boot spinner
         GridScreen g0r; h0r.render(g0r); dump(g0r, a);
-        assert(strstr(a[1], "REC") != nullptr);
+        bool rec_found = false;
+        for (int i = 0; i < 24; ++i) if (strstr(a[i], "REC")) { rec_found = true; break; }
+        assert(rec_found);
+
+        // HOME (expanded, health): HR/SpO2/mV preview row.
+        Hud h0h; h0h.send_cmd = on_cmd; h0h.init();
+        h0h.set_health(72, 97, 88, 90);
+        for (int i = 0; i < 4; ++i) h0h.tick_sec();
+        GridScreen g0h; h0h.render(g0h); dump(g0h, a);
+        bool hlth_preview = false;
+        for (int i = 0; i < 24; ++i) if (strstr(a[i], "HR") && strstr(a[i], "SpO2")) { hlth_preview = true; break; }
+        assert(hlth_preview);
+
+        // HOME (expanded, notes preview): "-- notes --" header + note body.
+        Hud h0n; h0n.send_cmd = on_cmd; h0n.init();
+        h0n.add_note("preview note test");
+        for (int i = 0; i < 4; ++i) h0n.tick_sec();
+        GridScreen g0n; h0n.render(g0n); dump(g0n, a);
+        bool notes_hdr = false, notes_body = false;
+        for (int i = 0; i < 24; ++i) {
+            if (strstr(a[i], "-- notes")) notes_hdr = true;
+            if (strstr(a[i], "preview note")) notes_body = true;
+        }
+        assert(notes_hdr);
+        assert(notes_body);
+
+        // HOME (expanded, consent-off): !consent-off! indicator.
+        Hud h0c; h0c.send_cmd = on_cmd; h0c.init();
+        h0c.set_consent(false);
+        for (int i = 0; i < 4; ++i) h0c.tick_sec();
+        GridScreen g0c; h0c.render(g0c); dump(g0c, a);
+        bool consent_off = false;
+        for (int i = 0; i < 24; ++i) if (strstr(a[i], "consent-off")) { consent_off = true; break; }
+        assert(consent_off);
+
+        // NOTES scrolling: note_sel tracks past visible area on small panels.
+        struct SlimScreen : Screen {
+            char grid[8][48]; int nrows=5, ncols=21;
+            int w() const override { return 128; }
+            int h() const override { return 40; }
+            int char_cols() const override { return ncols; }
+            int text_rows() const override { return nrows; }
+            void begin() override { memset(grid, 0, sizeof(grid)); }
+            void clear() override { memset(grid, 0, sizeof(grid)); }
+            void set_ink(bool) override {}
+            void draw_text(int, int row, const char* s) override {
+                if (row >= 0 && row < 8) { strncpy(grid[row], s, 47); grid[row][47]=0; }
+            }
+            void draw_rect(int,int,int,int,bool) override {}
+            void draw_pixel(int,int,bool) override {}
+            void flush() override {}
+        };
+        Hud hn_scroll; hn_scroll.send_cmd = on_cmd; hn_scroll.init();
+        hn_scroll.on_select(); hn_scroll.menu_sel = 0; hn_scroll.on_select();  // -> NOTES
+        for (int i = 0; i < 12; ++i) { char t[16]; snprintf(t, sizeof(t), "note %d", i); hn_scroll.add_note(t); }
+        for (int i = 0; i < 7; ++i) hn_scroll.on_wheel(1);
+        assert(hn_scroll.note_sel == 7);
+        SlimScreen ss; hn_scroll.render(ss);
+        // scrolled view: note 7 at row 1, not note 0
+        bool scrolled = strstr(ss.grid[1], "note 7") != nullptr;
+        assert(scrolled);
 
         // MENU: lists at least one menu item.
         Hud hm; hm.send_cmd = on_cmd; hm.init();

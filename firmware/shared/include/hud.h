@@ -567,28 +567,73 @@ struct Hud {
                 drawBoot(scr, scr.w() / 2, scr.h() / 2, scr.h() / 3, boot_frame);
                 char ln[32]; snprintf(ln, sizeof(ln), "Cyclops %d", boot_frame);
                 scr.draw_text(0, rows - 1, ln);
-            } else if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
-            else { scr.draw_text(0, body, "Cyclops ready"); body++; }
-            // LED mapping indicator: per-button hue encoded as a bar on capable panels
-            if (scr.w() >= 64) {
-                char li[32];
-                int wa = (led_hue[0] * 10) / 360;   // 0..10
-                int wb = (led_hue[1] * 10) / 360;
-                snprintf(li, sizeof(li), "A%d B%d", wa, wb);
-                trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
-            }
-            // status strip (semantic zone): battery + note count + REC
-            char ln[40];
-            snprintf(ln, sizeof(ln), "%dmV %d notes%s", (bead_batt>0?bead_batt:ring_batt),
-                     note_count, recording ? " REC" : "");
-            trim(ln, cols); scr.draw_text(0, body, ln); body++;
-            // bottom strip: current mode + primary hint (moved out of status bar).
-            // Skip during the boot splash so it doesn't clobber the boot frame.
-            bool booting = (boot_frame < 4 && scr.w() >= 48 && scr.h() >= 32);
-            if (!booting) {
+            } else if (rows >= 6) {
+                // expanded layout (128x128: 21x16 rows)
+                if (hud_len) { scr.draw_text(0, body, trunc(hud_line, cols)); }
+                else { scr.draw_text(0, body, "Cyclops ready"); }
+                body++;
+                // health preview
+                if (hr > 0 || spo2 > 0 || ring_batt > 0 || bead_batt > 0) {
+                    char hl[40];
+                    int hb = bead_batt > 0 ? bead_batt : ring_batt;
+                    snprintf(hl, sizeof(hl), "HR %d  SpO2 %d  %dmV",
+                             hr > 0 ? hr : 0, spo2 > 0 ? spo2 : 0, hb);
+                    trim(hl, cols); scr.draw_text(0, body, hl); body++;
+                }
+                // notes preview (most recent, fits above REC line)
+                if (note_count > 0) {
+                    scr.draw_text(0, body, "-- notes --"); body++;
+                    int max_notes = rows - body - 2;
+                    int start = note_count > max_notes ? note_count - max_notes : 0;
+                    for (int i = start; i < note_count && body < rows - 2; ++i) {
+                        char ln[40]; snprintf(ln, sizeof(ln), "%s", notes[i]);
+                        trim(ln, cols); scr.draw_text(0, body, ln); body++;
+                    }
+                }
+                // REC timer + consent indicator
+                char rec_line[40]; int ri = 0;
+                if (recording) {
+                    ++rec_pulse;
+                    const char* blk = (rec_pulse % 16) < 8 ? "\xE2\x96\x88" : "\xE2\x96\x91";
+                    ri = snprintf(rec_line, sizeof(rec_line), "REC %d:%02d %s", rec_secs/60, rec_secs%60, blk);
+                }
+                if (!consent) {
+                    ri += snprintf(rec_line + ri, sizeof(rec_line) - ri, "%s!consent-off!",
+                                  ri > 0 ? "  " : "");
+                }
+                if (ri > 0) { trim(rec_line, cols); scr.draw_text(0, body, rec_line); body++; }
+                // bottom strip + LED mapping
                 char strip[40];
                 snprintf(strip, sizeof(strip), "%s | wheel:menu", mode_name(top()));
                 trim(strip, cols); scr.draw_text(0, rows - 1, strip);
+                if (scr.w() >= 64) {
+                    char li[32];
+                    int wa = (led_hue[0] * 10) / 360;
+                    int wb = (led_hue[1] * 10) / 360;
+                    snprintf(li, sizeof(li), "A%d B%d", wa, wb);
+                    trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
+                }
+            } else {
+                // compact layout (4-row panels)
+                if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
+                else { scr.draw_text(0, body, "Cyclops ready"); body++; }
+                if (scr.w() >= 64) {
+                    char li[32];
+                    int wa = (led_hue[0] * 10) / 360;
+                    int wb = (led_hue[1] * 10) / 360;
+                    snprintf(li, sizeof(li), "A%d B%d", wa, wb);
+                    trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
+                }
+                char ln[40];
+                snprintf(ln, sizeof(ln), "%dmV %d notes%s", (bead_batt>0?bead_batt:ring_batt),
+                         note_count, recording ? " REC" : "");
+                trim(ln, cols); scr.draw_text(0, body, ln); body++;
+                bool booting = (boot_frame < 4 && scr.w() >= 48 && scr.h() >= 32);
+                if (!booting) {
+                    char strip[40];
+                    snprintf(strip, sizeof(strip), "%s | wheel:menu", mode_name(top()));
+                    trim(strip, cols); scr.draw_text(0, rows - 1, strip);
+                }
             }
         } else if (m == MENU) {
             for (int i = 0; i < rows-1 && i < menu_n; ++i) {
@@ -604,10 +649,23 @@ struct Hud {
                     scr.draw_pixel(scr.char_cols() - 1, body + y, true);
             }
         } else if (m == NOTES) {
-            for (int i = 0; i < rows-1 && i < note_count; ++i) {
-                const char* mk = (i == note_sel) ? ">" : " ";
-                char ln[40]; snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, notes[i]);
-                trim(ln, cols); scr.draw_text(0, body+i, ln);
+            int vis = rows - body;
+            int start = 0;
+            if (note_count > vis) {
+                start = note_sel;
+                if (start + vis > note_count) start = note_count - vis;
+            }
+            for (int i = 0; i < vis && start + i < note_count; ++i) {
+                const char* mk = (start + i == note_sel) ? ">" : " ";
+                char ln[40]; snprintf(ln, sizeof(ln), "%s%d %s", mk, start + i + 1, notes[start + i]);
+                trim(ln, cols); scr.draw_text(0, body + i, ln);
+            }
+            if (note_count > vis) {
+                int track = rows - body - 1;
+                int by = body + (note_sel * track) / note_count;
+                int bh = track / note_count + 1; if (bh < 1) bh = 1;
+                for (int y = by; y < by + bh && y < rows; ++y)
+                    scr.draw_pixel(scr.char_cols() - 1, y, true);
             }
         } else if (m == NOTE_DETAIL || m == TRANSLATE || m == IMAGE_ANALYSIS || m == SSH || m == CAMERA) {
             draw_detail(scr, rows, cols, body);

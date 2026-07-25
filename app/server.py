@@ -28,15 +28,21 @@ pipeline = None
 agent = None
 bridge = None
 _vision_fn = None  # lazy-built plain (image_b64, prompt) -> str callable
-# In-flight OAuth device-flow attempts, keyed by provider name -- /api/oauth/
-# poll needs the device_code from the matching /api/oauth/start call, but the
-# client only has the provider name. One request server-does-one-poll design
-# (see brain/oauth_device.py's poll_once docstring): a device code can be
+# In-flight OAuth attempts (both device-flow and PKCE), keyed by provider
+# name -- /api/oauth/poll needs the device_code/status from the matching
+# /api/oauth/start call, but the client only has the provider name. One
+# request server-does-one-poll design for device flow (see
+# brain/oauth_device.py's poll_once docstring): a device code can be
 # outstanding for ~15 min (RFC 8628), and a ThreadingHTTPServer request
 # thread blocking that long per in-flight auth would be a real resource risk
 # -- the phone re-polls on an interval instead, server does one upstream
-# check per phone request.
+# check per phone request. PKCE entries don't poll upstream at all --
+# completion is event-driven from the browser hitting /api/oauth/callback,
+# which just flips pending["status"].
 _oauth_pending: dict = {}
+# PKCE's redirect only carries back `state`, not the provider name -- this
+# maps state -> provider so /api/oauth/callback can find the pending entry.
+_oauth_state_index: dict = {}
 # serializes access to the shared agent (ThreadingHTTPServer handles requests
 # concurrently; agent.run() mutates history/cfg with no locking of its own)
 _AGENT_LOCK = threading.Lock()
@@ -432,13 +438,82 @@ class H(BaseHTTPRequestHandler):
 
             names = sorted(load_provider_configs().keys())
             return self._send(200, json.dumps(names))
+        if p.path == "/api/oauth/catalog":
+            # The curated provider picker (GitHub/OpenRouter/Google/...) --
+            # see brain/oauth_catalog.py for what's real vs. unsupported and
+            # why. redirect_uri is derived from this request's own Host
+            # header so it's correct for whatever host:port this install is
+            # actually reached at (LAN IP, hostname, adb-reverse tunnel).
+            from brain.oauth_catalog import CATALOG
+            from brain.oauth_store import OAuthStore
+
+            connected = set(OAuthStore().available_providers())
+            host = self.headers.get("Host", "")
+            out = []
+            for entry in CATALOG:
+                e = dict(entry)
+                e["connected"] = e["id"] in connected
+                if e.get("needs_client_id") and host:
+                    e["redirect_uri"] = f"http://{host}/api/oauth/callback"
+                out.append(e)
+            return self._send(200, json.dumps(out))
+        if p.path == "/api/oauth/callback":
+            # Browser lands here after the user approves on the provider's
+            # site (PKCE/openrouter flows only -- device flow has no
+            # redirect). Exchanges the code server-side and flips the
+            # matching _oauth_pending entry's status; the phone discovers
+            # the result via its next /api/oauth/poll, same as device flow.
+            qs = parse_qs(p.query)
+            state = qs.get("state", [""])[0]
+            provider = _oauth_state_index.pop(state, None)
+            pending = _oauth_pending.get(provider) if provider else None
+            if not pending:
+                return self._send(400, "Unknown or expired sign-in request. Close this tab and try again.", "text/html")
+            if qs.get("error"):
+                pending["status"] = "denied"
+                return self._send(200, "Sign-in was denied. You can close this tab.", "text/html")
+            code = qs.get("code", [""])[0]
+            from brain.oauth_device import (
+                OAuthError,
+                exchange_openrouter_code,
+                exchange_pkce_code,
+            )
+            from brain.oauth_store import OAuthStore
+
+            try:
+                if pending["flow"] == "openrouter":
+                    tok = exchange_openrouter_code(code, pending["code_verifier"], pending["session"])
+                else:
+                    tok = exchange_pkce_code(
+                        pending["cfg"], code, pending["redirect_uri"],
+                        pending["code_verifier"], pending["session"],
+                    )
+            except OAuthError as e:
+                pending["status"] = "error"
+                pending["error"] = str(e)
+                return self._send(200, f"Sign-in failed: {e}. You can close this tab.", "text/html")
+            OAuthStore().save(provider, tok.access_token, tok.refresh_token, tok.expires_in)
+            pending["status"] = "complete"
+            return self._send(200, "Connected — you can close this tab.", "text/html")
         if p.path == "/api/oauth/poll":
-            # One device-flow poll attempt for a provider with an in-flight
+            # One poll attempt for a provider with an in-flight
             # /api/oauth/start (see _oauth_pending). Non-blocking by design.
             provider = parse_qs(p.query).get("provider", [""])[0]
             pending = _oauth_pending.get(provider)
             if not pending:
                 return self._send(404, json.dumps({"status": "not_started"}))
+            if pending["flow"] in ("pkce", "openrouter"):
+                # Event-driven from /api/oauth/callback, not an upstream
+                # poll -- there's nothing to ask the provider until the
+                # browser redirect has happened.
+                status = pending.get("status", "pending")
+                if status in ("complete", "denied", "expired"):
+                    _oauth_pending.pop(provider, None)
+                    return self._send(200, json.dumps({"status": status}))
+                if status == "error":
+                    _oauth_pending.pop(provider, None)
+                    return self._send(200, json.dumps({"status": "error", "error": pending.get("error", "")}))
+                return self._send(200, json.dumps({"status": "pending", "retry_after": 2}))
             from brain.oauth_device import poll_once
             from brain.oauth_store import OAuthStore
 
@@ -507,25 +582,97 @@ class H(BaseHTTPRequestHandler):
         except Exception:
             data = {}
         if p.path == "/api/oauth/start":
-            # Begin a device-flow authentication: {"provider": "kimi"}. Does
-            # NOT block waiting for the user to complete it in a browser --
-            # returns the code/URL to show immediately; the app polls
-            # /api/oauth/poll?provider=... afterward.
-            from brain.oauth_device import OAuthError, start_device_flow
-            from brain.oauth_store import load_provider_configs
+            # Begin an OAuth authentication, either against an already-
+            # configured provider ({"provider": "kimi"}, the original
+            # hand-edited-oauth_providers.json path) or a catalog entry
+            # ({"catalog_id": "github", "client_id": "...", "client_secret"?:
+            # "..."} -- the GUI picker path, see brain/oauth_catalog.py).
+            # Does NOT block waiting for the user to complete it in a
+            # browser -- returns the code/URL to show immediately; the app
+            # polls /api/oauth/poll?provider=... afterward.
+            from brain.oauth_device import OAuthError, ProviderConfig, start_device_flow
+            from brain.oauth_store import load_provider_configs, save_provider_config
 
             provider = data.get("provider", "")
-            cfg = load_provider_configs().get(provider)
-            if cfg is None:
-                return self._send(404, json.dumps({"error": f"unknown provider: {provider}"}))
+            catalog_id = data.get("catalog_id", "")
+            if catalog_id:
+                from brain.oauth_catalog import get as catalog_get
+
+                entry = catalog_get(catalog_id)
+                if entry is None or entry["flow"] == "unsupported":
+                    return self._send(404, json.dumps({"error": f"unknown or unsupported provider: {catalog_id}"}))
+                provider = catalog_id
+                client_id = data.get("client_id", "")
+                client_secret = data.get("client_secret", "")
+                if entry.get("needs_client_id") and not client_id:
+                    return self._send(400, json.dumps({"error": "client_id required"}))
+                cfg = ProviderConfig(
+                    name=provider,
+                    device_auth_url=entry.get("device_auth_url", ""),
+                    token_url=entry.get("token_url", ""),
+                    client_id=client_id,
+                    scope=entry.get("scope", ""),
+                    api_base_url=entry.get("api_base_url", ""),
+                    flow=entry["flow"],
+                    authorize_url=entry.get("authorize_url", ""),
+                    client_secret=client_secret,
+                )
+                if client_id:  # remember it for next time (refresh, reconnect)
+                    save_provider_config(
+                        provider, device_auth_url=cfg.device_auth_url, token_url=cfg.token_url,
+                        client_id=client_id, scope=cfg.scope, api_base_url=cfg.api_base_url,
+                        flow=cfg.flow, authorize_url=cfg.authorize_url,
+                        client_secret=client_secret or None,
+                    )
+            else:
+                cfg = load_provider_configs().get(provider)
+                if cfg is None:
+                    return self._send(404, json.dumps({"error": f"unknown provider: {provider}"}))
+
             from agent.models import _urllib_session
 
             session = _urllib_session()
+
+            if cfg.flow in ("pkce", "openrouter"):
+                from brain.oauth_device import (
+                    build_openrouter_authorize_url,
+                    build_pkce_authorize_url,
+                    generate_pkce_pair,
+                    generate_state,
+                )
+
+                redirect_uri = f"http://{self.headers.get('Host', '')}/api/oauth/callback"
+                verifier, challenge = generate_pkce_pair()
+                state = generate_state()
+                if cfg.flow == "openrouter":
+                    # OpenRouter's callback_url has no separate `state`
+                    # concept (see oauth_device.py) -- embed our own
+                    # correlation token in the callback_url's query string
+                    # instead, so /api/oauth/callback can find this pending
+                    # entry the same way it does for standard PKCE (which
+                    # gets `state` echoed back per the OAuth2 spec).
+                    authorize_url = build_openrouter_authorize_url(
+                        f"{redirect_uri}?state={state}", challenge
+                    )
+                else:
+                    authorize_url = build_pkce_authorize_url(cfg, redirect_uri, state, challenge)
+                _oauth_pending[provider] = {
+                    "flow": cfg.flow,
+                    "cfg": cfg,
+                    "session": session,
+                    "code_verifier": verifier,
+                    "redirect_uri": redirect_uri,
+                    "status": "pending",
+                }
+                _oauth_state_index[state] = provider
+                return self._send(200, json.dumps({"flow": cfg.flow, "authorize_url": authorize_url}))
+
             try:
                 dc = start_device_flow(cfg, session)
             except OAuthError as e:
                 return self._send(200, json.dumps({"error": str(e)}))
             _oauth_pending[provider] = {
+                "flow": "device",
                 "cfg": cfg,
                 "device_code": dc.device_code,
                 "session": session,
@@ -535,6 +682,7 @@ class H(BaseHTTPRequestHandler):
                 200,
                 json.dumps(
                     {
+                        "flow": "device",
                         "user_code": dc.user_code,
                         "verification_uri": dc.verification_uri,
                         "verification_uri_complete": dc.verification_uri_complete,
@@ -543,6 +691,12 @@ class H(BaseHTTPRequestHandler):
                     }
                 ),
             )
+        if p.path == "/api/oauth/disconnect":
+            from brain.oauth_store import OAuthStore
+
+            provider = data.get("provider", "")
+            OAuthStore().clear(provider)
+            return self._send(200, json.dumps({"ok": True}))
         if p.path == "/api/experience":
             # record a graded experience: {domain, action, grade(0..1), note}
             from brain.experiences import ExperienceStore

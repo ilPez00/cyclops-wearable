@@ -105,12 +105,20 @@ object CyclopsApi {
         }
     }
 
-    // OAuth device-flow (RFC 8628) providers -- see app/server.py's /api/oauth/*.
+    // OAuth providers (device flow / PKCE) -- see app/server.py's /api/oauth/*
+    // and brain/oauth_catalog.py for what each catalog entry actually is.
     data class OAuthStart(
+        val flow: String, val authorizeUrl: String,
         val userCode: String, val verificationUri: String,
         val verificationUriComplete: String, val intervalSec: Int
     )
     data class OAuthPoll(val status: String, val retryAfterSec: Int, val error: String)
+    data class CatalogEntry(
+        val id: String, val label: String, val flow: String,
+        val needsClientId: Boolean, val needsClientSecret: Boolean,
+        val connected: Boolean, val note: String,
+        val setupUrl: String, val redirectUri: String
+    )
 
     fun oauthProviders(onResult: (List<String>) -> Unit, onError: (String) -> Unit) = thread {
         try {
@@ -121,13 +129,52 @@ object CyclopsApi {
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
-    fun oauthStart(provider: String, onResult: (OAuthStart) -> Unit, onError: (String) -> Unit) = thread {
+    fun oauthCatalog(onResult: (List<CatalogEntry>) -> Unit, onError: (String) -> Unit) = thread {
         try {
-            val body = JSONObject().put("provider", provider)
+            val arr = JSONArray(get(url("/api/oauth/catalog")))
+            val out = mutableListOf<CatalogEntry>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out += CatalogEntry(
+                    o.getString("id"), o.getString("label"), o.getString("flow"),
+                    o.optBoolean("needs_client_id", false),
+                    o.optBoolean("needs_client_secret", false),
+                    o.optBoolean("connected", false),
+                    o.optString("note", ""),
+                    o.optString("setup_url", ""),
+                    o.optString("redirect_uri", ""),
+                )
+            }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    /** Reuse an already-configured custom provider (hand-edited oauth_providers.json). */
+    fun oauthStart(provider: String, onResult: (OAuthStart) -> Unit, onError: (String) -> Unit) =
+        oauthStartInternal(JSONObject().put("provider", provider), onResult, onError)
+
+    /** First-time (or repeat) connect through the catalog picker. */
+    fun oauthStartCatalog(
+        catalogId: String, clientId: String, clientSecret: String,
+        onResult: (OAuthStart) -> Unit, onError: (String) -> Unit
+    ) = oauthStartInternal(
+        JSONObject().put("catalog_id", catalogId).apply {
+            if (clientId.isNotEmpty()) put("client_id", clientId)
+            if (clientSecret.isNotEmpty()) put("client_secret", clientSecret)
+        },
+        onResult, onError
+    )
+
+    private fun oauthStartInternal(
+        body: JSONObject, onResult: (OAuthStart) -> Unit, onError: (String) -> Unit
+    ) = thread {
+        try {
             val resp = JSONObject(post(url("/api/oauth/start"), body.toString()))
             if (resp.has("error")) { onMain { onError(resp.getString("error")) }; return@thread }
             onMain {
                 onResult(OAuthStart(
+                    resp.optString("flow", "device"),
+                    resp.optString("authorize_url", ""),
                     resp.optString("user_code", ""),
                     resp.optString("verification_uri", ""),
                     resp.optString("verification_uri_complete", ""),
@@ -147,6 +194,13 @@ object CyclopsApi {
                     resp.optString("error", "")
                 ))
             }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun oauthDisconnect(provider: String, onResult: () -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            post(url("/api/oauth/disconnect"), JSONObject().put("provider", provider).toString())
+            onMain { onResult() }
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 

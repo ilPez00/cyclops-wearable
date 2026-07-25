@@ -28,6 +28,20 @@ DEFAULT_TOKENS_PATH = "~/.cyclops/oauth_tokens.json"
 DEFAULT_PROVIDERS_PATH = "~/.cyclops/oauth_providers.json"
 
 
+def _atomic_write_json_0600(path: Path, data: dict) -> None:
+    """Write `data` as JSON to `path`, owner-only (0600) rather than
+    inheriting the process umask (typically 0644, group/world-readable).
+    os.open + fdopen so the restrictive mode applies atomically at creation,
+    not as a chmod race after the fact. Shared by token writes (refresh
+    tokens) and provider-config writes (client_secret) -- both equally
+    sensitive."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(json.dumps(data, indent=2))
+    os.chmod(path, 0o600)  # belt-and-suspenders in case the file pre-existed with looser perms
+
+
 def load_provider_configs(path: str | None = None) -> dict[str, ProviderConfig]:
     """Read the user-supplied OAuth client config file. Missing file (the
     common case -- most installs never use device-flow providers) or a
@@ -43,18 +57,47 @@ def load_provider_configs(path: str | None = None) -> dict[str, ProviderConfig]:
     for name, cfg in (raw or {}).items():
         if not isinstance(cfg, dict):
             continue
-        try:
-            out[name] = ProviderConfig(
-                name=name,
-                device_auth_url=cfg["device_auth_url"],
-                token_url=cfg["token_url"],
-                client_id=cfg["client_id"],
-                scope=cfg.get("scope", ""),
-                api_base_url=cfg.get("api_base_url", ""),
-            )
-        except KeyError:
+        flow = cfg.get("flow", "device")
+        # device flow needs device_auth_url; pkce needs authorize_url. Both
+        # need token_url. client_id is required except for the openrouter
+        # flow, which doesn't use one at all.
+        required = ["token_url"]
+        required.append("device_auth_url" if flow == "device" else "authorize_url")
+        if flow != "openrouter":
+            required.append("client_id")
+        if any(cfg.get(k) is None for k in required):
             continue  # missing a required field -- skip this one provider, not the whole file
+        out[name] = ProviderConfig(
+            name=name,
+            device_auth_url=cfg.get("device_auth_url", ""),
+            token_url=cfg.get("token_url", ""),
+            client_id=cfg.get("client_id", ""),
+            scope=cfg.get("scope", ""),
+            api_base_url=cfg.get("api_base_url", ""),
+            flow=flow,
+            authorize_url=cfg.get("authorize_url", ""),
+            client_secret=cfg.get("client_secret", ""),
+        )
     return out
+
+
+def save_provider_config(name: str, path: str | None = None, **fields) -> None:
+    """Merge `fields` (device_auth_url/token_url/client_id/scope/api_base_url/
+    flow/authorize_url/client_secret) into provider `name`'s entry in
+    oauth_providers.json, creating the file if needed. Used by the GUI
+    provider picker so a user never has to hand-edit this file -- see
+    app/server.py's /api/oauth/start catalog_id path."""
+    p = Path(path or os.environ.get("CYCLOPS_OAUTH_PROVIDERS", DEFAULT_PROVIDERS_PATH)).expanduser()
+    data = {}
+    if p.exists():
+        try:
+            data = json.loads(p.read_text(encoding="utf-8")) or {}
+        except Exception:
+            data = {}
+    entry = data.get(name, {})
+    entry.update({k: v for k, v in fields.items() if v is not None})
+    data[name] = entry
+    _atomic_write_json_0600(p, data)
 
 
 class OAuthStore:
@@ -72,18 +115,7 @@ class OAuthStore:
             return {}
 
     def _write_all(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        # OAuth tokens (especially refresh_token) are longer-lived and
-        # broader-scoped than a single static API key -- write owner-only
-        # (0600) rather than inheriting the process umask (typically 0644,
-        # group/world-readable). os.open + fdopen so the restrictive mode
-        # applies atomically at creation, not as a chmod race after the
-        # fact (a window where the file briefly exists at the umask default
-        # would defeat the point).
-        fd = os.open(str(self.path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(json.dumps(data, indent=2))
-        os.chmod(self.path, 0o600)  # belt-and-suspenders in case the file pre-existed with looser perms
+        _atomic_write_json_0600(self.path, data)
 
     def save(
         self, provider: str, access_token: str, refresh_token: str = "", expires_in: int = 0

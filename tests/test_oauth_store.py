@@ -9,7 +9,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from brain.oauth_device import ProviderConfig
-from brain.oauth_store import OAuthStore, load_provider_configs
+from brain.oauth_store import OAuthStore, load_provider_configs, save_provider_config
 
 
 def _tmp_store():
@@ -167,3 +167,71 @@ def test_load_provider_configs_malformed_json_is_empty():
     with open(p, "w") as f:
         f.write("{not valid json")
     assert load_provider_configs(p) == {}
+
+
+def test_load_provider_configs_pkce_flow_requires_authorize_url_not_device_auth_url():
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "oauth_providers.json")
+    with open(p, "w") as f:
+        json.dump(
+            {
+                "google": {
+                    "flow": "pkce",
+                    "authorize_url": "https://accounts.example/auth",
+                    "token_url": "https://oauth.example/token",
+                    "client_id": "cid",
+                    "client_secret": "csecret",
+                }
+            },
+            f,
+        )
+    cfgs = load_provider_configs(p)
+    assert "google" in cfgs
+    assert cfgs["google"].flow == "pkce"
+    assert cfgs["google"].client_secret == "csecret"
+
+
+def test_load_provider_configs_openrouter_flow_needs_no_client_id():
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "oauth_providers.json")
+    with open(p, "w") as f:
+        json.dump(
+            {
+                "openrouter": {
+                    "flow": "openrouter",
+                    "authorize_url": "https://openrouter.ai/auth",
+                    "token_url": "https://openrouter.ai/api/v1/auth/keys",
+                }
+            },
+            f,
+        )
+    cfgs = load_provider_configs(p)
+    assert "openrouter" in cfgs
+    assert cfgs["openrouter"].client_id == ""
+
+
+def test_save_provider_config_creates_and_merges():
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "oauth_providers.json")
+    save_provider_config("github", path=p, device_auth_url="https://github.com/login/device/code",
+                          token_url="https://github.com/login/oauth/access_token",
+                          client_id="cid1", flow="device")
+    cfgs = load_provider_configs(p)
+    assert cfgs["github"].client_id == "cid1"
+    # a later save for a different provider doesn't clobber the first
+    save_provider_config("openrouter", path=p, flow="openrouter",
+                          authorize_url="https://openrouter.ai/auth",
+                          token_url="https://openrouter.ai/api/v1/auth/keys")
+    cfgs = load_provider_configs(p)
+    assert "github" in cfgs and "openrouter" in cfgs
+
+
+def test_save_provider_config_writes_owner_only_permissions():
+    import stat
+
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "oauth_providers.json")
+    save_provider_config("github", path=p, device_auth_url="https://x/d", token_url="https://x/t",
+                          client_id="cid1", flow="device")
+    mode = stat.S_IMODE(os.stat(p).st_mode)
+    assert mode == 0o600, f"expected 0600, got {oct(mode)}"

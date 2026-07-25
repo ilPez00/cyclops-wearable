@@ -1,0 +1,198 @@
+solid OpenSCAD_Model
+  facet normal 1 -0 0
+    outer loop
+      vertex 180.75 17.5 20
+      vertex 180.75 25.75 18.4
+      vertex 180.75 25.75 20
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 180.75 25.75 18.4
+      vertex 180.75 17.5 20
+      vertex 180.75 17.5 18.4
+    endloop
+  endfacet
+  facet normal 1 -0 0
+    outer loop
+      vertex 180.75 0.25 20
+      vertex 180.75 8.5 18.4
+      vertex 180.75 8.5 20
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 180.75 8.5 18.4
+      vertex 180.75 0.25 20
+      vertex 180.75 0.25 18.4
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 180.75 25.75 20
+      vertex 171.25 17.5 20
+      vertex 180.75 17.5 20
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 171.25 17.5 20
+      vertex 93.25 25.75 20
+      vertex 171.25 8.5 20
+    endloop
+  endfacet
+  facet normal -0 0 1
+    outer loop
+      vertex 93.25 25.75 20
+      vertex 171.25 17.5 20
+      vertex 180.75 25.75 20
+    endloop
+  endfacet
+  facet normal -0 0 1
+    outer loop
+      vertex 171.25 8.5 20
+      vertex 180.75 0.25 20
+      vertex 180.75 8.5 20
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 93.25 0.25 20
+      vertex 171.25 8.5 20
+      vertex 93.25 25.75 20
+    endloop
+  endfacet
+  facet normal 0 0 1
+    outer loop
+      vertex 171.25 8.5 20
+      vertex 93.25 0.25 20
+      vertex 180.75 0.25 20
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 180.75 0.25 18.4
+      vertex 171.25 8.5 18.4
+      vertex 180.75 8.5 18.4
+    endloop
+  endfacet
+  facet normal -0 0 -1
+    outer loop
+      vertex 171.25 8.5 18.4
+      vertex 93.25 0.25 18.4
+      vertex 171.25 17.5 18.4
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 93.25 0.25 18.4
+      vertex 171.25 8.5 18.4
+      vertex 180.75 0.25 18.4
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 171.25 17.5 18.4
+      vertex 180.75 25.75 18.4
+      vertex 180.75 17.5 18.4
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 93.25 25.75 18.4
+      vertex 171.25 17.5 18.4
+      vertex 93.25 0.25 18.4
+    endloop
+  endfacet
+  facet normal 0 0 -1
+    outer loop
+      vertex 171.25 17.5 18.4
+      vertex 93.25 25.75 18.4
+      vertex 180.75 25.75 18.4
+    endloop
+  endfacet
+  facet normal -1 0 0
+    outer loop
+      vertex 93.25 0.25 18.4
+      vertex 93.25 25.75 20
+      vertex 93.25 25.75 18.4
+    endloop
+  endfacet
+  facet normal -1 -0 0
+    outer loop
+      vertex 93.25 25.75 20
+      vertex 93.25 0.25 18.4
+      vertex 93.25 0.25 20
+    endloop
+  endfacet
+  facet normal 0 1 -0
+    outer loop
+      vertex 180.75 25.75 18.4
+      vertex 93.25 25.75 20
+      vertex 180.75 25.75 20
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex 93.25 25.75 20
+      vertex 180.75 25.75 18.4
+      vertex 93.25 25.75 18.4
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 93.25 0.25 18.4
+      vertex 180.75 0.25 20
+      vertex 93.25 0.25 20
+    endloop
+  endfacet
+  facet normal 0 -1 -0
+    outer loop
+      vertex 180.75 0.25 20
+      vertex 93.25 0.25 18.4
+      vertex 180.75 0.25 18.4
+    endloop
+  endfacet
+  facet normal 1 -0 0
+    outer loop
+      vertex 171.25 8.5 20
+      vertex 171.25 17.5 18.4
+      vertex 171.25 17.5 20
+    endloop
+  endfacet
+  facet normal 1 0 0
+    outer loop
+      vertex 171.25 17.5 18.4
+      vertex 171.25 8.5 20
+      vertex 171.25 8.5 18.4
+    endloop
+  endfacet
+  facet normal 0 -1 0
+    outer loop
+      vertex 171.25 17.5 18.4
+      vertex 180.75 17.5 20
+      vertex 171.25 17.5 20
+    endloop
+  endfacet
+  facet normal 0 -1 -0
+    outer loop
+      vertex 180.75 17.5 20
+      vertex 171.25 17.5 18.4
+      vertex 180.75 17.5 18.4
+    endloop
+  endfacet
+  facet normal 0 1 -0
+    outer loop
+      vertex 180.75 8.5 18.4
+      vertex 171.25 8.5 20
+      vertex 180.75 8.5 20
+    endloop
+  endfacet
+  facet normal 0 1 0
+    outer loop
+      vertex 171.25 8.5 20
+      vertex 180.75 8.5 18.4
+      vertex 171.25 8.5 18.4
+    endloop
+  endfacet
+endsolid OpenSCAD_Model
