@@ -308,7 +308,7 @@ static void start_capture() {
     uint8_t meta[8]; meta[0]=16; meta[1]=0; meta[2]=MIC_RATE&0xFF; meta[3]=(MIC_RATE>>8)&0xFF;
     meta[4]=1; meta[5]=cyclops::AUDIO_CODEC_ADPCM; meta[6]=0; meta[7]=0;
     send_frame(cyclops::MSG_AUDIO_META, meta, 8);
-    xTaskCreatePinnedToCore(audio_task, "cap", 4096, NULL, 5, &cap_task, 0);
+    xTaskCreatePinnedToCore(audio_task, "cap", 6144, NULL, 5, &cap_task, 0);
     hud.recording = true;
     cyclops::sd_log_line("rec", "start");
 }

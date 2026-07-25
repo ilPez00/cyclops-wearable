@@ -15,7 +15,7 @@ static bool sd_mounted = false;
 static constexpr int SD_CS = 21;  // GPIO21 on the Sense expansion slot
 
 bool sd_begin() {
-  sd_mounted = SD.begin(SD_CS);  // default SPI bus (7/8/9)
+  sd_mounted = SD.begin(SD_CS, SPI, 20000000);  // 20 MHz SPI (safe ceiling for Sense slot)
   return sd_mounted;
 }
 
@@ -29,7 +29,7 @@ void sd_log_line(const char* tag, const char* text) {
     File probe = SD.open("/cyclops.log", FILE_READ);
     bool over = probe && (unsigned long)probe.size() > MAX_BYTES;
     if (probe) probe.close();
-    if (over) SD.remove("/cyclops.log");
+    if (over) { SD.remove("/cyclops.old"); SD.rename("/cyclops.log", "/cyclops.old"); }
   }
   File f = SD.open("/cyclops.log", FILE_APPEND);
   if (!f) return;

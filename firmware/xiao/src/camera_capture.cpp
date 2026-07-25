@@ -21,6 +21,7 @@ void CameraCapture::teardown_wifi() {}
 #include <FS.h>
 #include <SD.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <WebServer.h>
 #include "esp_camera.h"
 
@@ -79,6 +80,7 @@ static void handle_stream_root() {
 static void handle_stream() {
     Serial.println("[cam-cap] /stream requested");
     WiFiClient client = g_server->client();
+    client.setNoDelay(true);
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: multipart/x-mixed-replace; boundary=frame");
     client.println("Cache-Control: no-cache");
@@ -112,6 +114,21 @@ static const CameraProfile CAM_PROFILES[] = {
 };
 static constexpr int NUM_CAM_PROFILES = sizeof(CAM_PROFILES) / sizeof(CAM_PROFILES[0]);
 
+static int profile_width(framesize_t f) {
+    switch (f) {
+        case FRAMESIZE_QVGA: return 320;
+        case FRAMESIZE_VGA:  return 640;
+        default:             return 0;
+    }
+}
+static int profile_height(framesize_t f) {
+    switch (f) {
+        case FRAMESIZE_QVGA: return 240;
+        case FRAMESIZE_VGA:  return 480;
+        default:             return 0;
+    }
+}
+
 bool CameraCapture::ensure_camera() {
     if (cam_ready_) return true;
     bool has_psram = psramFound();
@@ -144,11 +161,11 @@ bool CameraCapture::ensure_camera() {
         if (err == ESP_OK) {
             cam_ready_ = true;
             Serial.printf("[cam-cap] camera OK profile=%dx%d@%dHz psram=%d\n",
-                          (int)c.frame_size, (int)c.frame_size, (int)c.xclk_freq_hz, has_psram);
+                          profile_width(c.frame_size), profile_height(c.frame_size), (int)c.xclk_freq_hz, has_psram);
             return true;
         }
         Serial.printf("[cam-cap] camera FAIL profile=%dx%d@%dHz err=0x%x\n",
-                      (int)c.frame_size, (int)c.frame_size, (int)c.xclk_freq_hz, err);
+                      profile_width(c.frame_size), profile_height(c.frame_size), (int)c.xclk_freq_hz, err);
     }
     Serial.println("[cam-cap] all camera profiles exhausted");
     return false;
@@ -184,6 +201,8 @@ bool CameraCapture::ensure_wifi_and_server() {
     }
     Serial.printf("[cam-cap] joining wifi ssid='%s'...\n", ssid);
     WiFi.mode(WIFI_STA);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_max_tx_power(52);
     WiFi.begin(ssid, pass);
     // Bounded wait -- this runs on the main task (called from loop()), so a
     // long/unbounded join must not stall button/BLE handling indefinitely.
