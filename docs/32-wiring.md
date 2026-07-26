@@ -129,6 +129,9 @@ External I2C breakout (MPU-6050 or LSM6DS3) on D6/D7:
 
 The XIAO S3 Sense has an **onboard OV2640** camera on the proprietary ribbon.
 Firmware initialises it for snapshot (/snap) and MJPEG stream (/stream) over WiFi.
+The same WiFi server also exposes `/audio.wav` — a live WAV stream of the onboard
+PDM mic (16-bit mono 16 kHz) so the companion app can record wearable audio
+(returns 503 while a BLE audio capture already holds the mic).
 
 | Camera resource | Notes |
 |----------------|-------|
@@ -221,7 +224,7 @@ Flash any: `pio run -e <env> -t upload --upload-port /dev/ttyACM0`.
 | Config Portal | `xiao/src/config_portal.h` | Captive WiFi portal on first boot; factory-reset with BTN_A+BTN_B hold; gated behind `-DCONFIG_PORTAL=1` |
 | VAD Gate | `shared/include/audio_trigger.h` (`VadGate`) | RMS energy gate before ADPCM encode; adaptive ambient floor |
 | Power-saving | `xiao/src/main.cpp` | Brownout disable (`WRITE_PERI_REG`); PSRAM-aware camera buffers; VGA→QVGA fallback chain |
-| WiFi camera stream | `xiao/src/camera_capture.cpp` | `/snap` JPEG, `/stream` MJPEG ~10 fps, 60s idle teardown |
+| WiFi camera stream | `xiao/src/camera_capture.cpp` | `/snap` JPEG, `/stream` MJPEG ~10 fps, `/audio.wav` PDM mic, 60s idle teardown |
 | HUD layout (128×128) | `shared/include/hud.h` | HOME: expanded banner + health preview + notes preview + REC timer + consent indicator on ≥6-row panels |
 | HUD layout (128×32) | `shared/include/hud.h` | HOME: compact 4-row (banner + status + bottom strip); NOTES scrolls on overflow |
 | Notes scroll | `shared/include/hud.h` | NOTES mode scrolls view to keep `note_sel` visible; right-edge scroll bar on overflow |

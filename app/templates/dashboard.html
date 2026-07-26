@@ -306,7 +306,7 @@ async function renderFiles(force){
   const url=localStorage.getItem('cap_url')||'';
   const cap=(mcat==='images')?'':
     `<div class=capbar>
-       <input id=capurl placeholder="wearable stream URL, e.g. http://192.168.1.42/stream" value="${esc(url)}">
+       <input id=capurl placeholder="wearable ${mcat} URL, e.g. http://192.168.1.42/${mcat==='audio'?'audio.wav':'stream'}" value="${esc(url)}">
        <select id=capsecs><option>3</option><option selected>5</option><option>10</option><option>20</option></select>
        <button id=caprec><span class=rd></span>Record ${mcat}</button>
        <div class=capmsg id=capmsg></div>

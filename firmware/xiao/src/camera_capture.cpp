@@ -23,6 +23,7 @@ void CameraCapture::teardown_wifi() {}
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <WebServer.h>
+#include <driver/i2s.h>
 #include "esp_camera.h"
 
 // XIAO ESP32-S3 Sense camera pins (Seeed wiki) -- identical to
@@ -99,6 +100,69 @@ static void handle_stream() {
         delay(100);  // ~10 fps
     }
     Serial.println("[cam-cap] /stream closed");
+}
+
+// --- Audio: stream the onboard PDM mic as WAV over HTTP (/audio.wav) ---
+// Lets the companion app record wearable audio the same way it records the
+// camera: ffmpeg pulls this URL for N seconds. Mirrors the mic config in
+// main.cpp (PDM clk=GPIO42, data=GPIO41, 16-bit mono 16 kHz). i2s_driver_install
+// doubles as the lock: it fails with ESP_ERR_INVALID_STATE if a BLE audio
+// capture already owns port 0, so we return 503 instead of fighting over it.
+static const int AUDIO_MIC_CLK = 42;
+static const int AUDIO_MIC_DATA = 41;
+static const uint32_t AUDIO_RATE = 16000;
+static const unsigned long AUDIO_MAX_MS = 120000;  // hard cap on a single grab
+
+static void wav_put32(uint8_t* p, uint32_t v) { p[0]=v; p[1]=v>>8; p[2]=v>>16; p[3]=v>>24; }
+static void wav_put16(uint8_t* p, uint16_t v) { p[0]=v; p[1]=v>>8; }
+
+static void handle_audio() {
+    i2s_config_t cfg = {};
+    cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM);
+    cfg.sample_rate = AUDIO_RATE;
+    cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+    cfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;
+    cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+    cfg.intr_alloc_flags = 0;
+    cfg.dma_buf_count = 4; cfg.dma_buf_len = 256;
+    if (i2s_driver_install((i2s_port_t)0, &cfg, 0, NULL) != ESP_OK) {
+        g_server->send(503, "text/plain", "mic busy");  // BLE capture owns it
+        return;
+    }
+    i2s_pin_config_t pins = {};
+    pins.mck_io_num = I2S_PIN_NO_CHANGE;
+    pins.bck_io_num = I2S_PIN_NO_CHANGE; pins.ws_io_num = AUDIO_MIC_CLK;
+    pins.data_in_num = AUDIO_MIC_DATA; pins.data_out_num = I2S_PIN_NO_CHANGE;
+    i2s_set_pin((i2s_port_t)0, &pins);
+
+    WiFiClient client = g_server->client();
+    client.setNoDelay(true);
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: audio/wav");
+    client.println("Cache-Control: no-cache");
+    client.println("Connection: close");
+    client.println();
+    // Streaming WAV: length is unknown, so declare the max the field allows;
+    // the client reads until the connection closes (ffmpeg's -t bounds it).
+    uint8_t h[44];
+    memcpy(h, "RIFF", 4);           wav_put32(h + 4, 0xFFFFFFFF);
+    memcpy(h + 8, "WAVE", 4);       memcpy(h + 12, "fmt ", 4);
+    wav_put32(h + 16, 16);          wav_put16(h + 20, 1);        // PCM
+    wav_put16(h + 22, 1);           wav_put32(h + 24, AUDIO_RATE);
+    wav_put32(h + 28, AUDIO_RATE * 2);                            // byte rate
+    wav_put16(h + 32, 2);           wav_put16(h + 34, 16);        // block align, bits
+    memcpy(h + 36, "data", 4);      wav_put32(h + 40, 0xFFFFFFFF - 44);
+    client.write(h, sizeof(h));
+
+    int16_t buf[256];
+    size_t rd = 0;
+    unsigned long start = millis();
+    while (client.connected() && millis() - start < AUDIO_MAX_MS) {
+        if (i2s_read((i2s_port_t)0, buf, sizeof(buf), &rd, pdMS_TO_TICKS(100)) == ESP_OK && rd)
+            if (client.write((const uint8_t*)buf, rd) != rd) break;
+    }
+    i2s_driver_uninstall((i2s_port_t)0);
+    Serial.println("[cam-cap] /audio.wav closed");
 }
 
 // Camera init profile — tries multiple configs and falls back.
@@ -217,6 +281,7 @@ bool CameraCapture::ensure_wifi_and_server() {
     g_server->on("/capture", handle_capture);
     g_server->on("/snap", handle_snap);
     g_server->on("/stream", handle_stream);
+    g_server->on("/audio.wav", handle_audio);
     g_server->on("/", handle_stream_root);
     g_server->begin();
     snprintf(url_, sizeof(url_), "http://%s/capture", WiFi.localIP().toString().c_str());
