@@ -127,6 +127,23 @@ h2.sec{font:600 .72rem/1 var(--mono);color:var(--faint);text-transform:uppercase
 .subnav button:hover{color:var(--ink);border-color:var(--border-hi)}
 .subnav button.on{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.08)}
 .subnav .n{font:600 .68rem/1 var(--mono);opacity:.7}
+.capbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.9rem;
+  padding:.6rem .7rem;background:var(--panel);border:1px solid var(--border);border-radius:11px}
+.capbar input{flex:1;min-width:150px;background:var(--bg2);color:var(--ink);
+  border:1px solid var(--border);border-radius:8px;padding:.45rem .6rem;
+  font:500 .78rem/1 var(--mono)}
+.capbar input:focus{outline:none;border-color:var(--cyan)}
+.capbar select{background:var(--bg2);color:var(--ink);border:1px solid var(--border);
+  border-radius:8px;padding:.45rem .5rem;font:500 .78rem/1 var(--mono)}
+.capbar button{display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;white-space:nowrap;
+  background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.35);
+  border-radius:8px;padding:.45rem .8rem;font:700 .76rem/1 var(--sans);transition:all .16s}
+.capbar button:hover:not(:disabled){background:rgba(248,113,113,.2)}
+.capbar button:disabled{opacity:.6;cursor:default}
+.capbar button .rd{width:9px;height:9px;border-radius:50%;background:var(--red)}
+.capbar button.live .rd{animation:pulse 1.1s infinite}
+.capmsg{width:100%;font:500 .74rem/1.3 var(--mono);color:var(--dim);margin-top:.1rem}
+.capmsg.err{color:var(--red)}
 .mgrid{display:grid;gap:var(--sp);grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 .mgrid.wide{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
 .mcard{background:var(--panel);border:1px solid var(--border);border-radius:11px;overflow:hidden;
@@ -271,10 +288,12 @@ function mcard(f){
     return `<div class=mcard><audio controls preload=none src="${f.url}"></audio>${meta}</div>`;
   return `<div class=mcard><video controls preload=metadata src="${f.url}"></video>${meta}</div>`;
 }
+let capturing=false;
 async function renderFiles(force){
+  if(capturing) return;                              // don't wipe mid-record
   const m=document.getElementById('main');
   const [counts,list]=await Promise.all([j('/api/media/counts'),j('/api/media?cat='+mcat)]);
-  if(tab!=='files') return;
+  if(tab!=='files'||capturing) return;
   const c=counts||{}, files=list||[];
   const hash=mcat+':'+JSON.stringify(files)+JSON.stringify(c);
   if(!force && cache.files && cache.files.hash===hash) return;
@@ -282,13 +301,44 @@ async function renderFiles(force){
   const sub=`<div class=subnav>`+MCATS.map(([id,label,icon])=>
     `<button class="${id===mcat?'on':''}" data-mc="${id}">${svg(icon)}<span>${label}</span>
       <span class=n>${c[id]??0}</span></button>`).join('')+`</div>`;
+  // audio/video are recorded from the wearable's stream via the app (ffmpeg);
+  // images auto-save from the vision frames already flowing through the app.
+  const url=localStorage.getItem('cap_url')||'';
+  const cap=(mcat==='images')?'':
+    `<div class=capbar>
+       <input id=capurl placeholder="wearable stream URL, e.g. http://192.168.1.42/stream" value="${esc(url)}">
+       <select id=capsecs><option>3</option><option selected>5</option><option>10</option><option>20</option></select>
+       <button id=caprec><span class=rd></span>Record ${mcat}</button>
+       <div class=capmsg id=capmsg></div>
+     </div>`;
   const body=files.length
     ? `<div class="mgrid${mcat==='images'?'':' wide'} enter">`+files.map(mcard).join('')+`</div>`
     : empty(mcat==='images'?'image':mcat==='audio'?'audio':'video',
         'No '+mcat+' captured yet.');
-  m.innerHTML=sub+body;
+  m.innerHTML=sub+cap+body;
   m.querySelectorAll('.subnav button').forEach(b=>b.onclick=()=>{
     if(mcat===b.dataset.mc)return; mcat=b.dataset.mc; render(true);});
+  const rec=m.querySelector('#caprec');
+  if(rec) rec.onclick=()=>doCapture();
+}
+async function doCapture(){
+  const url=(document.getElementById('capurl').value||'').trim();
+  const secs=+document.getElementById('capsecs').value||5;
+  const btn=document.getElementById('caprec'), msg=document.getElementById('capmsg');
+  if(!url){msg.className='capmsg err';msg.textContent='Enter the wearable stream URL first.';return}
+  localStorage.setItem('cap_url',url);
+  capturing=true; btn.disabled=true; btn.classList.add('live');
+  msg.className='capmsg'; msg.textContent=`recording ${secs}s from ${url}…`;
+  try{
+    const r=await fetch('/api/capture',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cat:mcat,url,secs})});
+    const d=await r.json();
+    capturing=false;
+    if(!r.ok||d.error){msg.className='capmsg err';msg.textContent='Failed: '+(d.error||r.status);btn.disabled=false;btn.classList.remove('live');return}
+    cache.files=null; render(true);              // show the new clip
+  }catch(e){capturing=false;btn.disabled=false;btn.classList.remove('live');
+    msg.className='capmsg err';msg.textContent='Failed: '+e;}
 }
 
 async function render(force){

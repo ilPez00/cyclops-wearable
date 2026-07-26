@@ -13,8 +13,11 @@ from __future__ import annotations
 import base64
 import os
 import re
+import shutil
+import subprocess
 import time
 from typing import Optional
+from urllib.parse import urlsplit
 
 CAPTURES_DIR = os.path.expanduser("~/.cyclops/captures")
 
@@ -134,6 +137,66 @@ def list_media(cat: str) -> list[dict]:
 def counts() -> dict:
     """Per-category file counts for the tab badges."""
     return {cat: len(list_media(cat)) for cat in CATS}
+
+
+def has_ffmpeg() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+# category -> (output extension, ffmpeg output-codec args). Audio and video only;
+# the browser plays h264/mp4 and aac/m4a natively.
+_FFMPEG_OUT = {
+    "video": ("mp4", ["-an", "-c:v", "libx264", "-preset", "veryfast",
+                       "-pix_fmt", "yuv420p", "-movflags", "+faststart"]),
+    "audio": ("m4a", ["-vn", "-c:a", "aac", "-b:a", "96k"]),
+}
+
+# clamp: capture is a foreground subprocess on the app's request thread.
+MAX_CAPTURE_SECS = 60
+
+
+def capture_stream(url: str, cat: str, secs: float = 5.0) -> dict:
+    """Record `secs` of an HTTP(S) media stream (e.g. the wearable's MJPEG
+    /stream) into the audio/video folder via ffmpeg, returning the entry.
+
+    Raises ValueError on bad input / no ffmpeg, RuntimeError on a capture
+    failure so the caller can map them to 400 / 502.
+    """
+    if cat not in _FFMPEG_OUT:
+        raise ValueError(f"capture category must be audio|video, not {cat!r}")
+    if not has_ffmpeg():
+        raise ValueError("ffmpeg not installed on the host")
+    parts = urlsplit(url or "")
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        raise ValueError("url must be an http(s) stream URL")
+    try:
+        secs = max(1.0, min(float(secs), MAX_CAPTURE_SECS))
+    except (TypeError, ValueError):
+        raise ValueError("secs must be a number")
+
+    ext, codec = _FFMPEG_OUT[cat]
+    name = f"{time.strftime('%Y%m%d-%H%M%S')}-{int(time.time() * 1000) % 1000:03d}.{ext}"
+    path = os.path.join(_cat_dir(cat), name)
+    # -t before -i bounds how long ffmpeg reads the input; list args (no shell).
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-t", str(secs),
+           "-i", url, *codec, path]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=secs + 25)
+    except subprocess.TimeoutExpired:
+        _rm(path)
+        raise RuntimeError("capture timed out")
+    if proc.returncode != 0 or not os.path.isfile(path) or os.path.getsize(path) == 0:
+        _rm(path)
+        err = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+        raise RuntimeError(err[-1] if err else "ffmpeg capture failed")
+    return _entry(cat, name, os.stat(path))
+
+
+def _rm(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 def read_media(cat: str, name: str) -> Optional[tuple[bytes, str]]:

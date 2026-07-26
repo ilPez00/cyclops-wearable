@@ -849,6 +849,22 @@ class H(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"error": str(e)}))
             except Exception as e:
                 return self._send(500, json.dumps({"error": str(e)}))
+        if p.path == "/api/capture":
+            # Record the wearable's stream to SD-style captures via ffmpeg:
+            # {"cat":"audio"|"video", "url":"http://<device>/stream", "secs":5}.
+            try:
+                entry = media.capture_stream(
+                    data.get("url", ""),
+                    data.get("cat", "video"),
+                    data.get("secs", 5),
+                )
+                return self._send(200, json.dumps({"ok": True, "file": entry}))
+            except ValueError as e:
+                return self._send(400, json.dumps({"error": str(e)}))
+            except RuntimeError as e:
+                return self._send(502, json.dumps({"error": str(e)}))
+            except Exception as e:
+                return self._send(500, json.dumps({"error": str(e)}))
         self._send(404, json.dumps({"error": "not found"}))
 
     def log_message(self, *a):
