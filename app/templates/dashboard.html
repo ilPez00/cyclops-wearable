@@ -1,107 +1,260 @@
-<!doctype html><html><head><meta charset=utf-8>
-<meta name=viewport content="width=device-width,initial-scale=1">
-<title>Cyclops</title><style>
+<!doctype html><html lang=en><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name=color-scheme content=dark>
+<title>Cyclops</title>
+<link rel=icon href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E">
+<style>
 :root{
-  --bg:#080810; --panel:#10101c; --border:#16323a; --ink:#c8d6e5; --dim:#8fa3b8;
-  --teal:#00d2d3; --green:#22c55e; --amber:#feca57; --red:#ee5a24; --blue:#3b82f6; --purple:#a78bfa;
-  --mono:"SF Mono","JetBrains Mono","Fira Code",monospace;
+  --bg:#080b11; --bg2:#0a0f17; --panel:#0f1824; --panel-hi:#13202f;
+  --border:rgba(126,166,196,.13); --border-hi:rgba(126,166,196,.28);
+  --ink:#dce7f2; --dim:#7f95ab; --faint:#516378;
+  --cyan:#22d3ee; --teal:#2dd4bf; --green:#34d399; --amber:#fbbf24;
+  --red:#f87171; --blue:#60a5fa; --purple:#a78bfa; --indigo:#818cf8;
+  --shadow:0 8px 30px rgba(0,0,0,.45);
+  --mono:ui-monospace,"JetBrains Mono","SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --sp:14px; --r:13px;
 }
-*{box-sizing:border-box} body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);margin:0}
-header{display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
-header h1{font-size:1.05rem;margin:0;color:var(--teal);letter-spacing:1px}
-#status{margin-left:auto;font-size:.8rem;color:var(--dim);font-family:var(--mono)}
-nav{display:flex;gap:.2rem;padding:.5rem 1rem;flex-wrap:wrap;border-bottom:1px solid var(--border)}
-nav button{background:var(--panel);color:var(--dim);border:1px solid var(--border);border-radius:8px;
-  padding:.35rem .8rem;font-size:.8rem;cursor:pointer}
-nav button.on{color:var(--teal);border-color:var(--teal)}
-main{padding:1rem;max-width:820px;margin:0 auto}
-.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;margin:.4rem 0}
-.muted{color:var(--dim);font-size:.85rem} .row{display:flex;align-items:center;gap:.5rem}
-.badge{font-size:.7rem;padding:.1rem .5rem;border-radius:6px;border:1px solid var(--border)}
-.kpi{font-size:2rem;font-weight:700;color:var(--green)} .grow{flex:1}
-.hide{display:none} h2{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:.6rem 0 .3rem}
-.bar{height:8px;border-radius:4px;background:var(--teal)}
-.empty{color:var(--dim);text-align:center;padding:2rem}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:var(--sans);color:var(--ink);
+  background:
+    radial-gradient(1200px 600px at 82% -8%,rgba(34,211,238,.07),transparent 60%),
+    radial-gradient(900px 500px at 8% 108%,rgba(129,140,248,.06),transparent 55%),
+    var(--bg);
+  min-height:100dvh;-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+}
+/* ---- header ---- */
+header{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:.7rem;
+  padding:.7rem 1rem;padding-top:calc(.7rem + env(safe-area-inset-top));
+  background:rgba(8,11,17,.82);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:.5rem}
+.brand svg{width:26px;height:26px;color:var(--cyan);filter:drop-shadow(0 0 6px rgba(34,211,238,.5))}
+.brand h1{
+  font:700 .98rem/1 var(--mono);margin:0;letter-spacing:.34em;
+  color:var(--ink);text-transform:uppercase;padding-left:.14em;
+}
+.clock{margin-left:auto;font:500 .82rem/1 var(--mono);color:var(--dim);letter-spacing:.06em}
+.status{display:flex;align-items:center;gap:.4rem;font:500 .74rem/1 var(--mono);
+  color:var(--dim);padding:.32rem .6rem;border:1px solid var(--border);border-radius:99px;
+  text-transform:uppercase;letter-spacing:.1em}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.status.on .dot{background:var(--green);box-shadow:0 0 0 0 rgba(52,211,153,.55);animation:pulse 2.2s infinite}
+.status.off .dot{background:var(--red)}
+.status.on{color:var(--green);border-color:rgba(52,211,153,.3)}
+.status.off{color:var(--red);border-color:rgba(248,113,113,.3)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 7px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+/* ---- nav ---- */
+nav{position:sticky;top:52px;z-index:10;display:flex;gap:.35rem;padding:.55rem 1rem;
+  overflow-x:auto;scrollbar-width:none;background:rgba(8,11,17,.7);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border)}
+nav::-webkit-scrollbar{display:none}
+nav button{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;cursor:pointer;
+  background:var(--panel);color:var(--dim);border:1px solid var(--border);border-radius:99px;
+  padding:.42rem .8rem;font:600 .78rem/1 var(--sans);transition:all .18s ease}
+nav button svg{width:15px;height:15px;opacity:.85}
+nav button:hover{color:var(--ink);border-color:var(--border-hi);transform:translateY(-1px)}
+nav button.on{color:#06121a;background:linear-gradient(180deg,var(--cyan),#12b6cf);
+  border-color:transparent;box-shadow:0 0 16px rgba(34,211,238,.35)}
+nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+/* ---- layout ---- */
+main{max-width:960px;margin:0 auto;padding:1rem;padding-bottom:calc(2rem + env(safe-area-inset-bottom))}
+.grid{display:grid;gap:var(--sp)}
+@media(min-width:720px){.grid.two{grid-template-columns:1fr 1fr}}
+/* ---- panel ---- */
+.panel{background:linear-gradient(180deg,var(--panel-hi),var(--panel));
+  border:1px solid var(--border);border-radius:var(--r);padding:.8rem .95rem;
+  transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.panel:hover{border-color:var(--border-hi);box-shadow:var(--shadow)}
+.row{display:flex;align-items:center;gap:.6rem}
+.grow{flex:1;min-width:0}
+.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.muted{color:var(--dim);font-size:.82rem}
+.mono{font-family:var(--mono)}
+.time{font:500 .72rem/1 var(--mono);color:var(--faint);flex:none;letter-spacing:.04em}
+h2.sec{font:600 .72rem/1 var(--mono);color:var(--faint);text-transform:uppercase;
+  letter-spacing:.2em;margin:1.1rem .2rem .5rem}
+/* ---- badge / chip ---- */
+.badge{font:600 .66rem/1.4 var(--mono);text-transform:uppercase;letter-spacing:.09em;
+  padding:.2rem .5rem;border-radius:6px;border:1px solid currentColor;flex:none}
+.badge.soft{border-color:transparent}
+/* ---- feed timeline ---- */
+.tl{position:relative;margin-left:.5rem}
+.tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;
+  background:linear-gradient(var(--border-hi),var(--border),transparent)}
+.tl .item{position:relative;padding:.15rem 0 .15rem 1.5rem;margin-bottom:.55rem}
+.tl .node{position:absolute;left:0;top:.5rem;width:12px;height:12px;border-radius:50%;
+  border:2px solid var(--bg);box-shadow:0 0 0 1px currentColor,0 0 9px currentColor}
+.tl .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:.55rem .7rem;transition:border-color .18s}
+.tl .item:hover .card{border-color:var(--border-hi)}
+/* ---- progress bar ---- */
+.track{height:9px;border-radius:99px;background:rgba(126,166,196,.1);overflow:hidden;margin-top:.55rem}
+.fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--blue),var(--cyan));
+  position:relative;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.fill::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent);
+  transform:translateX(-100%);animation:shimmer 2.6s infinite}
+@keyframes shimmer{100%{transform:translateX(100%)}}
+/* ---- usage kpi ---- */
+.kpi{text-align:center;padding:.4rem 0 .2rem}
+.kpi .big{font:800 2.6rem/1 var(--mono);letter-spacing:-.02em;
+  background:linear-gradient(180deg,#e8fbff,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+.kpi .sub{color:var(--dim);font:500 .78rem/1 var(--mono);letter-spacing:.08em;margin-top:.35rem}
+.barmini{height:7px;border-radius:99px;background:rgba(126,166,196,.1);overflow:hidden;margin-top:.5rem}
+.barmini>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green),var(--teal));transition:width .6s cubic-bezier(.2,.7,.2,1)}
+/* ---- empty / skeleton ---- */
+.empty{display:flex;flex-direction:column;align-items:center;gap:.6rem;color:var(--faint);
+  text-align:center;padding:3rem 1rem}
+.empty svg{width:34px;height:34px;opacity:.5}
+.empty p{margin:0;font:500 .88rem/1.4 var(--sans);color:var(--dim)}
+.skel{background:linear-gradient(180deg,var(--panel-hi),var(--panel));border:1px solid var(--border);
+  border-radius:var(--r);padding:.9rem;overflow:hidden}
+.skel i{display:block;height:11px;border-radius:6px;margin:.35rem 0;
+  background:linear-gradient(90deg,rgba(126,166,196,.08),rgba(126,166,196,.2),rgba(126,166,196,.08));
+  background-size:200% 100%;animation:sweep 1.3s infinite}
+@keyframes sweep{100%{background-position:-200% 0}}
+/* ---- entrance stagger ---- */
+.enter>*{animation:fadeup .42s cubic-bezier(.2,.7,.2,1) both}
+.enter>*:nth-child(1){animation-delay:.02s}.enter>*:nth-child(2){animation-delay:.06s}
+.enter>*:nth-child(3){animation-delay:.1s}.enter>*:nth-child(4){animation-delay:.14s}
+.enter>*:nth-child(5){animation-delay:.18s}.enter>*:nth-child(6){animation-delay:.22s}
+.enter>*:nth-child(7){animation-delay:.26s}.enter>*:nth-child(n+8){animation-delay:.3s}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .fill::after{display:none}
+}
 </style></head><body>
-<header><h1>◎ CYCLOPS</h1><span id=status>connecting…</span></header>
-<nav id=nav></nav>
+<header>
+  <div class=brand>
+    <svg viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round aria-hidden=true>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx=12 cy=12 r=3.2/></svg>
+    <h1>Cyclops</h1>
+  </div>
+  <span class=clock id=clock>--:--:--</span>
+  <span class=status id=status><span class=dot></span><span id=statustxt>link</span></span>
+</header>
+<nav id=nav aria-label="Sections"></nav>
 <main id=main></main>
 <script>
 const TABS=[
- ['feed','Activity'],['notes','Notes'],['entities','Entities'],
- ['progress','Progress'],['proposals','Proposals'],['cost','Usage']];
-let tab='feed';
-const el=(h)=>{const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild};
-const esc=(s)=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const kindColor={user:'--teal',assistant:'--ink',hud:'--green',dream:'--purple',proposal:'--teal',risk:'--amber',insight:'--green'};
-const pdcaColor={Plan:'--dim',Do:'--blue',Check:'--amber',Act:'--green'};
+ ['feed','Activity','activity'],['notes','Notes','note'],['entities','Entities','tag'],
+ ['progress','Progress','chart'],['proposals','Proposals','spark'],['cost','Usage','coin']];
+const ICONS={
+ activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+ note:'<path d="M4 4h13l3 3v13H4z"/><path d="M9 9h7M9 13h7M9 17h4"/>',
+ tag:'<path d="M20.6 13.4 13 21l-9-9V4h8z"/><circle cx="8.5" cy="8.5" r="1.4"/>',
+ chart:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/>',
+ spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>',
+ coin:'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+ inbox:'<path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 13 7 4h10l2 9v6H5z"/>'};
+const svg=(n,cls)=>`<svg class="${cls||''}" viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.7 stroke-linecap=round stroke-linejoin=round aria-hidden=true>${ICONS[n]||''}</svg>`;
+const KIND={user:'#22d3ee',assistant:'#94a3b8',hud:'#34d399',dream:'#a78bfa',proposal:'#22d3ee',risk:'#fbbf24',insight:'#34d399'};
+const PDCA={Plan:'#7f95ab',Do:'#60a5fa',Check:'#fbbf24',Act:'#34d399'};
+const kc=k=>KIND[k]||'#7f95ab', pc=p=>PDCA[p]||'#7f95ab';
+const rgba=(hex,a)=>{const h=hex.replace('#','');const n=parseInt(h,16);return`rgba(${n>>16&255},${n>>8&255},${n&255},${a})`};
 
+const el=h=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstElementChild};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hhmm=ts=>{const m=String(ts||'').match(/(\d{2}:\d{2})/);return m?m[1]:''};
 async function j(p){try{const r=await fetch(p);if(!r.ok)throw 0;return await r.json()}catch(e){return null}}
 
-async function ping(){
-  const h=await j('/health'); const s=document.getElementById('status');
-  s.textContent = h?'● online':'● offline'; s.style.color = h?'var(--green)':'var(--red)';
-}
+let tab='feed';
+const cache={};                 // tab -> {hash, html}
 
-function panel(html){return `<div class=panel>${html}</div>`}
+function panel(inner){return `<div class=panel>${inner}</div>`}
+function badge(txt,color,soft){return `<span class="badge${soft?' soft':''}" style="color:${color}${soft?';background:'+rgba(color,.14):''}">${esc(txt)}</span>`}
+function empty(icon,msg){return `<div class=empty>${svg(icon)}<p>${esc(msg)}</p></div>`}
+function skeleton(){let r='';for(let i=0;i<5;i++)r+=`<div class=skel><i style=width:${40+i*10}%></i><i style=width:${70-i*8}%></i></div>`;return `<div class="grid">${r}</div>`}
 
-async function render(){
-  const m=document.getElementById('main'); m.innerHTML='<div class=empty>loading…</div>';
-  if(tab==='feed'){
-    const d=await j('/api/feed')||[];
-    m.innerHTML = d.length? d.map(e=>panel(
-      `<div class=row><span class=badge style="color:var(${kindColor[e.kind]||'--dim'})">${esc(e.kind)}</span>
-       <span class=grow>${esc(e.message)}</span><span class=muted style=font-size:.7rem>${esc((e.ts||'').slice(11,16))}</span></div>`)).join('')
-      : '<div class=empty>No activity yet.</div>';
-  } else if(tab==='notes'){
-    const d=await j('/api/notes')||[];
-    m.innerHTML = d.length? d.slice().reverse().map(n=>panel(
-      `<span class=badge style=color:var(--teal)>${esc(n.type)}</span> ${esc(n.text)}
-       ${n.due?`<span class=muted> · due ${esc(n.due)}</span>`:''}`)).join('')
-      : '<div class=empty>No notes yet.</div>';
-  } else if(tab==='entities'){
-    const d=await j('/api/entities')||[];
-    m.innerHTML = d.length? d.map(e=>panel(
-      `<div class=row><b class=grow>${esc(e.name)}</b>
-       <span class=muted>seen ${e.seen_count}×</span>
-       <span class=badge style=color:var(--teal)>${esc(e.type)}</span></div>`)).join('')
-      : '<div class=empty>Nothing seen yet.</div>';
-  } else if(tab==='progress'){
-    const d=await j('/api/domains')||[];
-    m.innerHTML = d.length? d.map(x=>panel(
-      `<div class=row><b class=grow>${esc(x.domain)}</b>
-       <span class=muted>${x.count} · avg ${esc(x.grade_label)}</span>
-       <span class=badge style="color:var(${pdcaColor[x.pdca]||'--dim'});border-color:var(${pdcaColor[x.pdca]||'--border'})">${esc(x.pdca)}</span></div>
-       <div class=bar style="width:${Math.round((x.avg||0)*100)}%;margin-top:.4rem;background:var(${pdcaColor[x.pdca]||'--teal'})"></div>`)).join('')
-      : '<div class=empty>No graded areas yet.</div>';
-  } else if(tab==='proposals'){
-    const d=await j('/api/dreams')||[];
-    m.innerHTML = d.length? d.map(x=>panel(
-      `<div class=badge style=color:var(${kindColor[x.kind]||'--green'})>${esc(x.kind).toUpperCase()}</div>
-       <div style=margin-top:.3rem>${esc(x.message)}</div>`)).join('')
-      : '<div class=empty>No proposals right now.</div>';
-  } else if(tab==='cost'){
-    const c=await j('/api/cost'); const provs=c&&c.providers||{}; const tot=c&&c.total||{};
-    const names=Object.keys(provs); const max=Math.max(1,...names.map(n=>provs[n].usd||0));
-    m.innerHTML = panel(`<div style=text-align:center><div class=kpi>$${(tot.usd||0).toFixed(2)}</div>
-       <div class=muted>${tot.calls||0} calls</div></div>`) +
-      (names.length? names.sort((a,b)=>provs[b].usd-provs[a].usd).map(n=>panel(
-        `<div class=row><b class=grow>${esc(n)}</b><span class=muted>${provs[n].calls} calls</span>
-         <b style=color:var(--green)>$${(provs[n].usd||0).toFixed(3)}</b></div>
-         <div class=bar style="width:${Math.round((provs[n].usd/max)*100)}%;margin-top:.4rem"></div>`)).join('')
-        : '<div class=empty>No usage yet.</div>');
-  }
+const VIEWS={
+ feed(d){ if(!d||!d.length) return empty('inbox','No activity yet.');
+   return `<div class="tl enter">`+d.map(e=>{const c=kc(e.kind);
+     return `<div class=item><span class=node style="color:${c}"></span>
+       <div class=card><div class=row>
+         ${badge(e.kind,c,true)}
+         <span class="grow trunc">${esc(e.message)}</span>
+         <span class=time>${esc(hhmm(e.ts))}</span></div></div></div>`}).join('')+`</div>`; },
+
+ notes(d){ if(!d||!d.length) return empty('note','No notes captured yet.');
+   return `<div class="grid two enter">`+d.slice().reverse().map(n=>{
+     const due=n.due?`<span class=time style="color:${'--amber'}">due ${esc(n.due)}</span>`:'';
+     return panel(`<div class=row style=margin-bottom:.35rem>${badge(n.type||'note','#22d3ee',true)}
+       ${n.due?`<span class=time style=color:var(--amber);margin-left:auto>DUE ${esc(n.due)}</span>`:''}</div>
+       <div style=line-height:1.5>${esc(n.text)}</div>`)}).join('')+`</div>`; },
+
+ entities(d){ if(!d||!d.length) return empty('tag','Nothing recognized yet.');
+   const max=Math.max(1,...d.map(e=>e.seen_count||0));
+   return `<div class="grid two enter">`+d.map(e=>panel(
+     `<div class=row><b class="grow trunc">${esc(e.name)}</b>
+       ${badge(e.type,'#818cf8',true)}</div>
+      <div class=barmini><i style="width:${Math.round((e.seen_count/max)*100)}%"></i></div>
+      <div class=muted style=margin-top:.35rem>seen <b style=color:var(--ink)>${e.seen_count}</b>×</div>`)).join('')+`</div>`; },
+
+ progress(d){ if(!d||!d.length) return empty('chart','No graded areas yet.');
+   return `<div class="grid enter">`+d.map(x=>{const c=pc(x.pdca),pct=Math.round((x.avg||0)*100);
+     return panel(`<div class=row>
+        <b class="grow trunc">${esc(x.domain)}</b>
+        <span class=muted style=margin-right:.5rem>${x.count}· ${esc(x.grade_label)}</span>
+        ${badge(x.pdca,c)}</div>
+      <div class=track><div class=fill style="width:${pct}%;background:linear-gradient(90deg,${rgba(c,.5)},${c})"></div></div>`)}).join('')+`</div>`; },
+
+ proposals(d){ if(!d||!d.length) return empty('spark','No proposals right now.');
+   return `<div class="grid two enter">`+d.map(x=>{const c=kc(x.kind);
+     return `<div class=panel style="border-left:3px solid ${c}">
+       ${badge(x.kind,c,true)}
+       <div style=margin-top:.5rem;line-height:1.5>${esc(x.message)}</div></div>`}).join('')+`</div>`; },
+
+ cost(d){ const provs=d&&d.providers||{}, tot=d&&d.total||{};
+   const names=Object.keys(provs).sort((a,b)=>(provs[b].usd||0)-(provs[a].usd||0));
+   const max=Math.max(...names.map(n=>provs[n].usd||0),.0001);
+   const head=panel(`<div class=kpi><div class=big>$${(tot.usd||0).toFixed(2)}</div>
+     <div class=sub>${(tot.calls||0).toLocaleString()} CALLS TOTAL</div></div>`);
+   if(!names.length) return `<div class="grid enter">${head}${empty('coin','No usage recorded yet.')}</div>`;
+   const rows=names.map(n=>{const p=provs[n];
+     return panel(`<div class=row>
+        <b class="grow trunc">${esc(n)}</b>
+        <span class=muted>${(p.calls||0).toLocaleString()} calls</span>
+        <b class=mono style="color:var(--green);margin-left:.4rem">$${(p.usd||0).toFixed(3)}</b></div>
+      <div class=barmini><i style="width:${Math.round((p.usd/max)*100)}%"></i></div>`)}).join('');
+   return `<div class="grid enter">${head}${rows}</div>`; }
+};
+const SRC={feed:'/api/feed',notes:'/api/notes',entities:'/api/entities',
+  progress:'/api/domains',proposals:'/api/dreams',cost:'/api/cost'};
+
+async function render(force){
+  const m=document.getElementById('main'), t=tab;
+  if(force){ m.innerHTML=skeleton(); }              // skeleton only on tab switch
+  const d=await j(SRC[t]);
+  if(t!==tab) return;                               // user switched mid-fetch
+  const html=VIEWS[t](d), hash=JSON.stringify(d);
+  if(!force && cache[t] && cache[t].hash===hash) return;  // no change -> no flicker
+  cache[t]={hash,html};
+  m.innerHTML=html;
 }
 
 function buildNav(){
-  const n=document.getElementById('nav');
-  n.innerHTML='';
-  for(const [id,label] of TABS){
-    const b=el(`<button class="${id===tab?'on':''}">${label}</button>`);
-    b.onclick=()=>{tab=id;buildNav();render()};
+  const n=document.getElementById('nav');n.innerHTML='';
+  for(const [id,label,icon] of TABS){
+    const b=el(`<button class="${id===tab?'on':''}" aria-pressed="${id===tab}">${svg(icon)}<span>${label}</span></button>`);
+    b.onclick=()=>{if(tab===id)return;tab=id;buildNav();render(true)};
     n.appendChild(b);
   }
 }
-buildNav(); render(); ping();
-setInterval(()=>{ping();render()},4000);
+async function ping(){
+  const h=await j('/health'), s=document.getElementById('status');
+  const ok=!!h; s.className='status '+(ok?'on':'off');
+  document.getElementById('statustxt').textContent=ok?'online':'offline';
+}
+function tick(){const d=new Date();
+  document.getElementById('clock').textContent=d.toTimeString().slice(0,8);}
+
+buildNav(); render(true); ping(); tick();
+setInterval(tick,1000);
+setInterval(()=>{ping();render(false)},4000);
 </script></body></html>
