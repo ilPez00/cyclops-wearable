@@ -180,11 +180,18 @@ def _safe_capture_ip(host: str) -> str:
         ip = ipaddress.ip_address(raw)
         if ip.is_link_local or ip.is_multicast or ip.is_unspecified or ip.is_reserved:
             raise ValueError(f"blocked address {raw} (SSRF guard)")
-        if ip.is_loopback and not CAPTURE_ALLOW_LOOPBACK:
-            raise ValueError(
-                f"blocked loopback {raw} — set CYCLOPS_CAPTURE_ALLOW_LOOPBACK=1 "
-                "only for local testing"
-            )
+        if ip.is_loopback:
+            if not CAPTURE_ALLOW_LOOPBACK:
+                raise ValueError(
+                    f"blocked loopback {raw} — set CYCLOPS_CAPTURE_ALLOW_LOOPBACK=1 "
+                    "only for local testing"
+                )
+            continue  # loopback is is_private too; the flag already allowed it
+        # The wearable is always on the LAN. Refusing public/global targets
+        # stops an attacker-controlled public host from being used as a capture
+        # target (and, with -max_redirects 0 below, as a redirect springboard).
+        if not ip.is_private:
+            raise ValueError(f"blocked non-private address {raw} (LAN targets only)")
     # every resolved address passed; pin one so ffmpeg connects to it exactly.
     return sorted(ips)[0]
 
@@ -225,6 +232,7 @@ def capture_stream(url: str, cat: str, secs: float = 5.0) -> dict:
     # cap idle read time; -t bounds how long ffmpeg reads the input.
     in_opts = [
         "-protocol_whitelist", "http,https,tcp,tls,crypto",
+        "-max_redirects", "0",  # don't let a 3xx bounce ffmpeg past the IP pin
         "-headers", f"Host: {host_hdr}\r\n",
         "-rw_timeout", str(int((secs + 15) * 1_000_000)),
         "-t", str(secs),
