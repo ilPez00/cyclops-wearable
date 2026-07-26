@@ -21,8 +21,16 @@ from agent.tools import build_registry  # noqa: E402
 from brain.factory import build_pipeline  # noqa: E402
 from brain.store import NoteStore  # noqa: E402
 
+try:
+    from app import media  # noqa: E402  captured-media store (images/audio/video)
+except ImportError:  # launched from inside app/ (script dir on sys.path)
+    import media  # type: ignore  # noqa: E402
+
 STORE_PATH = os.path.expanduser("~/.cyclops/notes.jsonl")
 PROFILE_PATH = os.path.expanduser("~/.cyclops/profile.json")
+# Auto-save frames that pass through /api/vision into captures/images.
+# On by default; set CYCLOPS_SAVE_CAPTURES=0 to disable.
+SAVE_CAPTURES = os.environ.get("CYCLOPS_SAVE_CAPTURES", "1") != "0"
 PORT = 8080
 pipeline = None
 agent = None
@@ -571,6 +579,24 @@ class H(BaseHTTPRequestHandler):
                 "gate": gate.to_dict() if gate else None,
             }
             return self._send(200, json.dumps(st))
+        if p.path == "/api/media":
+            # ?cat=images|audio|video -> newest-first listing for that folder.
+            cat = parse_qs(p.query).get("cat", ["images"])[0]
+            try:
+                return self._send(200, json.dumps(media.list_media(cat)))
+            except ValueError as e:
+                return self._send(400, json.dumps({"error": str(e)}))
+        if p.path == "/api/media/counts":
+            return self._send(200, json.dumps(media.counts()))
+        if p.path.startswith("/media/"):
+            # /media/<cat>/<name> -> raw bytes with the right content-type.
+            parts = p.path.split("/", 3)  # ['', 'media', cat, name]
+            if len(parts) == 4:
+                got = media.read_media(parts[2], parts[3])
+                if got is not None:
+                    raw, mime = got
+                    return self._send(200, raw, mime)
+            return self._send(404, json.dumps({"error": "not found"}))
         self._send(404, json.dumps({"error": "not found"}))
 
     def do_POST(self):
@@ -730,12 +756,21 @@ class H(BaseHTTPRequestHandler):
         if p.path == "/api/vision":
             # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
             # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
+            img = data.get("image", "")
+            # Record the frame to captures/images so the Files tab has history.
+            # Only inline data (base64/data:) is saved, never a remote URL.
+            saved = None
+            if SAVE_CAPTURES and img and not img.lstrip().lower().startswith(("http://", "https://")):
+                try:
+                    saved = media.save_media(img, cat="images")
+                except Exception:
+                    saved = None
             try:
                 out = _get_vision_fn()(
-                    data.get("image", ""),
+                    img,
                     data.get("prompt", "Describe this image concisely."),
                 )
-                return self._send(200, json.dumps({"result": out}))
+                return self._send(200, json.dumps({"result": out, "saved": saved}))
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
         if p.path == "/api/settings":
@@ -801,6 +836,19 @@ class H(BaseHTTPRequestHandler):
                 )
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
+        if p.path == "/api/media":
+            # Explicit capture push: {"data":"data:<mime>;base64,..."|"<b64>",
+            #                         "cat"?:images|audio|video, "ext"?:"jpg"}.
+            # cat/ext are inferred from a data: URL's MIME when omitted.
+            try:
+                entry = media.save_media(
+                    data.get("data", ""), cat=data.get("cat"), ext=data.get("ext")
+                )
+                return self._send(200, json.dumps({"ok": True, "file": entry}))
+            except ValueError as e:
+                return self._send(400, json.dumps({"error": str(e)}))
+            except Exception as e:
+                return self._send(500, json.dumps({"error": str(e)}))
         self._send(404, json.dumps({"error": "not found"}))
 
     def log_message(self, *a):

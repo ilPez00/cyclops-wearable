@@ -118,6 +118,30 @@ h2.sec{font:600 .72rem/1 var(--mono);color:var(--faint);text-transform:uppercase
   background:linear-gradient(90deg,rgba(126,166,196,.08),rgba(126,166,196,.2),rgba(126,166,196,.08));
   background-size:200% 100%;animation:sweep 1.3s infinite}
 @keyframes sweep{100%{background-position:-200% 0}}
+/* ---- files: sub-nav + media grid ---- */
+.subnav{display:flex;gap:.35rem;margin-bottom:.9rem;flex-wrap:wrap}
+.subnav button{display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;
+  background:var(--panel);color:var(--dim);border:1px solid var(--border);border-radius:8px;
+  padding:.4rem .7rem;font:600 .76rem/1 var(--sans);transition:all .16s ease}
+.subnav button svg{width:14px;height:14px;opacity:.85}
+.subnav button:hover{color:var(--ink);border-color:var(--border-hi)}
+.subnav button.on{color:var(--cyan);border-color:var(--cyan);background:rgba(34,211,238,.08)}
+.subnav .n{font:600 .68rem/1 var(--mono);opacity:.7}
+.mgrid{display:grid;gap:var(--sp);grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.mgrid.wide{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.mcard{background:var(--panel);border:1px solid var(--border);border-radius:11px;overflow:hidden;
+  transition:border-color .18s,transform .18s}
+.mcard:hover{border-color:var(--border-hi);transform:translateY(-2px)}
+.mcard a.thumbwrap{display:block;aspect-ratio:4/3;background:#060a10;position:relative}
+.mcard img.thumb{width:100%;height:100%;object-fit:cover;display:block}
+.mcard audio,.mcard video{display:block;width:100%}
+.mcard video{aspect-ratio:4/3;object-fit:cover;background:#060a10}
+.mcard .meta{padding:.5rem .6rem;display:flex;align-items:center;gap:.5rem}
+.mcard .meta .nm{font:600 .74rem/1.2 var(--mono);color:var(--ink);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.mcard .meta .sz{font:500 .68rem/1 var(--mono);color:var(--faint);flex:none}
+.mcard .dl{color:var(--dim);flex:none;display:flex}.mcard .dl:hover{color:var(--cyan)}
+.mcard .dl svg{width:15px;height:15px}
 /* ---- entrance stagger ---- */
 .enter>*{animation:fadeup .42s cubic-bezier(.2,.7,.2,1) both}
 .enter>*:nth-child(1){animation-delay:.02s}.enter>*:nth-child(2){animation-delay:.06s}
@@ -133,7 +157,7 @@ h2.sec{font:600 .72rem/1 var(--mono);color:var(--faint);text-transform:uppercase
 <header>
   <div class=brand>
     <svg viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round aria-hidden=true>
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx=12 cy=12 r=3.2/></svg>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3.2"/></svg>
     <h1>Cyclops</h1>
   </div>
   <span class=clock id=clock>--:--:--</span>
@@ -144,7 +168,8 @@ h2.sec{font:600 .72rem/1 var(--mono);color:var(--faint);text-transform:uppercase
 <script>
 const TABS=[
  ['feed','Activity','activity'],['notes','Notes','note'],['entities','Entities','tag'],
- ['progress','Progress','chart'],['proposals','Proposals','spark'],['cost','Usage','coin']];
+ ['progress','Progress','chart'],['proposals','Proposals','spark'],
+ ['files','Files','folder'],['cost','Usage','coin']];
 const ICONS={
  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
  note:'<path d="M4 4h13l3 3v13H4z"/><path d="M9 9h7M9 13h7M9 17h4"/>',
@@ -152,6 +177,11 @@ const ICONS={
  chart:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/>',
  spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>',
  coin:'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+ folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+ image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5L5 20"/>',
+ audio:'<path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>',
+ video:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/>',
+ download:'<path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
  inbox:'<path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 13 7 4h10l2 9v6H5z"/>'};
 const svg=(n,cls)=>`<svg class="${cls||''}" viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=1.7 stroke-linecap=round stroke-linejoin=round aria-hidden=true>${ICONS[n]||''}</svg>`;
 const KIND={user:'#22d3ee',assistant:'#94a3b8',hud:'#34d399',dream:'#a78bfa',proposal:'#22d3ee',risk:'#fbbf24',insight:'#34d399'};
@@ -162,10 +192,13 @@ const rgba=(hex,a)=>{const h=hex.replace('#','');const n=parseInt(h,16);return`r
 const el=h=>{const d=document.createElement('div');d.innerHTML=h.trim();return d.firstElementChild};
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hhmm=ts=>{const m=String(ts||'').match(/(\d{2}:\d{2})/);return m?m[1]:''};
+const fmtSz=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toFixed(1)+' MB';
 async function j(p){try{const r=await fetch(p);if(!r.ok)throw 0;return await r.json()}catch(e){return null}}
 
 let tab='feed';
+let mcat='images';              // active Files sub-category
 const cache={};                 // tab -> {hash, html}
+const MCATS=[['images','Images','image'],['audio','Audio','audio'],['video','Video','video']];
 
 function panel(inner){return `<div class=panel>${inner}</div>`}
 function badge(txt,color,soft){return `<span class="badge${soft?' soft':''}" style="color:${color}${soft?';background:'+rgba(color,.14):''}">${esc(txt)}</span>`}
@@ -227,9 +260,41 @@ const VIEWS={
 const SRC={feed:'/api/feed',notes:'/api/notes',entities:'/api/entities',
   progress:'/api/domains',proposals:'/api/dreams',cost:'/api/cost'};
 
+function mcard(f){
+  const dl=`<a class=dl href="${f.url}" download="${esc(f.name)}" title="Download">${svg('download')}</a>`;
+  const meta=`<div class=meta><span class=nm title="${esc(f.name)}">${esc(f.name)}</span>
+    <span class=sz>${fmtSz(f.size)}</span>${dl}</div>`;
+  if(f.cat==='images')
+    return `<div class=mcard><a class=thumbwrap href="${f.url}" target=_blank rel=noopener>
+      <img class=thumb loading=lazy src="${f.url}" alt="${esc(f.name)}"></a>${meta}</div>`;
+  if(f.cat==='audio')
+    return `<div class=mcard><audio controls preload=none src="${f.url}"></audio>${meta}</div>`;
+  return `<div class=mcard><video controls preload=metadata src="${f.url}"></video>${meta}</div>`;
+}
+async function renderFiles(force){
+  const m=document.getElementById('main');
+  const [counts,list]=await Promise.all([j('/api/media/counts'),j('/api/media?cat='+mcat)]);
+  if(tab!=='files') return;
+  const c=counts||{}, files=list||[];
+  const hash=mcat+':'+JSON.stringify(files)+JSON.stringify(c);
+  if(!force && cache.files && cache.files.hash===hash) return;
+  cache.files={hash};
+  const sub=`<div class=subnav>`+MCATS.map(([id,label,icon])=>
+    `<button class="${id===mcat?'on':''}" data-mc="${id}">${svg(icon)}<span>${label}</span>
+      <span class=n>${c[id]??0}</span></button>`).join('')+`</div>`;
+  const body=files.length
+    ? `<div class="mgrid${mcat==='images'?'':' wide'} enter">`+files.map(mcard).join('')+`</div>`
+    : empty(mcat==='images'?'image':mcat==='audio'?'audio':'video',
+        'No '+mcat+' captured yet.');
+  m.innerHTML=sub+body;
+  m.querySelectorAll('.subnav button').forEach(b=>b.onclick=()=>{
+    if(mcat===b.dataset.mc)return; mcat=b.dataset.mc; render(true);});
+}
+
 async function render(force){
   const m=document.getElementById('main'), t=tab;
   if(force){ m.innerHTML=skeleton(); }              // skeleton only on tab switch
+  if(t==='files'){ return renderFiles(force); }
   const d=await j(SRC[t]);
   if(t!==tab) return;                               // user switched mid-fetch
   const html=VIEWS[t](d), hash=JSON.stringify(d);
