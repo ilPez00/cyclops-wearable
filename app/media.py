@@ -11,13 +11,15 @@ Pure stdlib, no third-party deps (matches app/server.py).
 from __future__ import annotations
 
 import base64
+import ipaddress
 import os
 import re
 import shutil
+import socket
 import subprocess
 import time
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 CAPTURES_DIR = os.path.expanduser("~/.cyclops/captures")
 
@@ -153,6 +155,38 @@ _FFMPEG_OUT = {
 
 # clamp: capture is a foreground subprocess on the app's request thread.
 MAX_CAPTURE_SECS = 60
+# Allow loopback capture targets (local mock/testing). Off by default so a LAN
+# client cannot make the app fetch its own localhost-only services.
+CAPTURE_ALLOW_LOOPBACK = os.environ.get("CYCLOPS_CAPTURE_ALLOW_LOOPBACK", "0") == "1"
+
+
+def _safe_capture_ip(host: str) -> str:
+    """Resolve `host` and return a vetted literal IP, or raise ValueError.
+
+    SSRF guard: /api/capture takes a client-supplied URL and the app binds
+    0.0.0.0, so a LAN client could otherwise make the server fetch cloud
+    metadata (link-local 169.254.0.0/16), loopback admin ports, or other
+    internal endpoints. We reject those ranges and pin the resolved IP into
+    the ffmpeg URL (below) so DNS rebinding can't swap it afterwards.
+    """
+    if not host:
+        raise ValueError("url has no host")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        raise ValueError(f"cannot resolve host: {host}")
+    ips = {info[4][0] for info in infos}
+    for raw in ips:
+        ip = ipaddress.ip_address(raw)
+        if ip.is_link_local or ip.is_multicast or ip.is_unspecified or ip.is_reserved:
+            raise ValueError(f"blocked address {raw} (SSRF guard)")
+        if ip.is_loopback and not CAPTURE_ALLOW_LOOPBACK:
+            raise ValueError(
+                f"blocked loopback {raw} — set CYCLOPS_CAPTURE_ALLOW_LOOPBACK=1 "
+                "only for local testing"
+            )
+    # every resolved address passed; pin one so ffmpeg connects to it exactly.
+    return sorted(ips)[0]
 
 
 def capture_stream(url: str, cat: str, secs: float = 5.0) -> dict:
@@ -174,12 +208,29 @@ def capture_stream(url: str, cat: str, secs: float = 5.0) -> dict:
     except (TypeError, ValueError):
         raise ValueError("secs must be a number")
 
+    # SSRF guard: resolve + reject internal ranges, then connect to the vetted
+    # IP so DNS can't rebind between check and fetch.
+    ip = _safe_capture_ip(parts.hostname)
+    host_hdr = parts.netloc
+    ip_netloc = f"[{ip}]" if ":" in ip else ip
+    if parts.port:
+        ip_netloc += f":{parts.port}"
+    conn_url = urlunsplit((parts.scheme, ip_netloc, parts.path or "/", parts.query, ""))
+
     ext, codec = _FFMPEG_OUT[cat]
     name = f"{time.strftime('%Y%m%d-%H%M%S')}-{int(time.time() * 1000) % 1000:03d}.{ext}"
     path = os.path.join(_cat_dir(cat), name)
-    # -t before -i bounds how long ffmpeg reads the input; list args (no shell).
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-t", str(secs),
-           "-i", url, *codec, path]
+    # Input options (before -i): restrict protocols so a malicious playlist
+    # can't reach file://; keep the original Host header for the pinned IP;
+    # cap idle read time; -t bounds how long ffmpeg reads the input.
+    in_opts = [
+        "-protocol_whitelist", "http,https,tcp,tls,crypto",
+        "-headers", f"Host: {host_hdr}\r\n",
+        "-rw_timeout", str(int((secs + 15) * 1_000_000)),
+        "-t", str(secs),
+    ]
+    # list args (no shell) — url values never touch a shell.
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", *in_opts, "-i", conn_url, *codec, path]
     try:
         proc = subprocess.run(cmd, capture_output=True, timeout=secs + 25)
     except subprocess.TimeoutExpired:
