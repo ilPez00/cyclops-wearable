@@ -29,6 +29,20 @@ python3 device/cli.py pebble    # omi-pebble variant
 python3 app/server.py 8080      # web dashboard
 ```
 
+The dashboard binds `0.0.0.0` so the phone can reach it, and `POST /api/agent`
+carries the terminal tool — so **every route except `/health` is token-gated
+for non-loopback callers**. Loopback (this machine, tests, `adb reverse`) needs
+nothing. From another device, open the URL the server prints once:
+
+```
+http://<host>:8080/?token=<contents of ~/.cyclops/token>
+```
+
+That sets a `SameSite=Strict` cookie; scripts can send `X-Cyclops-Token`
+instead. `CYCLOPS_TOKEN` overrides the file. `CYCLOPS_ALLOW_INSECURE_LAN=1`
+disables the gate entirely — only on a network you control end to end. The
+token crosses plain HTTP in clear, so front it with TLS/tailscale off-LAN.
+
 ## Features
 - Wire protocol with CRC framing (C++ + Python mirrors).
 - Local-first transcription: faster-whisper if installed, else deterministic stub.

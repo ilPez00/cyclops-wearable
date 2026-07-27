@@ -6,8 +6,10 @@ Usage:  python3 app/server.py [port] [store_path]
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
+import secrets
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +37,53 @@ PORT = 8080
 pipeline = None
 agent = None
 bridge = None
+
+# ---------------------------------------------------------------------------
+# Auth (premortem P0). This server binds 0.0.0.0 by design -- the phone is
+# meant to reach it -- and POST /api/agent hands the caller an agent holding
+# the terminal tool. Unauthenticated, that is remote code execution for anyone
+# on the WiFi; /api/notes reads everything ever captured, and /api/settings can
+# repoint provider/api_key/endpoint at an attacker's server. The SSRF guard in
+# sightings.py was a locked window next to this open door.
+#
+# Model: the PEER decides, not the bind address. Loopback callers (the local
+# dashboard, tests, adb-reverse tunnels) stay frictionless; anything arriving
+# over the network must present the shared secret in ~/.cyclops/token as
+# ?token=, the cyclops_token cookie, or the X-Cyclops-Token header.
+# ---------------------------------------------------------------------------
+TOKEN_PATH = os.path.expanduser("~/.cyclops/token")
+TOKEN_HEADER = "X-Cyclops-Token"
+TOKEN_COOKIE = "cyclops_token"
+TOKEN = ""
+# /health is a liveness probe returning only {"ok": true}. It stays open so
+# discovery and the companion's status pill work before pairing.
+OPEN_PATHS = {"/health"}
+# Escape hatch for a network you already trust end-to-end. Loud on purpose.
+ALLOW_INSECURE_LAN = os.environ.get("CYCLOPS_ALLOW_INSECURE_LAN") == "1"
+
+
+def load_or_create_token() -> str:
+    """The shared secret guarding every non-loopback request.
+
+    Generated once, stored 0600, mirroring aion's ~/.aion/token. Override with
+    CYCLOPS_TOKEN to share one secret across hosts without copying files.
+    """
+    env = os.environ.get("CYCLOPS_TOKEN", "").strip()
+    if env:
+        return env
+    try:
+        existing = open(TOKEN_PATH).read().strip()
+        if existing:
+            return existing
+    except OSError:
+        pass
+    token = secrets.token_urlsafe(32)
+    os.makedirs(os.path.dirname(TOKEN_PATH), exist_ok=True)
+    # right mode from the start -- never leave a world-readable window
+    fd = os.open(TOKEN_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(token + "\n")
+    return token
 _vision_fn = None  # lazy-built plain (image_b64, prompt) -> str callable
 # In-flight OAuth attempts (both device-flow and PKCE), keyed by provider
 # name -- /api/oauth/poll needs the device_code/status from the matching
@@ -138,19 +187,66 @@ def _load_html() -> str:
 
 
 class H(BaseHTTPRequestHandler):
-    def _send(self, code, body, ctype="application/json"):
+    def _send(self, code, body, ctype="application/json", headers=None):
         if isinstance(body, str):
             body = body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
+    # ---- auth ------------------------------------------------------------
+    def _peer_is_local(self) -> bool:
+        try:
+            return self.client_address[0] in ("127.0.0.1", "::1")
+        except (AttributeError, IndexError):
+            return False
+
+    def _presented_token(self, query: str):
+        """(token, came_from_url) -- query beats cookie beats header."""
+        got = (parse_qs(query).get("token") or [""])[0]
+        if got:
+            return got, True
+        for part in self.headers.get("Cookie", "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == TOKEN_COOKIE and v:
+                return v, False
+        return self.headers.get(TOKEN_HEADER, ""), False
+
+    def _authorized(self, p):
+        """(ok, set_cookie) for a parsed URL. Loopback and /health are exempt."""
+        if ALLOW_INSECURE_LAN or not TOKEN or self._peer_is_local():
+            return True, False
+        if p.path in OPEN_PATHS:
+            return True, False
+        got, from_url = self._presented_token(p.query)
+        ok = hmac.compare_digest(got, TOKEN)
+        return ok, (ok and from_url)
+
+    def _deny(self):
+        self._send(401, json.dumps(
+            {"error": "unauthorized",
+             "hint": "append ?token=<~/.cyclops/token> or send X-Cyclops-Token"}))
+
+    def _cookie_header(self, set_cookie):
+        if not set_cookie:
+            return None
+        # SameSite=Strict: a hostile page on the same WiFi cannot ride the
+        # cookie into /api/agent.
+        return {"Set-Cookie": f"{TOKEN_COOKIE}={TOKEN}; Path=/; "
+                              "SameSite=Strict; Max-Age=31536000"}
+
     def do_GET(self):
         p = urlparse(self.path)
+        ok, set_cookie = self._authorized(p)
+        if not ok:
+            return self._deny()
         if p.path == "/" or p.path == "/index.html":
-            return self._send(200, _load_html(), "text/html")
+            return self._send(200, _load_html(), "text/html",
+                              headers=self._cookie_header(set_cookie))
         if p.path == "/health":
             # liveness probe: the companion app's status pill + the web
             # dashboard poll this. It never existed, so `configured` clients
@@ -601,6 +697,9 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         p = urlparse(self.path)
+        ok, _ = self._authorized(p)
+        if not ok:
+            return self._deny()
         length = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(length) if length else b"{}"
         try:
@@ -872,7 +971,9 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
-    global pipeline, agent, bridge, PORT, STORE_PATH
+    global pipeline, agent, bridge, PORT, STORE_PATH, TOKEN
+    if not ALLOW_INSECURE_LAN:
+        TOKEN = load_or_create_token()
     if len(sys.argv) > 1:
         PORT = int(sys.argv[1])
     if len(sys.argv) > 2:
@@ -932,6 +1033,15 @@ def main():
         print(f"Discovery beacon on udp/{beacon.listen_port}")
     _start_dream_scheduler()  # periodic proactive review (dreams/proposals)
     print(f"Cyclops dashboard on http://localhost:{PORT}")
+    if ALLOW_INSECURE_LAN:
+        print("  !! CYCLOPS_ALLOW_INSECURE_LAN=1 — every route is open to the")
+        print("     whole network, including POST /api/agent (terminal tool).")
+        print("     Only for a network you control end to end.")
+    else:
+        print(f"  Off-host clients need a token: ?token={TOKEN}")
+        print(f"  (stored 0600 in {TOKEN_PATH}; loopback is exempt)")
+        print("  Plain HTTP — the token crosses the LAN in clear. Front it with")
+        print("  tailscale/TLS on any network you do not control.")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
