@@ -33,7 +33,10 @@ def test_memory_recall():
 
 def test_agent_persists_across_runs():
     d = tempfile.mkdtemp()
-    cfg = AgentConfig(memory_root=d, memory_recall=8)
+    # learning=False: the post-turn review calls the same router off-thread,
+    # and R2 below records what IT saw in the system block. With learning on,
+    # whichever call lands last wins and the assertion is a coin flip.
+    cfg = AgentConfig(memory_root=d, memory_recall=8, learning=False)
     reg = ToolRegistry()
     reg.register(
         Tool("echo", "echo", {"type": "object", "properties": {}}, lambda a: "ok")

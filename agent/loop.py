@@ -279,8 +279,11 @@ class Agent:
         """Kick off a Hermes-style learning review of the completed turn.
 
         Runs on a daemon thread (via learning.learn_from_turn) so the agent's
-        reply is never delayed. No-op when the router can't reach a model.
+        reply is never delayed. No-op when the router can't reach a model, or
+        when cfg.learning is off -- it is a second model call per turn.
         """
+        if not getattr(self.cfg, "learning", True):
+            return
         try:
             learning_mod.learn_from_turn(
                 user_text, answer, self.memory, router=self.router, async_ok=True

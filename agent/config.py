@@ -45,6 +45,11 @@ class AgentConfig:
         True  # skip re-appending an identical card (learning-loop spam guard)
     )
     memory_recall: int = 8  # how many persisted turns to inject as context
+    # Hermes-style post-turn review that mines facts into memory. It costs one
+    # extra model call per turn, so it is a switch, not a constant. (It was
+    # dead code until the router API mismatch in learning.py was fixed --
+    # nobody had the chance to want it off before.)
+    learning: bool = True
     cascade_enabled: bool = True  # try providers in order, skip burnt keys
     config_dir: str = "~/.config/cyclops"  # P2-A: plugin registry root
     plugin_index_url: str = ""  # P2-A: marketplace index (empty = offline)

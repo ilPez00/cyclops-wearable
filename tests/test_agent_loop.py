@@ -25,6 +25,11 @@ class _Cfg(AgentConfig):
     def __init__(self):
         super().__init__()
         self.skills_dirs = []
+        # These tests script an exact number of router calls. The post-turn
+        # learning review is a second, off-thread call on the SAME router, so
+        # leaving it on makes call counts racy. Learning has its own suite
+        # (test_learning.py).
+        self.learning = False
 
 
 class _Skills:
@@ -33,8 +38,13 @@ class _Skills:
 
 
 class _Ctx:
+    # loop._system_block() calls render_block(); render() is the raw variant.
+    # The stub carried only render() and the mismatch read as a loop bug.
     def render(self):
         return "notes: bought milk; hr 74"
+
+    def render_block(self):
+        return "=== LIVE CONTEXT ===\n" + self.render() + "\n=== END CONTEXT ==="
 
 
 class _FakeRouter:

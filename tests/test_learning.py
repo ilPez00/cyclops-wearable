@@ -88,6 +88,54 @@ class FakeRouter:
         return self.json_reply
 
 
+class ChatRouter:
+    """Shaped like the real agent.models.ModelRouter: chat() -> ChatResult.
+
+    Every other fake here speaks complete(), which is why this suite stayed
+    green while the shipped path was dead: Agent._learn passes a ModelRouter,
+    _review called .complete(), and the AttributeError was swallowed into a
+    stderr line nobody read. This fake pins the shape production uses.
+    """
+
+    def __init__(self, json_reply):
+        self.json_reply = json_reply
+        self.calls = 0
+        self.last_tool = None
+
+    def chat(self, messages, tools=None, tool=None, **_kw):
+        from agent.models import ChatResult
+        self.calls += 1
+        self.last_tool = tool
+        return ChatResult(text=self.json_reply)
+
+
+def test_learn_accepts_a_modelrouter_shaped_client():
+    d = tempfile.mkdtemp()
+    cfg = AgentConfig(memory_root=d)
+    store = MemoryStore(cfg)
+    router = ChatRouter('{"user":["rides a bike"],"agent":[]}')
+    result = learn_from_turn("I bike to work", "noted", store,
+                             router=router, async_ok=False)
+    assert result == {"user": 1, "agent": 0}
+    assert router.calls == 1
+    # routed as its own tool so a cheap/local model can be pinned to it
+    assert router.last_tool == "learning"
+    assert "rides a bike" in store.read("user")
+
+
+def test_learn_rejects_a_client_with_neither_api():
+    """A router speaking neither chat() nor complete() must not fail silently
+    into 'learned nothing' -- _review traces it, and the count stays zero."""
+    d = tempfile.mkdtemp()
+    store = MemoryStore(AgentConfig(memory_root=d))
+
+    class Useless:
+        pass
+
+    result = learn_from_turn("x", "y", store, router=Useless(), async_ok=False)
+    assert result == {"user": 0, "agent": 0}
+
+
 def test_learn_from_turn_sync_stores_facts():
     d = tempfile.mkdtemp()
     cfg = AgentConfig(memory_root=d)

@@ -70,21 +70,37 @@ def _extract_json(text: str) -> Optional[dict]:
     return obj
 
 
+def _ask(router, messages) -> str:
+    """One plain completion, whichever client API the caller handed us.
+
+    The repo has two: `agent.models.ModelRouter.chat()` returning a ChatResult,
+    and `brain.llm_extractor.LLMClient.complete()` returning a str. This module
+    was written against `complete` while the agent passes a ModelRouter, so
+    every review raised AttributeError and learning silently never ran. Accept
+    both rather than re-break on the next caller.
+    """
+    chat = getattr(router, "chat", None)
+    if callable(chat):
+        # tool="learning" lets the companion's per-tool override point this
+        # cheap call at a small/local model without touching the main loop.
+        return getattr(chat(messages, tool="learning"), "text", "") or ""
+    complete = getattr(router, "complete", None)
+    if callable(complete):
+        return complete(messages) or ""
+    raise TypeError(f"router {type(router).__name__} has neither chat() nor complete()")
+
+
 def _review(user_text: str, assistant_text: str, store: MemoryStore, router) -> dict:
     """Synchronous review. Returns a summary of what was written."""
     written = {"user": 0, "agent": 0}
     try:
-        reply = router.complete(
-            [
-                {"role": "system", "content": _REVIEW_PROMPT},
-                {
-                    "role": "user",
-                    "content": f"USER: {user_text}\n\nASSISTANT: {assistant_text}",
-                },
-            ],
-            # learning is a small, cheap call — no tools, short output
-            max_tokens=400,
-        )
+        reply = _ask(router, [
+            {"role": "system", "content": _REVIEW_PROMPT},
+            {
+                "role": "user",
+                "content": f"USER: {user_text}\n\nASSISTANT: {assistant_text}",
+            },
+        ])
         if not reply:
             return written
         data = _extract_json(reply)

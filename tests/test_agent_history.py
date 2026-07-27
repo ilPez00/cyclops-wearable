@@ -1,4 +1,10 @@
-"""Tests for agent conversation history + memory write-back."""
+"""Tests for agent conversation history + memory write-back.
+
+learning=False throughout: the post-turn review fires on a daemon thread
+against the SAME router, so with it on the spy/counting assertions here race
+against a call that has nothing to do with history. Learning has its own
+suite (test_learning.py).
+"""
 
 import json
 import os
@@ -28,7 +34,7 @@ class FakeRouter:
 
 
 def test_history_accumulates():
-    cfg = AgentConfig()
+    cfg = AgentConfig(learning=False)
     agent = Agent(cfg, router=FakeRouter(), registry=build_registry(cfg, agent=None))
     r1 = agent.run("hello")
     assert "reply to: hello" in r1.text
@@ -41,7 +47,7 @@ def test_history_accumulates():
 
 
 def test_history_replayed_into_context():
-    cfg = AgentConfig()
+    cfg = AgentConfig(learning=False)
     seen = []
 
     class SpyRouter:
@@ -59,7 +65,7 @@ def test_history_replayed_into_context():
 
 
 def test_reset_clears_history():
-    cfg = AgentConfig()
+    cfg = AgentConfig(learning=False)
     agent = Agent(cfg, router=FakeRouter(), registry=build_registry(cfg, agent=None))
     agent.run("a")
     agent.run("b")
@@ -69,7 +75,7 @@ def test_reset_clears_history():
 
 
 def test_history_tool_uses_agent():
-    cfg = AgentConfig()
+    cfg = AgentConfig(learning=False)
     a = Agent(cfg, router=FakeRouter(), registry=None)
     a.registry = build_registry(cfg, agent=a)
     a.run("remember this")
@@ -79,7 +85,7 @@ def test_history_tool_uses_agent():
 
 
 def test_memory_writeback():
-    cfg = AgentConfig()
+    cfg = AgentConfig(learning=False)
     # point memory root at a temp dir to avoid touching ~/.cyclops/memory
     tmp = tempfile.mkdtemp()
     cfg.memory_root = tmp
