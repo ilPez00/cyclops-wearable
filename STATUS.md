@@ -1,4 +1,4 @@
-# Cyclops — STATUS (2026-07-12, post hardware bring-up)
+# Cyclops — STATUS (2026-07-27, post LAN-auth + test-green pass)
 
 Single source of truth for build state lives in [`docs/00-superplan.md`](docs/00-superplan.md).
 This file is the at-a-glance snapshot.
@@ -13,7 +13,7 @@ This file is the at-a-glance snapshot.
 ## Verification snapshots
 | Gate | Result |
 |------|--------|
-| Python full suite (`tests/run_tests.py tests/test_*.py`) | **238 passed, 0 failed** |
+| Python full suite (`tests/run_tests.py tests/test_*.py`) | **406 passed, 0 failed** (2026-07-27) |
 | Firmware host gate (`make test`) | **PASS** (incl. status_json clamp regression) |
 | Firmware proto gate (`make proto`) | **PASS** (framing + OTA + **ADPCM contract**) |
 | Firmware device builds (`xiao_128x32_i2c`, `xiao_selftest`) | **SUCCESS** (local PlatformIO) |
@@ -32,7 +32,37 @@ First real-hardware session — D1 ("never flashed") is dead. Flash 18.9%, RAM 1
   laptop → WAV. Measured notify throughput ~2 KB/s → drove the ADPCM work (#41).
 - Repeatable bring-up: `pio run -e xiao_selftest` (SD/camera/mic report over serial).
 
-## Recently shipped (this cycle, PRs #33–#42)
+## Recently shipped (2026-07-27 pass)
+- **LAN auth on `app/server.py` — premortem P0 closed.** The server binds
+  0.0.0.0 by design, and `POST /api/agent` reaches an agent holding the
+  terminal tool; it was unauthenticated. Now the PEER decides: loopback is
+  exempt, anything off-host presents the shared secret in `~/.cyclops/token`
+  (`?token=` / `cyclops_token` cookie / `X-Cyclops-Token`). `/health` stays
+  open for discovery. `CYCLOPS_ALLOW_INSECURE_LAN=1` opts out, loudly.
+  Verified from a second address on the wire, not just in tests
+  (`tests/test_app_auth.py`).
+- **Auto-learning was dead in production.** `agent/learning.py` called
+  `router.complete()`; `ModelRouter` only has `chat()`. Every review raised
+  AttributeError into a stderr line, so no fact was ever persisted. `_ask()`
+  now accepts either client shape. It is a real second model call per turn, so
+  it is gated by the new `AgentConfig.learning` (default on).
+- **`AiKeys` registered every `~/.env` variable as an endpoint** — so
+  `get_endpoint("ai_groq_key")` returned the *secret*, and `LLMClient` built
+  `gsk_.../chat/completions` ("unknown url type"). Endpoints must now look like
+  URLs; trailing `# comments` are stripped out of values.
+- **`LLMExtractor` degraded silently.** With `_DEFAULT_PROVIDER=omniroute`, a
+  user holding only Groq keys got rule-based notes forever with no log line.
+  It now falls back to a provider configured with *both* a key and an http
+  endpoint, says so once, and traces failures with credentials redacted.
+- **Test suite green + honest**: 389/4-failed → 406/0. `test_screen_offline`
+  asserted "no screenshot backend" on a box that has scrot — it was silently
+  screenshotting the developer's desktop every run; the backend lookup is now
+  injectable and screen capture obeys `consent_mode`.
+- **Wire-drift gates**: `brain.protocol.MSG` is now checked against the C++
+  `MsgType` enum (it had stopped at TTS=20 while the header grew OTA 21–24),
+  and the two in-repo copies of `cyclops_shared.h` are asserted identical.
+
+## Recently shipped (earlier cycle, PRs #33–#42)
 - **Four on-metal firmware fixes** (#38): PDM mic config; BLE audio chunks never fit
   `send_frame` (silently dropped — now sliced); `status_json` garbage-tail clamp;
   incoming MSG_CMD dispatch (phone can drive capture/HUD, consent-gated).
@@ -52,10 +82,18 @@ First real-hardware session — D1 ("never flashed") is dead. Flash 18.9%, RAM 1
 - **Live re-verify with ADPCM firmware** — board was unplugged mid-session; rerun
   audio E2E + BleLink-over-BleakBackend when reattached.
 - **MSG_STATUS heartbeats starve during audio streaming** (observed live).
-- **On-device VAD gate** — stream only speech segments (throughput/battery/privacy).
-- **OTA sender** (`brain/ota_push.py`) — protocol + anti-brick guard exist; no sender.
+- **On-device VAD gate** — landed in firmware (71d2f72); not yet measured on metal.
+- **Android companion must now send the token** — the APK talks to this server
+  over the LAN and every route except `/health` is gated. Until it carries
+  `X-Cyclops-Token`, pair by opening the dashboard URL with `?token=` once, or
+  run with `CYCLOPS_ALLOW_INSECURE_LAN=1` on a network you trust.
 - Ring on metal: R02 was advertising in scans; `ENABLE_RING` central path unverified.
 - Live Ollama llava vision test (T2.6); Android `:app` build still SDK-gated.
+- **`plan.md` and `PLAN.md` both exist here** — on a case-insensitive checkout
+  (a Mac clone, a zip round-trip) one silently overwrites the other.
+- **Encryption at rest** (premortem P2): `~/.cyclops/notes.jsonl`,
+  `sightings.jsonl` and `profile.json` (which holds `api_key`) are plaintext,
+  and `~/.cyclops/token` now joins them.
 
 ## Principles (unchanged)
 One brain, thin clients. Offline-first (every tool stubs without network/keys).

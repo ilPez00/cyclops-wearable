@@ -6,11 +6,19 @@ Imported from `dev/xiao_s3` (19 XIAO ESP32-S3 projects). Skipped speaker output 
 
 | # | Feature | Source | Effort | Status |
 |---|---------|--------|--------|--------|
-| 1 | Config portal | `XIAO_OpenAI/.../config_portal.h` | ~4h | **IN PROGRESS** |
-| 2 | On-device VAD (energy gate) | `agtos-firmware` pattern | ~4h | pending |
-| 3 | Power-saving (brownout, PSRAM, camera fallback) | `xiao-esp32s3-edge-ai` + `Complete-voice-and-vision-AI` | ~2h | pending |
-| 4 | WiFi camera stream (MJPEG) | `xiao-esp32s3-edge-ai/main.cpp` | ~1d | pending |
-| 5 | On-device vision (TFLite Micro gate) | `H-S-Codesign` | ~1-2d | last |
+Status as of 2026-07-27 — 1–4 have shipped; only the TFLite gate is open.
+
+| # | Feature | Source | Effort | Status |
+|---|---------|--------|--------|--------|
+| 1 | Config portal | `XIAO_OpenAI/.../config_portal.h` | ~4h | **DONE** (71d2f72, + 60s auto-bypass 8862a12) |
+| 2 | On-device VAD (energy gate) | `agtos-firmware` pattern | ~4h | **DONE** (71d2f72) — unmeasured on metal |
+| 3 | Power-saving (brownout, PSRAM, camera fallback) | `xiao-esp32s3-edge-ai` + `Complete-voice-and-vision-AI` | ~2h | **DONE** (4e53d3d) |
+| 4 | WiFi camera stream (MJPEG) | `xiao-esp32s3-edge-ai/main.cpp` | ~1d | **DONE** (fdb1852 `/stream` + `/snap`, 83dd373 `/audio.wav`) |
+| 5 | On-device vision (TFLite Micro gate) | `H-S-Codesign` | ~1-2d | pending |
+
+Downstream of #4: those endpoints are also what aion's `deck/pendant.py` pulls
+from — the pendant transport question ("BLE vs Wi-Fi vs USB-CDC") was already
+answered by this firmware, and aion now meets it over HTTP.
 
 ## 1. Config Portal — implementation plan
 
