@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from typing import Callable
 
@@ -94,6 +95,11 @@ class LLMClient:
             raise RuntimeError(f"llm parse error: {e} ({data})")
 
 
+def _redact(msg: str) -> str:
+    """Blank out anything long enough to be a credential before logging."""
+    return re.sub(r"[A-Za-z0-9_\-]{20,}", "<redacted>", msg)
+
+
 class LLMExtractor:
     """Drop-in replacement for :func:`brain.extractor.extract`.
 
@@ -114,21 +120,57 @@ class LLMExtractor:
 
         self.keys = keys or AiKeys()
         self.provider = provider
+        self._own_client = client is None
         self.client = client or LLMClient(keys=self.keys, provider=provider)
         self._fallback = fallback or _rule_extract
         self.model = model
+        self._warned_provider = False
 
     # -- public -------------------------------------------------------------
+    def _usable_provider(self) -> str | None:
+        """The configured provider, or a fully-configured substitute.
+
+        _DEFAULT_PROVIDER moved to 'omniroute'; a user holding only (say) Groq
+        keys then got rule-based notes forever, with no log line and no way to
+        tell degraded output from real output.
+
+        A substitute must carry BOTH a key and an endpoint under the SAME name.
+        AiKeys.available() is every credential-shaped variable in ~/.env --
+        Twitter tokens, DB URLs -- so "has something configured" is far too
+        loose a bar for "can serve chat completions". Guessing wrong means
+        POSTing the user's notes to an unrelated service.
+        """
+        if self.keys.get_key(self.provider) or self.keys.get_endpoint(self.provider):
+            return self.provider
+        for name in self.keys.available():
+            if name == self.provider:
+                continue
+            endpoint = self.keys.get_endpoint(name)
+            if endpoint and endpoint.startswith("http") and self.keys.get_key(name):
+                return name
+        return None
+
     def extract(self, text: str) -> list[Note]:
         if not text or not text.strip():
             return []
         try:
-            if not (
-                self.keys.get_key(self.provider)
-                or self.keys.get_endpoint(self.provider)
-            ):
+            provider = self._usable_provider()
+            if provider is None:
                 return self._fallback(text)
-            raw = self.client.complete(
+            client = self.client
+            if provider != self.provider:
+                if not self._warned_provider:
+                    print(
+                        f"[llm_extractor] no credentials for '{self.provider}'; "
+                        f"using '{provider}' instead",
+                        file=sys.stderr,
+                    )
+                    self._warned_provider = True
+                # only rebuild when we own the client -- an injected one is
+                # the caller's choice and gets used as handed to us
+                if self._own_client:
+                    client = LLMClient(keys=self.keys, provider=provider)
+            raw = client.complete(
                 [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": text},
@@ -136,8 +178,14 @@ class LLMExtractor:
                 model=self.model,
             )
             return self._parse(raw, text)
-        except Exception:
-            # never let extraction break the pipeline (premortem #5 + #10)
+        except Exception as e:  # noqa: BLE001
+            # never let extraction break the pipeline (premortem #5 + #10) --
+            # but a silent fallback is indistinguishable from a working LLM,
+            # so leave a trace (premortem P1: silent failure culture).
+            # Redacted: provider errors quote the URL they tried, and a
+            # misconfigured endpoint IS a key (that is how this bug surfaced).
+            print(f"[llm_extractor] LLM extraction failed, using rules: "
+                  f"{type(e).__name__}: {_redact(str(e))}", file=sys.stderr)
             return self._fallback(text)
 
     # -- internals ----------------------------------------------------------

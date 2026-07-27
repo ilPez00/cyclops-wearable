@@ -31,6 +31,11 @@ DEFAULT_AI_API_TXT = "/home/gio/ai_api.txt"
 DEFAULT_ENV_PATHS = ("~/.env", "/home/gio/.env", "/home/gio/ai_api.txt")
 
 
+def _is_url(value: str) -> bool:
+    """An endpoint is an http(s) URL. Anything else is a secret or a comment."""
+    return value.startswith("http://") or value.startswith("https://")
+
+
 class AiKeys:
     def __init__(
         self,
@@ -104,10 +109,23 @@ class AiKeys:
                     continue
                 name, _, value = line.partition("=")
                 name = name.strip()
-                value = value.strip().strip('"').strip("'")
+                # Trailing comments are common in a hand-maintained .env
+                # ("KEY=abc123   # signup: https://..."). Without this the
+                # comment ends up inside the Authorization header. Only a
+                # whitespace-preceded '#' counts, so a '#' inside a secret
+                # survives.
+                value = re.sub(r"\s+#.*$", "", value).strip()
+                value = value.strip('"').strip("'")
                 if not name or not value:
                     continue
-                self._endpoints.setdefault(name.lower(), value)  # raw URL?
+                # Only a URL is an endpoint. This used to register EVERY env
+                # var as one ("raw URL?"), so get_endpoint("ai_groq_key")
+                # returned the secret itself and LLMClient built
+                # "gsk_.../chat/completions" -> "unknown url type". It also
+                # made available() list every variable in ~/.env as a
+                # configured provider.
+                if _is_url(value):
+                    self._endpoints.setdefault(name.lower(), value)
                 # also register as a key source for *_API_KEY style names
                 if re.search(r"API_KEY|TOKEN|SECRET|KEY", name, re.I):
                     self._keys.setdefault(name.lower(), []).append(value)
