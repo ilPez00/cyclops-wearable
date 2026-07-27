@@ -76,7 +76,10 @@ def test_dashboard_html_served():
 
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as r:
                 html = r.read().decode()
-            assert "CYCLOPS" in html and "/api/feed" in html
+            # branding case is a design choice (the redesign moved CYCLOPS ->
+            # Cyclops); what this gate is really for is that the dashboard is
+            # served and still wired to the feed API.
+            assert "cyclops" in html.lower() and "/api/feed" in html
         finally:
             srv.shutdown()
 

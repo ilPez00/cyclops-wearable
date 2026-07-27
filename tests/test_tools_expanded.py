@@ -70,9 +70,18 @@ def test_health_no_data():
 
 
 def test_screen_offline():
-    t = make_screen_tool(AgentConfig())
+    # Inject `which` instead of trusting the host: this used to assert
+    # "offline" on a machine with scrot installed, so it failed AND took a
+    # screenshot of whoever was running the suite.
+    t = make_screen_tool(AgentConfig(), which=lambda _exe: None)
     out = t.run({"describe": False})
     assert "offline" in out
+
+
+def test_screen_refuses_without_consent():
+    """Screen capture is as invasive as the camera; same consent switch."""
+    t = make_screen_tool(AgentConfig(consent_mode=False), which=lambda _e: "/bin/true")
+    assert "refused" in t.run({"describe": False})
 
 
 def test_capabilities_describe():
