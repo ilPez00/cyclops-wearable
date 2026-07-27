@@ -97,10 +97,59 @@ def test_brain_protocol_matches_firmware_crc_window():
         )
 
 
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SHARED_HEADERS = (
+    os.path.join(REPO, "firmware", "lib", "cyclops_shared", "include",
+                 "cyclops_shared.h"),
+    os.path.join(REPO, "firmware", "shared", "include", "cyclops_shared.h"),
+)
+
+
+def _cpp_msg_types(header_path: str) -> dict:
+    """Parse `enum MsgType : uint8_t { NAME=n, ... }` out of the C++ header."""
+    import re
+
+    src = open(header_path).read()
+    body = re.search(r"enum\s+MsgType\s*:\s*uint8_t\s*\{(.*?)\}", src, re.S)
+    assert body, f"no MsgType enum in {header_path}"
+    out = {}
+    for name, num in re.findall(r"MSG_([A-Z0-9_]+)\s*=\s*(\d+)", body.group(1)):
+        out[name] = int(num)
+    return out
+
+
+def test_python_msg_map_matches_the_cpp_enum():
+    """brain.protocol.MSG is a hand-kept mirror of the C++ MsgType enum.
+
+    It silently stopped at TTS=20 while the header grew MSG_OTA_BEGIN..ACK
+    (21-24), so the OTA sender could not name its own frames from the map.
+    Nothing compared the two -- now something does.
+    """
+    from brain.protocol import MSG
+
+    cpp = _cpp_msg_types(SHARED_HEADERS[0])
+    missing = {k: v for k, v in cpp.items() if k not in MSG}
+    assert not missing, f"brain.protocol.MSG is missing {missing}"
+    wrong = {k: (MSG[k], v) for k, v in cpp.items() if MSG[k] != v}
+    assert not wrong, f"id mismatch (python, cpp): {wrong}"
+
+
+def test_shared_header_copies_are_identical():
+    """Two copies of cyclops_shared.h live in this repo (firmware/lib and
+    firmware/shared) and a third is vendored into the CyclUno repo. Identical
+    'today' is not a contract; drift between them is a cross-language wire
+    break that no other test would catch."""
+    bodies = [open(p).read() for p in SHARED_HEADERS]
+    assert bodies[0] == bodies[1], (
+        f"{SHARED_HEADERS[0]} and {SHARED_HEADERS[1]} have diverged")
+
+
 if __name__ == "__main__":
     test_crc_standard_vector()
     test_frame_layout()
     test_cmd_frame_roundtrip_bytes()
     test_kotlin_must_match_python()
     test_brain_protocol_matches_firmware_crc_window()
+    test_python_msg_map_matches_the_cpp_enum()
+    test_shared_header_copies_are_identical()
     print("ALL WIRE-CONTRACT TESTS PASSED")

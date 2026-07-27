@@ -26,6 +26,13 @@ MSG = {
     "PEER_STATUS": 18,
     "AUDIO_STOP": 19,
     "TTS": 20,
+    # OTA over BLE (firmware/lib/cyclops_shared: MSG_OTA_BEGIN..MSG_OTA_ACK).
+    # The mirror stopped at TTS while the C++ header defined these, so
+    # brain/ota_push.py could not name its own message types from the map.
+    "OTA_BEGIN": 21,
+    "OTA_CHUNK": 22,
+    "OTA_END": 23,
+    "OTA_ACK": 24,
 }
 
 
