@@ -1,0 +1,6 @@
+# Re-downloadable vendor archive (8.8 MB) + its preview images: not in git.
+# Everything needed for the redesign is the extracted STEP + the DXF/STP above;
+# the exact re-download commands are in SOURCE.md.
+sense-3d-model.zip
+3d/*.jpg
+3d/*.png
