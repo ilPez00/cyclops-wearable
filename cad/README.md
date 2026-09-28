@@ -19,6 +19,7 @@ so nothing in this directory is a source any more except the files listed below.
 |---|---|
 | `params.scad` | `python3 scripts/cad_params.py generate` |
 | `stl/fit_coupon.stl` | `cad/fit_coupon.scad` via OpenSCAD |
+| `renders/` | `cad/render_all_3d.sh` (Blender) — **git-ignored**, 54 MB of regenerable previews |
 
 ## Workflow
 

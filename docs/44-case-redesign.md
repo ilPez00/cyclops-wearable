@@ -33,11 +33,21 @@ XIAO↔expansion-board mating height (the single biggest Z term, §5.2), the
 antenna keep-out, the USB-C plug shell, and any tolerance stack. A lid that
 "fits" in the viewport is meaningless if the pocket is 2 mm short in Z.
 
-**Inventory to retire** (52 committed artefacts, none of them buildable against
-real parts): 6 `.blend` + 4 `.blend1`, 11 `.scad`, 36 `.stl` (`cad/stl/`,
-`cad/variants/`, `cad/freecad/`), 11 FreeCAD files (`build_pendant.py`,
-`CyclopsPendant.FCStd`, `pendant_{body,cap}_v{4,5}.{step,stl}`), 36 renders.
-They are *presets*, not sources: in §7 step 5 they move to `cad/legacy/` once
+**Inventory to retire: 87 tracked files, none of them buildable against the real
+parts** (counted with `git ls-files` on 2026-09-28):
+
+| Tracked legacy | Count | Where |
+|---|---|---|
+| `.scad` sources | 11 | `cad/*.scad` — variants, enclosure v1/v2, `case_v2`, arduino |
+| Blender files | 10 | 6 `.blend` + 4 `.blend1` backups |
+| `.stl` exports | 44 | 33 in `cad/stl/`, 3 in `cad/variants/`, 4 in `cad/freecad/`, 4 in `cad/` |
+| preview `.png` | 12 | `cad/*.png`, `cad/variants/*.png` |
+| FreeCAD project | 7 | `build_pendant.py`, `CyclopsPendant.FCStd`, an `.FCBak`, 4 `.step` |
+| generators / scripts | 3 | `blender_generate.py`, its `.bak`, `render_all_3d.sh` |
+
+`cad/renders/` (54 MB of Blender previews) was **never committed** and is now
+git-ignored — it is regenerable output of `cad/render_all_3d.sh`. The 87 tracked
+files are *presets*, not sources: in §7 step 5 they move to `cad/legacy/` once
 the parametrized replacement exists. Nothing is deleted before its replacement
 exists.
 

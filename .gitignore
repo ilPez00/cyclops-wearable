@@ -46,5 +46,12 @@ android/core/build/
 # local APK build temp
 .apk-tmp/
 
+# CAD (docs/44, cad/README.md)
+#   cad/renders/ - 54 MB of Blender previews from cad/render_all_3d.sh:
+#   regenerable output, never committed. The CAD files that ARE tracked are
+#   deliberate: cad/params.yaml (the only dimension source), cad/params.scad
+#   (generated), cad/fit_coupon.scad, cad/stl/*.stl.
+cad/renders/
+
 # Guard against code that creates "~/" literally (unexpanded user home)
 ~
