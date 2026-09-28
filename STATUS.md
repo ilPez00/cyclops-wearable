@@ -9,6 +9,17 @@ This file is the at-a-glance snapshot.
 - The outer `/home/gio` (ayu) repo carries a tracked snapshot of this tree by owner
   choice — canonical development happens HERE. Content-only-on-ayu commits (ayu #17–#20)
   were ported in #36.
+- **Pushing to the `origin` mirror lies twice.** It lives on a mount
+  (`/mnt/faststore/git-mirrors/cyclops.git`) whose ref reads go stale: an
+  up-to-date push can print `Everything up-to-date` while the object is genuinely
+  absent, and the *next* attempt can answer
+  `! [remote rejected] (incorrect old value provided)` even though the update had
+  actually landed. Observed 2026-09-28 on `freerouting-omniroute` (three false
+  verdicts in one session, both directions). Trust neither the push output nor an
+  immediate `ls-remote`; verify against the mirror's own filesystem:
+  `git -C /mnt/faststore/git-mirrors/cyclops.git rev-parse <branch>`. If it is
+  genuinely behind, `git -C <mirror> fetch --no-tags /home/gio/dev/cyclops
+  refs/heads/<branch>:refs/heads/<branch>` works where push-side checks stall.
 
 ## Verification snapshots
 | Gate | Result |
