@@ -75,12 +75,39 @@ breakout routes to the same three pads + GND.)
 5. parse 16-byte packets (`ring_parse` C / `parse_*` Python). `-DENABLE_RING`
 on the XIAO; `device/colmi_r02.py` (bleak) on the phone/PC.
 
-## 7. Not yet on metal
+## 7. On metal vs still open (2026-07-12 session, STATUS.md)
 
-- Real I2S mic + OLED bench test (logic only, native_test).
-- Live BLE to physical R02 / G2 (no hardware on bench).
-- `pio run -e xiao_*` flash + field test (CI compiles only).
-- Vibration motor, low-batt auto-sleep, gyro calibration.
+Verified on a bare XIAO S3 Sense: graceful degrade with no screen/IMU/SD,
+BLE `CyclopsXIAO` with live MSG_STATUS decoded by the brain, OV2640 VGA JPEG
+over serial, PDM mic capture (GPIO42 clk / 41 data — standard I2S reads
+silence), SDHC mount + write/readback, audio-over-BLE → WAV on the laptop
+(~2 KB/s measured, which is why ADPCM exists).
+
+Still open: live BLE to a physical R02 / G2, vibration motor, low-batt
+auto-sleep, gyro calibration, and the VAD gate measured on metal.
+
+## 8. MVP harness: ONE button (docs/43)
+
+The MVP keeps every onboard Sense peripheral and drops BTN_B:
+
+| Signal | Pin | Note |
+|---|---|---|
+| BTN_A (the only button) | D3 / GPIO3 | tap = OK, double-tap = BACK, **long = AGENT** |
+| BTN_B | — | **not populated; GPIO5 is free** |
+| Wheel A/B | — | removed (AGENTS.md) — do not re-add |
+| scroll | — | HW-123 tilt → `hud.on_wheel(±1)` |
+| nod / shake | — | accel gestures (`on_nod`, `on_back_gesture`) |
+| factory reset | — | hold BTN_A ≥ 2 s at boot (2-button boards keep A+B) |
+
+`board_config.h` declares `BOARD_HAS_BTN_B 0` (XIAO) / `1` (Feather); `main.cpp`
+guards the pin setup, the detector and the reset combo on it, and
+`Hud::use_one_button()` rebinds the single button's grid so `ACT_BACK` stays
+one gesture away. The HINT row switches to `tap:ok 2x:back hold:ask`.
+
+**Accel caveat:** the accelerometer must be an MPU-6050-class part at `0x68`.
+`imu.cpp` writes MPU registers only, so an LSM6DS3 (0x6A/0x6B) would ACK and
+then read garbage. There is **no onboard IMU on the S3 Sense** — the LSM6DS3
+belongs to the nRF52840 *Nano* Sense.
 
 ---
 **[inferred]** Every pin, CS, the BTN_B bug, the I2S pads, the power notes

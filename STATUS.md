@@ -1,4 +1,4 @@
-# Cyclops — STATUS (2026-07-27, post LAN-auth + test-green pass)
+# Cyclops — STATUS (2026-09-28, MVP one-button + physis-next bridge)
 
 Single source of truth for build state lives in [`docs/00-superplan.md`](docs/00-superplan.md).
 This file is the at-a-glance snapshot.
@@ -13,7 +13,7 @@ This file is the at-a-glance snapshot.
 ## Verification snapshots
 | Gate | Result |
 |------|--------|
-| Python full suite (`tests/run_tests.py tests/test_*.py`) | **406 passed, 0 failed** (2026-07-27) |
+| Python full suite (`tests/run_tests.py tests/test_*.py`) | **499 passed, 0 failed** (2026-09-28) |
 | Firmware host gate (`make test`) | **PASS** (incl. status_json clamp regression) |
 | Firmware proto gate (`make proto`) | **PASS** (framing + OTA + **ADPCM contract**) |
 | Firmware device builds (`xiao_128x32_i2c`, `xiao_selftest`) | **SUCCESS** (local PlatformIO) |
@@ -31,6 +31,79 @@ First real-hardware session — D1 ("never flashed") is dead. Flash 18.9%, RAM 1
 - **Audio over BLE**: remote ACT_TRANSCRIBE_START → PDM capture → chunks decoded on the
   laptop → WAV. Measured notify throughput ~2 KB/s → drove the ADPCM work (#41).
 - Repeatable bring-up: `pio run -e xiao_selftest` (SD/camera/mic report over serial).
+
+## Recently shipped (2026-09-28 — MVP one-button + physis-next)
+
+Plan of record: **`docs/43-mvp-one-button.md`**. MVP = full XIAO S3 Sense build
+(camera + PDM mic + microSD + WiFi/BLE + I2C OLED + accel) with **ONE button**.
+
+- **Single-button input (firmware).** `BOARD_HAS_BTN_B` in `board_config.h`
+  (XIAO 0 / Feather 1); `main.cpp` guards the pin, the detector and the reset
+  combo; factory reset is now "hold BTN_A ≥ 2 s at boot" (A+B kept on
+  two-button boards). `Hud::use_one_button()` rebinds the single button grid to
+  tap=OK / double-tap=BACK / long=AGENT and switches the HINT row to
+  `tap:ok 2x:back hold:ask`. Remap stays protocol-compatible (`{"kind":"bind"}`).
+  mini4 calls it too (its doc claimed that grid; the code had the 2-button one).
+- **physis bridge rebuilt on physis-next.** physis-pro is retired and the app's
+  `/api/physis/*` routes had vanished, so 4 tests were red. New
+  `brain/physis_next.py` speaks physis-next MCP over HTTP (POST /mcp, JSON-RPC
+  2.0, NDJSON, loopback only); `/api/physis/{status,search,context,remember,
+  history,predict,capabilities}` are back on that backend;
+  `agent/tools/physis.py` prefers MCP then `physis search` CLI then an honest
+  stub; `brain/physis.py` is now the legacy embedder adapter only (classify /
+  lifeos / goals / coherence deleted with their routes).
+- **Loop recipes un-dead.** `justfile` no longer shells out to physis-pro:
+  `just physis-serve` (starts the HTTP MCP server), `just recall`,
+  `just remember`, and `just start/update` drive `scripts/physis_mcp.py`
+  (exit 2 + loud stderr when no server; never a silent pass or false BLOCK).
+- **Other lost routes restored** (same bug class): `/api/concepts`,
+  `/api/concepts/groups`, `/api/truth`, `/api/truth/log` — turning 4 more red
+  tests green and wiring `brain/concepts.py`'s truth-edit/audit functions.
+- **Entity enrichment is local now** (`brain/pipeline.py::_tag_entities`):
+  deterministic keyword tagging replaces the dead physis-pro `classify` call;
+  `CYCLOPS_ENRICH_ENTITIES=1` (legacy `CYCLOPS_PHYSIS_ENRICH` still accepted).
+- **`physis` added to the capability registry** (`agent/capabilities.py`) —
+  the registry and the tool set had drifted (22 tools vs 21 capabilities).
+- **Docs**: `docs/43` (plan), `docs/12-wiring.md` §7-§8 (on-metal status +
+  one-button harness), `docs/30-schematics-xiao.md` (controls),
+  `docs/23-hud-menu-plan.md` (input model), `docs/37` §B1 (loop re-point),
+  `AGENTS.md` (hardware reality), `PLAN.md` (MVP section).
+- **Gates, this pass**: python suite **499 / 0** (was 494 / 5);
+  `make test` PASS (16 cmds, incl. the new one-button test) + `make proto` PASS;
+  `gen_acts.py --check` in sync (27 acts); `dead_calls.py` unchanged (7
+  pre-existing Android items, none from this work).
+
+## Shipped (2026-09-28 — MVP one-button pass, docs/43)
+
+- **C2 firmware serves JSON only.** The `/` HTML page is gone; `GET /status`
+  returns `{cam,wifi,sd,ip,stream,audio,snap}` for the app's Device tab.
+- **C4 IMU identification.** `imu_whoami.h` (two byte-identical copies,
+  parity-tested) + `Imu::begin()` now refuses a part whose register map this
+  driver cannot speak — an LSM6DS3 ACKs, then yields garbage. `reason()` names
+  the raw WHO_AM_I byte; both mains log it and toast the short form. New host
+  gate `shared/test_imu_whoami.cpp`, wired into `make proto`.
+- **C5 presence/posture become ledger rows.** `status_json` grew `pres`/`pos`;
+  `HudBridge.handle_status` keeps the last frame and appends a `presence` Event
+  with its duration on every edge (docs/34 §5c). Wiring it surfaced a real
+  protocol trap: `ACT_IMAGE_ANALYSIS == 8 == MSG_STATUS` — one integer, two
+  namespaces; the frame header decides, and `dispatch()` needs
+  `looks_like_status()` before it may treat act 8 as a status frame.
+- **C6 `firmware/mini4` was building the wrong file.** PlatformIO's default
+  `src_dir` is `src/`, so the docs/43 one-button port that landed in the
+  project-root `main.cpp` was dead (`.map`: `src/main.cpp` 428×, root 0×). One
+  source of truth now: `firmware/mini4/src/main.cpp`, explicit `src_dir = src`.
+- **M2 app half.** `brain/events.py` (`Event{ts,duration_s,source,kind,body,
+  locator}`), `POST /api/events`, `GET /api/timeline` (ledger + legacy stores on
+  one axis, every row carrying source + locator), `GET|POST /api/ask` (cited
+  answers; `cited:false` plus a warning when the model ignored its evidence),
+  `GET /api/device`; dashboard 7 → 11 tabs (Timeline/Ask/Device/Physis),
+  `node --check` clean.
+- **Gates this pass:** `make test` + `make proto` PASS (incl. the new IMU tests
+  and a worst-case status-frame assertion that caught the buffer at exactly
+  160 B), python suite 0 failures, `gen_acts.py --check` in sync. The firmware
+  IMAGE build and every on-metal claim still wait for a board — `pio` is not
+  installed on this box. `dead_calls.py` still reports 7 acked-dead Android
+  symbols (LifeOS/Coherence decided dropped, docs/43 §6).
 
 ## Recently shipped (2026-07-27 pass)
 - **LAN auth on `app/server.py` — premortem P0 closed.** The server binds
@@ -79,6 +152,22 @@ First real-hardware session — D1 ("never flashed") is dead. Flash 18.9%, RAM 1
 - DeviceSim coverage (#33), Android BLE service glue (#35), docs sync (#34).
 
 ## Open / next
+- **Boards: XIAO + Feather both build (2026-09-19).** One application, three
+  targets, all green on this box: `xiao_128x32_i2c` (18.5%/33.5%),
+  `feather_128x32_i2c` (20.8%/73.0% of 4MB), `xiao_mini4` (10.1%/17.0%).
+  Board differences are in `firmware/xiao/src/board_config.h`
+  (`-DCYCLOPS_BOARD_XIAO` / `-DCYCLOPS_BOARD_FEATHER`). Neither board was ever
+  reached for INSTALL: the XIAO has not enumerated on USB since 12:03 today
+  (kernel: `303a:1001 … ttyACM0` at 12:02:11, disconnect 12:03:01; `lsusb` and a
+  70 s BLE scan show nothing since), and no Feather has appeared either.
+  Commands: `make compile BOARD=feather`, `make flash BOARD=feather`,
+  `pio run -d mini4`. See docs/flash-xiao.md §3/§4.
+- **Work mirrored to `/home/gio/dev/cyclops`.** rsync of the canonical tree +
+  the target's uncommitted work restored (backup tarball kept). One casualty:
+  `firmware/mini4/main.cpp` was untracked and got deleted by the sync before its
+  backup; RECONSTRUCTED from docs/15-mini4.md into `firmware/mini4/src/main.cpp`
+  with its own platformio.ini — the `xiao_mini4` env the doc referenced for
+  months but which never existed.
 - **Live re-verify with ADPCM firmware** — board was unplugged mid-session; rerun
   audio E2E + BleLink-over-BleakBackend when reattached.
 - **MSG_STATUS heartbeats starve during audio streaming** (observed live).

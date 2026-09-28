@@ -67,7 +67,20 @@ notes leave, and only with consent. Cloud opt-in per feature. Ring BLE is
 unencrypted/unauthenticated (~1 m) — acceptable on your own body, never
 forward raw ring data off-device without TLS.
 
-## 5. What blocks full parity
+## 3a. MVP delta (2026-09-28) — what changed since this matrix was written
+
+| Area | Change | Where |
+|---|---|---|
+| Input | **One button** (tap/double/hold) + accelerometer gestures; the 2×3 grid survives only on two-button boards | `docs/43`, `hud.h::use_one_button()` |
+| Device surface | Firmware serves **JSON only** (`/status`, `/audio.wav`, `/stream`); no device pages, ever | `firmware/xiao/src/camera_capture.cpp`, `AGENTS.md` |
+| Memory substrate | **physis-next** (MCP over HTTP) replaces the retired physis-pro bridge: search / context+receipts / remember / history / predict | `brain/physis_next.py`, `docs/43 §6` |
+| Timeline | Event ledger (`Event{ts,duration_s,source,kind,body,locator}`) + merged Timeline tab | `brain/events.py`, `GET /api/timeline` |
+| Ask | Answers must cite claim/event ids; `cited:false` + warning otherwise | `GET|POST /api/ask` |
+| Device tab | Last `MSG_STATUS` frame: battery, mode, recording, **presence, posture**, toast, capture counts, OTA availability | `GET /api/device` |
+
+Parity rows still open (unchanged): NAV/GPS, music control, teleprompter script
+source, 24/7 recording budget, live G2/Omi BLE on metal (§5 of this doc lists
+the same blockers, now minus the physis + retrieval ones).
 
 1. **Hardware:** XIAO flash + I2S mic/OLED bench test; live G2/Omi BLE
    stream end-to-end (server path done; transport glue pending).

@@ -2,7 +2,11 @@
 
 > Single source of truth for the Cyclops project: what it is, what's built,
 > what the gaps are, and the prioritized roadmap. Living document — update as
-> tracks close. Last revised: 2026-07-10.
+> tracks close. Last revised: 2026-09-19.
+>
+> **Grand vision: `docs/42-vision.md`** — the wearable is the computer; cyclops +
+> app, through physis, is the single access point to computer/internet/AI. The
+> 4-row OLED layout (STATUS / ANSWER / DIGEST / HINT) is specified there.
 
 ## 0. One-line definition
 Cyclops is a **personal AI router** that takes text / audio / images from you
@@ -72,6 +76,24 @@ three shells — no logic fork.
 - **P2-C** phone→wearable health relay (`MSG_HEALTH_SAMPLE` → `on_health_sample`; zero = absent).
 - **P2-D** offline-safe `make flash` (`ENABLE_RING`/`SCREEN` flags) + `docs/flash-xiao.md`.
 - **Tests: 187 passed, 0 failed** (Python full suite) + firmware host gate green.
+
+**2026-09-28 — MVP one-button pass (docs/43), supersedes the input half of this list:**
+- **One button** (BTN_A/GPIO3: tap=OK, double=BACK, long=AGENT, hold ≥2 s at boot =
+  factory reset; GPIO5 freed). Two-button boards keep the 2×3 grid;
+  `Hud::use_one_button()` owns the grammar and the HINT row.
+- Firmware serves **JSON only** (`/status`, `/audio.wav`, `/stream`); the camera
+  HTML page is gone (AGENTS.md rule).
+- IMU identification + refusal (`imu_whoami.h`): only MPU-family parts are driven;
+  an LSM6DS3 ACKs and would read garbage, so it is refused *with the raw WHO_AM_I
+  byte in the log*.
+- `pres`/`pos` ride `MSG_STATUS`; the host records a `presence` Event with its
+  duration on every edge (docs/34 §5c).
+- **physis-next** replaces the retired physis-pro bridge (MCP over `POST /mcp`);
+  `/api/physis/*` restored on the new backend.
+- **Event ledger** `brain/events.py` + `GET /api/timeline`, `GET|POST /api/ask`
+  (cited), `GET /api/device`; dashboard 7 → 11 tabs.
+- **Gates:** `make test` / `make proto` PASS, python suite **513 passed, 0 failed**,
+  `gen_acts.py --check` in sync.
    Code on `main` branch of `github.com/ilPez00/cyclops-wearable`.
 
 ## 4. Tool inventory (capabilities.py — drives UI customization)
@@ -166,7 +188,14 @@ three shells — no logic fork.
 ## 7. How to run / verify today
 - Agent/TUI: `cd cyclops && python3 shells/tui/cyclops_tui.py` (or `CYCLOPS_LOCAL=1`).
 - Brain server: `./serve.sh` (or `python3 app/server.py`) → http://localhost:8080.
-- Tests: `python3 tests/run_tests.py tests/test_*.py` → 170 passed.
+- Tests: `python3 tests/run_tests.py tests/test_*.py` → **513 passed, 0 failed**.
+- Firmware logic: `cd firmware && make test && make proto` → both green (the IMU
+  identification table has its own gate there: `shared/test_imu_whoami.cpp`).
+- Protocol parity: `python3 protocol/gen_acts.py --check` → in sync (27 acts).
+- Memory substrate: `physis serve --http 127.0.0.1:19876 --path <ROOT>` (from
+  `physis-next`); `GET /api/physis/status` then reports `reachable: true`.
+- Dashboard JS: `node --check` on the script extracted from
+  `app/templates/dashboard.html` (no build step, no CDN).
 - Firmware logic: `cd firmware && make test && make proto` → both green.
 - Android APK: pushed to `cyclops` branch → GitHub Actions builds debug+release
   artifact (download from the Actions run).

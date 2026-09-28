@@ -24,10 +24,10 @@ board also drives the glanceable OLED and reads the Colmi R02 ring over BLE.
 | Screen CS (128x32)  | 5    | `SCREEN_128x32` build                        |
 | Screen DC           | 2    | all SPI screens                              |
 | Screen RST          | 1    | all SPI screens                              |
-| BTN_A               | 3    | active-low, INPUT_PULLUP                     |
-| BTN_B               | 5    | active-low (conflicts w/ 128x32 CS — alt bld)|
-| Wheel A (quad)      | 0    | = onboard BOOT button (also used as wheel)   |
-| Wheel B (quad)      | 4    |                                              |
+| BTN_A (MVP's only button) | 3    | active-low, INPUT_PULLUP                     |
+| BTN_B               | 5    | **not populated on the MVP harness (docs/43); GPIO5 free** |
+| Wheel A (quad)      | 0    | legacy wheel build only — removed (AGENTS.md) |
+| Wheel B (quad)      | 4    | legacy wheel build only — removed (AGENTS.md) |
 | BLE radio           | —    | onboard antenna, NimBLE (no pins)            |
 | USB-C               | —    | 5 V power + UART/flash                        |
 | LiPo / BAT pad      | —    | battery input (charge IC onboard)            |
@@ -74,9 +74,20 @@ board also drives the glanceable OLED and reads the Colmi R02 ring over BLE.
 
 ## Controls
 
-- BTN_A (GPIO3) short = select; long = back/stop capture.
-- BTN_B (GPIO5) short = cancel/back.
-- Wheel A/B (GPIO0/4): quadrature scroll for menu navigation.
+MVP harness — **one button + accel** (docs/43; supersedes the wheel/2-button
+lines below):
+
+- BTN_A (GPIO3): tap = OK/open-menu, double-tap = back one level,
+  long (>600 ms) = ask the agent; a ≥2 s hold at boot = factory reset.
+- Tilt fwd/back (HW-123, `Imu::scroll_tilt()`) = scroll — there is no wheel.
+- nod = quick capture; shake = back/dismiss; flip/face-down + 8 s idle = screen off.
+- Photo / video / translate / health / NAV / SSH etc. live in MENU
+  (tap from HOME, tilt to move, tap to select).
+- Remap stays protocol-compatible: `{"kind":"bind","btn":0,"g":N,"act":M}`.
+
+Two-button boards (Feather) keep BTN_A=select/stop and BTN_B=cancel/back with
+the full 2×3 grid.
+
 - Ring (Colmi R02): paired over BLE by the firmware (`ENABLE_RING`); HR/SpO2
   flow into `hud.set_health()` and show on the status bar.
 

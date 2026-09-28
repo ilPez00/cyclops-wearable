@@ -37,7 +37,7 @@
 | 5 | AUDIO_CHUNK | device→brain | raw int16 frames (**binary**, not JSON) |
 | 6 | DISPLAY_CMD | brain→device | `{"kind":"text\|icon\|clear\|scroll\|tone","data":...}` |
 | 7 | NOTE | brain→device | `{"id","type":"task\|idea\|decision\|reminder\|summary","text"}` |
-| 8 | STATUS | device→brain | `{"batt":<mv>,"charging":<0\|1>,"gyro":[x,y,z]}` |
+| 8 | STATUS | device→brain | heartbeat (firmware `Hud::status_json`): `{"t":8,"batt":<pack mV>,"chg":0|1,"rec":0|1,"bt":0|1,"hr","spo2","mode","prog","recs","bead":<percent>,"bead_mv","pres":0|1,"pos":0|1,"toast":"..."}` — `pres`/`pos` are the presence + posture bits added for docs/43 C5 (host records a `presence` Event on every edge) |
 | 9 | CMD | brain→device | `{"op":"start_record\|stop_record\|set_led\|sleep"}` |
 | 10 | ACK | both | `{"ok":1,"type":<echoed type>}` |
 
@@ -95,6 +95,24 @@ brain tolerates gaps; do NOT promise real-time on classic BLE).
 - Lenient parsers ignore unknown keys; `PEER_HELLO` carries a `v` field.
 - CI test round-trips every message type (`tests/test_wire_contract.py`,
   `tests/test_v2.py`, `tests/test_colmi_r02.py`).
+
+### Namespace trap: wire type 8 == ACT_IMAGE_ANALYSIS == 8
+
+Wire types and `ACT_*` ids share one integer space. **`MSG_STATUS` (8) collides
+with `ACT_IMAGE_ANALYSIS` (8)**, so a handler choice must never be made on the
+number alone:
+
+- Where the value comes from the frame **header** (`device/ble.py`'s
+  `_on_frame`, `brain/hud_bridge.FrameReceiver`) the meaning is unambiguous —
+  route status by type.
+- In `HudBridge.dispatch()` (act, arg) the two are mixed, so a status body is
+  recognised by its content (`looks_like_status()`: a JSON object carrying
+  status keys). A payload that is not a status body falls through to the ACT
+  handler with the same id.
+
+`tests/test_events.py::test_status_frames_reach_the_bridge_through_every_router`
+pins both directions (found while wiring docs/43 C5; the first version hijacked
+action 8).
 
 ---
 **[inferred]** v1 framing + type tables are verbatim from `protocol/protocol.md`

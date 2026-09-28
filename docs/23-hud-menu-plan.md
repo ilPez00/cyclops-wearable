@@ -9,14 +9,15 @@ camera, image analysis, LLM) runs on the phone/brain. The HUD:
 
 ## Navigation model (resolution-agnostic)
 - Screen STACK (depth <= 4). Top frame is what's drawn.
-- Inputs:
-    wheel        -> move selection / scroll
-    btnA tap     -> open / select / confirm
-    btnA long    -> back (pop one level)
-    btnB tap     -> toggle screen (power save)
-    nod          -> quick-capture (push last transcript as note)
-    shake        -> back / dismiss
-    proximity    -> wake (arduino)
+- Inputs (MVP, one button — docs/43; the wheel/2-button rows are superseded):
+    tilt fwd/back -> move selection / scroll (HW-123, no wheel exists)
+    tap           -> open / select / confirm
+    double-tap    -> back (pop one level)
+    long press    -> ask the agent (ACT_AGENT)
+    nod           -> quick-capture (push last transcript as note)
+    shake         -> back / dismiss
+    MENU          -> Photo / Video / Translate / Health / Navigate /
+                     Teleprompter / Camera / ImageAnalyze / SSH / Settings
 - Modes: HOME, MENU, NOTES, NOTE_DETAIL, TRANSCRIBE, TRANSLATE, HEALTH,
          TELEPROMPTER, NAV, CAMERA, IMAGE_ANALYSIS, SSH, SETTINGS, CONFIRM.
 
