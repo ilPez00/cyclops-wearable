@@ -7,6 +7,11 @@
 > reconstructed. The pocket build = the Full wearable tightened to a pocketable
 > unit (the bridge between Dev board and Mini).
 
+> **MVP note (2026-09-28):** the shipped harness is docs/43's — 128×32 **I2C**
+> OLED, **one** button on GPIO3, MPU-class accel at `0x68`, XIAO ESP32-S3 Sense.
+> Rows below marked *legacy* are kept for pin history only. Case geometry:
+> `docs/44-case-redesign.md`.
+
 ## 0. What a "pocket build" is
 
 A pocket build is the **Full wearable** packed into a small enclosure you carry
@@ -19,26 +24,30 @@ field-testable middle ground before shrinking to the ring-scale Mini.
 | Part | Role |
 |------|------|
 | XIAO ESP32-S3 Sense | wearable MCU + I2S mic + BLE |
-| SSD1306 128×64 **or** ST7735 128×128 | HUD (mono compact vs color) |
+| SSD1306 **128×32 I2C** (`0x3C`) | HUD (the MVP panel; 128×64 / ST7735 are *legacy*) |
 | Li-Po 3.7 V (~300–500 mAh) | untethered power |
 | Charge/protect circuit | Li-Po safety (or rely on XIAO onboard charger) |
-| Small tactile buttons + scrollwheel | input (D3/D5 + D0/D4) |
+| **One** tactile button (GPIO3) + MPU-class accel (`0x68`) | input: tap / double-tap / long-hold + tilt-scroll (no wheel — removed) |
 | Enclosure (`enclosure/` dir) | 3D-printed or clamshell case |
 | (optional) COLMI R02 ring | health/gesture |
 
 ## 2. Enclosure / wiring
 
-- SPI: `SCK=D8 MOSI=D10 MISO=D9`; screen CS per panel (D6 mono / D7 color),
-  DC=D2, RST=D1.
-- Input: Wheel A=D0 B=D4; BTN_A=D3 (pull-up); BTN_B=D5 (pull-up — **not D4**).
-- I2S mic pads 40/41/42 (onboard; no external wiring needed).
+- I2C (MVP): SDA=GPIO43, SCL=GPIO44 — OLED at `0x3C`, accel at `0x68` on the
+  same bus. Full pin/keep-out table: `docs/30-schematics-xiao.md`.
+- SPI (*legacy* screens only): `SCK=D8 MOSI=D10 MISO=D9`; screen CS per panel
+  (D6 mono / D7 color), DC=D2, RST=D1.
+- Input (MVP): **one** button, GPIO3, active-low `INPUT_PULLUP` — tap = OK,
+  double-tap = BACK, long = AGENT. GPIO5 is free; BTN_B is not populated.
+- PDM mic (GPIO42 clk / GPIO41 data, onboard Sense): no external wiring.
 - Li-Po → `BAT` pad through charge/protect; USB-C for charge + data.
 - Keep total draw < 300 mA.
 
 ## 3. Build flags
 
-- Color: `-DSCREEN_ST7735` on `xiao_st7735`.
-- Compact mono: `-DSCREEN_128x64` on `xiao_128x64`.
+- Color (*legacy*): `-DSCREEN_ST7735` on `xiao_st7735`.
+- Compact mono (*legacy*): `-DSCREEN_128x64` on `xiao_128x64`.
+- **MVP:** `pio run -e xiao_128x32_i2c` — I2C OLED + accel + one button.
 - Ring: add `-DENABLE_RING`.
 
 ## 4. Pocket vs Mini vs Dev
@@ -53,9 +62,10 @@ field-testable middle ground before shrinking to the ring-scale Mini.
 
 ## 5. Bring-up (from `08-bringup.md`)
 
-1. `pio run -e xiao_128x64 -t upload` (or `_st7735`).
+1. `pio run -e xiao_128x32_i2c -t upload` (MVP; `_128x64` / `_st7735` are legacy).
 2. Verify `CyclopsXIAO` advertises; screen renders HOME.
-3. Wheel/buttons navigate; long-press A backs out.
+3. tap = OK / opens MENU, double-tap = BACK, long-press = AGENT; tilt scrolls
+   (`docs/43` §2 for the single-button map).
 4. `Transcribe` → mic → phone STT → NOTE on HUD.
 5. (ring) `HEALTH` shows HR/SpO2/batt.
 6. Low-batt auto-sleep; vibration confirm (pending).

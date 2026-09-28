@@ -13,7 +13,7 @@ This file is the at-a-glance snapshot.
 ## Verification snapshots
 | Gate | Result |
 |------|--------|
-| Python full suite (`tests/run_tests.py tests/test_*.py`) | **499 passed, 0 failed** (2026-09-28) |
+| Python full suite (`tests/run_tests.py tests/test_*.py`) | **513 passed, 0 failed** (2026-09-28, incl. the docs/44 case-evidence pass) |
 | Firmware host gate (`make test`) | **PASS** (incl. status_json clamp regression) |
 | Firmware proto gate (`make proto`) | **PASS** (framing + OTA + **ADPCM contract**) |
 | Firmware device builds (`xiao_128x32_i2c`, `xiao_selftest`) | **SUCCESS** (local PlatformIO) |
@@ -72,6 +72,44 @@ Plan of record: **`docs/43-mvp-one-button.md`**. MVP = full XIAO S3 Sense build
   `make test` PASS (16 cmds, incl. the new one-button test) + `make proto` PASS;
   `gen_acts.py --check` in sync (27 acts); `dead_calls.py` unchanged (7
   pre-existing Android items, none from this work).
+
+## Case redesign (2026-09-28 — docs/44, evidence first)
+
+- **Vendor geometry is now in the repo**: `cad/vendor/seeed/` holds Seeed's own
+  dimensioning DXFs, the OV3660/Sense 3D assembly and their printable shell,
+  with exact re-download commands in `SOURCE.md`. What each file *actually* is
+  (panel sheets, multi-body exports) is documented — a naive bbox measured the
+  drawing, not the part.
+- **New tool `scripts/cad_probe.py`** (`dxf|step`): pure-python (`ezdxf` +
+  a STEP entity walker), no FreeCAD/pythonocc needed. The DXF probe splits
+  geometry into connected components and board-relativises them; the STEP probe
+  reads each `MANIFOLD_SOLID_BREP` and warns that the export's **41 assembly
+  placements** make part *positions* untrustworthy (sizes are fine).
+- **Hard numbers now probed** (docs/44 §2): XIAO fab outline **17.790 ×
+  21.140 mm** with **14 pads, 7 per side, exactly 2.54 mm pitch**, pads
+  2.04 × 1.52 mm flush with the long edges and **no mounting holes**; Sense
+  assembly **17.790 × 21.150** with the camera footprint **5.050 × 4.720** at
+  board-relative (7.89, 6.59) → camera axis ≈ (10.4, 8.9); expansion board
+  **17.780 × 15.370** (so the XIAO overhangs it by ~5.8 mm); USB-C shell
+  **8.942 × 7.300 × 4.200**; OLED glass active **22.384 × 5.584**, panel
+  30.00 × 11.50 × 1.45. The old `screen_w/h = 35/36`, `screen_glass = 28` and
+  the two disagreeing accel sizes are confirmed wrong.
+- **Decisions locked** (docs/44 §5): 128×32 **4-pin** I2C carrier; accel stacked
+  **below** the XIAO stack; **OV3660** (camera faces away from the display, i.e.
+  window in the base); microSD card usable while cased; USB-C reachable with the
+  lid on and the Li-Po kept off the antenna half; PLA first for the coupon.
+- **Envelope, before any CAD:** ≈ **42.4 × 25.7 mm**, Z ≈ **14 mm** with a
+  low-profile XIAO↔expansion mate, ≈ **19–20 mm** with 2.54 female headers —
+  that mate is the single biggest lever (5–5.5 mm) and the open decision (§5.2).
+- **Next, in order:** fill the caliper sheet (docs/44 §6, M1–M14) → print the
+  **fit coupon, not the case** (§7 step 2) → one `cad/params.scad` source and
+  retire the 52 legacy artefacts to `cad/legacy/` → model the MVP pendant only.
+- Docs corrected in the same pass: `docs/10` (no onboard IMU; MVP supersedes the
+  ST7735/128×64 rows), `docs/11` (one button, I2C pins, MVP env, no wheel),
+  `docs/30` (I2C SDA/SCL rows, MVP build, "do not use the committed models"),
+  `AGENTS.md` ("Case / CAD" rules).
+- **Gates this pass:** docs + one new script, no firmware/app code touched.
+  Python suite **513 / 0**; `scripts/cad_probe.py` reproduces every §2 number.
 
 ## Shipped (2026-09-28 — MVP one-button pass, docs/43)
 

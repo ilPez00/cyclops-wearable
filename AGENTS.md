@@ -39,3 +39,18 @@ The Colmi R02 ring has **no physical button** — taps are synthesised from
 accelerometer spikes in `ring.TapDetector`. Its checksum is `sum(first15) % 255`
 (mod 255, not 256), and the ring streams nothing until the host writes an enable
 frame.
+
+## Case / CAD
+
+The committed `cad/*.scad`, `cad/*.blend`, `cad/*.stl` and `cad/freecad/*`
+models are built on wrong part dimensions and contradict each other (evidence
+table: `docs/44-case-redesign.md` §0). Do not extend them, do not print them,
+and do not "fix" one of them in isolation — they are presets awaiting
+retirement, not sources.
+
+Dimensions are only usable when **probed** from the vendor's own geometry
+(`python3 scripts/cad_probe.py dxf|step <file>`, originals in `cad/vendor/seeed/`)
+or **measured** with calipers. `docs/44` §2 holds the probed table, §4 the
+tolerance defaults and §6 the caliper sheet — fill §6 before modelling
+anything. Firmware is unaffected by case work: `/status` JSON and the protocol
+are the only interfaces the enclosure may assume.

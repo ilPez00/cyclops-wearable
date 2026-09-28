@@ -6,8 +6,9 @@ board also drives the glanceable OLED and reads the Colmi R02 ring over BLE.
 
 - Firmware: `firmware/xiao/src/main.cpp`, board `seeed_xiao_esp32s3`,
   platform `espressif32`, framework `arduino`.
-- Build: `pio run -e xiao_st7735 | xiao_128x64 | xiao_128x32`
-  (pick the screen at compile time via `-DSCREEN_*`).
+- Build: `pio run -e xiao_128x32_i2c` is the MVP env (I2C OLED + accel + one
+  button, docs/43). The SPI builds `xiao_st7735 | xiao_128x64 | xiao_128x32`
+  are legacy lab targets (`-DSCREEN_*`).
 
 ## Pin map (Seeed XIAO ESP32-S3)
 
@@ -19,7 +20,9 @@ board also drives the glanceable OLED and reads the Colmi R02 ring over BLE.
 | SPI SCK  (screen)   | 8    | default VSPI on XIAO S3                      |
 | SPI MOSI (screen)   | 10   |                                              |
 | SPI MISO (screen)   | 9    |                                              |
-| Screen CS (ST7735)  | 7    | `SCREEN_ST7735` build                        |
+| **I2C SDA (MVP)**   | **43 (D6)** | OLED `0x3C` + accel `0x68` share this bus              |
+| **I2C SCL (MVP)**   | **44 (D7)** | 400 kHz max on the SSD1306 carrier                     |
+| Screen CS (ST7735)  | 7    | `SCREEN_ST7735` build (legacy SPI)           |
 | Screen CS (128x64)  | 6    | `SCREEN_128x64` build                        |
 | Screen CS (128x32)  | 5    | `SCREEN_128x32` build                        |
 | Screen DC           | 2    | all SPI screens                              |
@@ -98,9 +101,17 @@ the full 2×3 grid.
 - `MIC_BCLK/WS/DIN` are overridable via `-D` if you move the mic.
 - Screen CS differs per build (`-DSCREEN_*`); BTN_B (GPIO5) overlaps the
   128x32 CS — pick one role per build.
-- Enclosure CAD: `cad/cyclops_xiao_enclosure.scad`.
+- Enclosure CAD: **do not use the committed models** — they predate the real part
+  dimensions (see `docs/44-case-redesign.md` §0, which also carries the tolerance
+  table and the caliper sheet). Vendor geometry lives in `cad/vendor/seeed/`;
+  probe it with `python3 scripts/cad_probe.py dxf|step <file>`.
 
-## Print files (STL)
+## Print files (STL) — *stale, see docs/44*
+
+> The exports below come from the OpenSCAD sources that `docs/44` §0 documents
+> as wrong (OLED panel, accel size, no camera / SD / USB-C features). They stay
+> only until one parametrized source (`cad/params.scad`, `docs/44` §7 step 3)
+> replaces them — do not print them for the MVP harness.
 
 Generated OpenSCAD exports in `cad/stl/`:
 - `xiao_body.stl` — holds XIAO S3 Sense + screen; print upside-down (screen

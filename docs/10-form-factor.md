@@ -9,12 +9,18 @@
 
 ## 0. Design space
 
+> **MVP supersedes the input/display rows below** (docs/43, docs/44): the harness
+> is a XIAO ESP32-S3 **Sense** + a 128×32 **I2C** OLED + **one** button on GPIO3
+> + an external MPU-class accel at `0x68`. There is **no onboard IMU** on a
+> XIAO, no rotary wheel (removed — AGENTS.md), and no ST7735 in the MVP. The
+> ST7735 / 128×64 rows below are legacy lab builds, kept for pin history.
+
 Cyclops separates **compute/wearable** (XIAO) from **sensing** (ring) and
 **display** (glasses / OLED). Three form factors trade off size vs capability:
 
 | Factor | Display | Sensor | Power | Footprint |
 |--------|----------|---------|--------|-----------|
-| **Dev board** | ST7735 128×128 | XIAO onboard IMU + I2S | USB-C tether | breadboard |
+| **Dev board** (legacy) | ST7735 128×128 | external accel @`0x68` + PDM mic (`imu.cpp` speaks MPU registers only — `imu_whoami.h` refuses anything else) | USB-C tether | breadboard |
 | **Full wearable** | ST7735 128×128 or 128×64 | IMU + optional ring | Li-Po or tether | wrist / chest unit |
 | **Mini** (doc 15) | SSD1306 128×32 | ring-first (R02) | Li-Po default | finger ring + coin-sized HUD |
 
@@ -38,9 +44,14 @@ differ (see `01-hardware.md`, `22-screens-plan.md`).
 
 See `15-cyclops-mini.md` (reconstructed). Essence:
 - COLMI R02 ring as the always-on health/gesture sensor.
-- XIAO ESP32-S3 + **128×32 SSD1306** (CS=D5) — the glanceable-only panel.
+- XIAO ESP32-S3 + **128×32 SSD1306, I2C** (`0x3C`; SDA GPIO43 / SCL GPIO44) —
+  the glanceable-only panel. There is no CS pin on an I2C carrier.
 - Li-Po default, pocket-sized. One finger-mounted sensor + one coin-sized HUD.
-- Build: `-DSCREEN_128x32 -DENABLE_RING` on the `xiao_128x32` env.
+- Build: `pio run -e xiao_128x32_i2c` (the MVP env, docs/43). `-DENABLE_RING`
+  only for ring work (the ring has no button — taps come from accel spikes).
+- Case work: dimensions, tolerances and the caliper sheet live in
+  `docs/44-case-redesign.md` — the committed `.scad`/`.blend`/FreeCAD files are
+  not valid for this build.
 
 ## 4. Display fit (from `22-screens-plan.md`)
 
