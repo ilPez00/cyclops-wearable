@@ -1,0 +1,129 @@
+# Cyclops case parameters — THE single source of truth (docs/44 §7 step 3).
+#
+# Edit here. `cad/params.scad` is generated from this file by
+# `python3 scripts/cad_params.py` — never edit the .scad by hand, and never
+# reintroduce a dimension constant inside a model file.
+#
+# Provenance tags on every number:
+#   PROBED      derived from Seeed's own geometry via scripts/cad_probe.py
+#   SPEC        vendor datasheet value
+#   DEFAULT     docs/44 §4 working tolerance — the fit coupon confirms/corrects
+#   UNVERIFIED  still a guess; the M-number is the caliper measurement that
+#               replaces it (docs/44 §6)
+meta:
+  updated: "2026-09-28"
+  doc: docs/44-case-redesign.md
+  units: mm
+
+printer:
+  nozzle: 0.4              # DEFAULT  process assumption
+  layer: 0.2               # DEFAULT
+  wall: 2.0                # DEFAULT
+  wall_min: 1.6            # DEFAULT
+  floor: 1.2               # DEFAULT
+  fillet: 1.5              # DEFAULT
+
+tolerance:
+  pocket_per_side: 0.20    # DEFAULT  PCB into a pocket
+  pcb_slot_h: 1.75         # DEFAULT  1.6 board + solder wick/HASL
+  window_over_active: 0.30 # DEFAULT  window edge beyond the active area
+  panel_recess: 1.60       # DEFAULT  glass 1.45 + tape/foam
+  camera_over_barrel: 0.40 # DEFAULT  lens barrel clearance
+  card_clear_w: 0.60       # DEFAULT  microSD opening width
+  card_clear_h: 0.30       # DEFAULT  microSD opening height
+  snap_engagement: 0.65    # DEFAULT  radial hook engagement
+  press_fit: -0.12         # DEFAULT  interference for keep-put parts
+  screw_pilot_pla: 1.60    # DEFAULT  M2 self-tapping
+  screw_pilot_petg: 1.70   # DEFAULT
+  usb_cut_w: 9.40          # DEFAULT  USB-C plug opening
+  usb_cut_h: 3.80          # DEFAULT
+  usb_chamfer: 0.30        # DEFAULT
+  button_hole: 4.40        # DEFAULT  button cap Ø4.2 + 0.2
+  button_cbore: 0.50       # DEFAULT
+  antenna_keepout: 10.0    # DEFAULT  no metal/battery this close to the antenna
+  lanyard_slot_w: 3.0      # DEFAULT
+  lanyard_slot_h: 1.5      # DEFAULT
+  lanyard_wall: 1.6        # DEFAULT
+
+parts:
+  # XIAO ESP32-S3 — scripts/cad_probe.py on XIAO_ESP32S3_v1.1_Dimensioning.dxf
+  xiao_outline_x: 17.790   # PROBED   fab outline (published nominal 17.5)
+  xiao_outline_y: 21.140   # PROBED   fab outline (published nominal 21.0)
+  xiao_thickness: 1.60     # UNVERIFIED M5
+  xiao_pin_pitch: 2.54     # PROBED   exactly 2.54 on all 7 rows
+  xiao_pins_per_side: 7    # PROBED
+  xiao_pad_x: 2.04         # PROBED   pad size, flush with the long edges
+  xiao_pad_y: 1.52         # PROBED
+  xiao_row_centres: 15.745 # PROBED   re-check with calipers (M4)
+  # Sense camera/expansion board — Sense_ExpBoard_{top,bot}.dxf
+  exp_outline_x: 17.780    # PROBED
+  exp_outline_y: 15.370    # PROBED   the XIAO overhangs it by ~5.8
+  exp_thickness: 1.60      # UNVERIFIED M5
+  # Sense assembly — Sense_TOP.dxf / Sense_BOTTOM.dxf (board-relative)
+  sense_outline_x: 17.790  # PROBED
+  sense_outline_y: 21.150  # PROBED
+  cam_foot_x: 5.050        # PROBED   camera footprint
+  cam_foot_y: 4.720        # PROBED
+  cam_at_x: 7.890          # PROBED   footprint origin from the board corner
+  cam_at_y: 6.590          # PROBED
+  cam_axis_x: 10.415       # PROBED   derived: cam_at_x + cam_foot_x/2
+  cam_axis_y: 8.950        # PROBED   derived: cam_at_y + cam_foot_y/2
+  mate_height: 8.50        # UNVERIFIED M6 — XIAO↔expansion, 2.54 female headers.
+                           #   Biggest lever in the build (docs/44 §5.2) — no
+                           #   case Z without M6.
+  mate_height_alt: 3.20    # UNVERIFIED M6 — the other scenario: soldered
+                           #   castellated edge pads / low-profile mate. The
+                           #   envelope prints both totals so the fork is visible.
+  # Display — 0.91" 128×32 glass (panel maker spec), 4-pin carrier
+  oled_active_x: 22.384    # SPEC
+  oled_active_y: 5.584     # SPEC
+  oled_panel_x: 30.000     # SPEC     glass
+  oled_panel_y: 11.500     # SPEC     glass
+  oled_panel_t: 1.450      # SPEC     glass
+  oled_carrier_x: 38.00    # UNVERIFIED M1
+  oled_carrier_y: 12.00    # UNVERIFIED M1
+  oled_carrier_t: 2.60     # UNVERIFIED M1  PCB + solder side
+  # Modules
+  accel_x: 21.0            # UNVERIFIED M9
+  accel_y: 16.0            # UNVERIFIED M9
+  accel_t: 2.5             # UNVERIFIED M9
+  batt_x: 30.0             # UNVERIFIED M10
+  batt_y: 20.0             # UNVERIFIED M10
+  batt_t: 3.0              # UNVERIFIED M10
+  btn_cap_d: 4.20          # UNVERIFIED M11
+  btn_body: 6.0            # UNVERIFIED M11
+  btn_height: 5.0          # UNVERIFIED M11
+  # USB-C receptacle — one solid in Seeed's 3D assembly
+  usb_shell_x: 8.942       # PROBED
+  usb_shell_y: 7.300       # PROBED
+  usb_shell_t: 4.200       # PROBED   shell + SMT pegs
+
+# Standardised dimensions of off-the-shelf things, so models never re-type them.
+standard:
+  microsd_w: 11.0          # SPEC  microSD card width
+  microsd_t: 1.0           # SPEC  microSD card thickness
+  m2_screw_d: 2.0          # SPEC  M2 self-tapping screw
+
+# Case shell itself (derived values are computed by scripts/cad_params.py —
+# only inputs live here).
+case:
+  lid_t: 2.00              # DEFAULT  lid face (carries the display window)
+  assembly_gap_z: 1.00     # DEFAULT  total Z slop, split between the two
+                           #          interfaces that are not press-fits
+
+# The fit coupon is the FIRST print (docs/44 §7 step 2). These are the variant
+# values it tests — the winner of each set gets promoted into `tolerance`.
+coupon:
+  gaps: [0.10, 0.15, 0.20, 0.25, 0.30]   # PCB play per side
+  gauge_w: 8.00                          # the loose gauge bar tested in each slot
+  pilots: [1.60, 1.70, 1.80]             # M2 self-tapping PILOT Ø
+  pilot_depth: 6.0
+  usb_cuts: [9.20, 9.40, 9.60]           # USB-C slot widths (plug test)
+  card_slots: [11.40, 11.60, 11.80]      # microSD opening widths
+  card_t: 1.30                           # microSD opening height
+  pcb_slots: [1.60, 1.75, 1.90]          # PCB-edge slot heights
+  snap_beam_t: 1.80                      # cantilever beam thickness
+  snap_beam_l: 14.0
+  plate_x: 70.0
+  plate_y: 36.0
+  plate_t: 4.0

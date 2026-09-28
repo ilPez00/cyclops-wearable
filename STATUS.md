@@ -98,18 +98,45 @@ Plan of record: **`docs/43-mvp-one-button.md`**. MVP = full XIAO S3 Sense build
   **below** the XIAO stack; **OV3660** (camera faces away from the display, i.e.
   window in the base); microSD card usable while cased; USB-C reachable with the
   lid on and the Li-Po kept off the antenna half; PLA first for the coupon.
-- **Envelope, before any CAD:** ≈ **42.4 × 25.7 mm**, Z ≈ **14 mm** with a
-  low-profile XIAO↔expansion mate, ≈ **19–20 mm** with 2.54 female headers —
-  that mate is the single biggest lever (5–5.5 mm) and the open decision (§5.2).
-- **Next, in order:** fill the caliper sheet (docs/44 §6, M1–M14) → print the
-  **fit coupon, not the case** (§7 step 2) → one `cad/params.scad` source and
-  retire the 52 legacy artefacts to `cad/legacy/` → model the MVP pendant only.
+- **Envelope:** ≈ **42.40 × 25.55 mm** footprint; Z ≈ **25.60 mm** (2.54 header
+  mate) or **20.30 mm** (soldered low-profile mate) — a 5.30 mm swing on that one
+  decision. Computed by `scripts/cad_params.py envelope`, not by hand: the first
+  prose estimate was 5 mm adrift.
+- **Next, in order:** fill the caliper sheet (docs/44 §6, M1–M14) → **print the
+  coupon** and record the winners → retire the 52 legacy artefacts to
+  `cad/legacy/` once the parametrized pendant exists → model the pendant.
 - Docs corrected in the same pass: `docs/10` (no onboard IMU; MVP supersedes the
   ST7735/128×64 rows), `docs/11` (one button, I2C pins, MVP env, no wheel),
   `docs/30` (I2C SDA/SCL rows, MVP build, "do not use the committed models"),
   `AGENTS.md` ("Case / CAD" rules).
 - **Gates this pass:** docs + one new script, no firmware/app code touched.
   Python suite **513 / 0**; `scripts/cad_probe.py` reproduces every §2 number.
+
+## Case: single parameter source + fit coupon (2026-09-28, docs/44 §7 steps 2–3)
+
+- **`cad/params.yaml` is now the only place a case dimension is written.** Every
+  value carries its provenance: PROBED / SPEC / DEFAULT / UNVERIFIED + the
+  caliper measurement (M-number) that will replace it. `scripts/cad_params.py
+  generate` emits `cad/params.scad` for OpenSCAD, so a model and a check cannot
+  disagree; `envelope` derives the case numbers and prints all 16 UNVERIFIED
+  inputs they depend on.
+- **The fit coupon exists and is verified numerically.** `cad/fit_coupon.scad`
+  → `cad/stl/fit_coupon.stl` (3 bodies, all watertight, 13.3 g PLA, ~1 h, no
+  supports). `scripts/cad_params.py section` reads the built mesh back:
+  pockets **8.10 / 8.15 / 8.20 / 8.25 / 8.30 × 13.00**, PCB slots
+  **1.60 / 1.75 / 1.90**, pilots **Ø1.60 / 1.70 / 1.80**, latch detent
+  **3.00 × 2.00**, USB-C opening **9.20**, card opening **11.40** — every value
+  the coupon claims, measured from the geometry rather than assumed.
+- **Toolchain without root:** `scripts/get_openscad.sh` extracts OpenSCAD
+  2021.01 from the official AppImage into `~/.local/share/openscad-appimage/`.
+  Two traps recorded in docs/44 §7.1: this build rejects `include "..."`
+  (use `include <...>`), and CGAL needs solids to *interpenetrate* by ≥0.2 mm —
+  face-to-face contact emits non-manifold edges (the first coupon build proved
+  it, one edge with four faces).
+- **Gates this pass:** OpenSCAD compile clean (no errors/warnings), `check`
+  green, `section` receipts above, python suite **513 / 0**, envelope numbers
+  reproducible. The coupon has **not been printed** — that is the next physical
+  step, and it is what promotes a DEFAULT into a measured value.
 
 ## Shipped (2026-09-28 — MVP one-button pass, docs/43)
 

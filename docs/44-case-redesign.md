@@ -37,9 +37,9 @@ antenna keep-out, the USB-C plug shell, and any tolerance stack. A lid that
 real parts): 6 `.blend` + 4 `.blend1`, 11 `.scad`, 36 `.stl` (`cad/stl/`,
 `cad/variants/`, `cad/freecad/`), 11 FreeCAD files (`build_pendant.py`,
 `CyclopsPendant.FCStd`, `pendant_{body,cap}_v{4,5}.{step,stl}`), 36 renders.
-They are *presets*, not sources: after §7 step 3 they move to `cad/legacy/` and
-only the parametrized source is regenerated. Nothing is deleted before its
-replacement exists.
+They are *presets*, not sources: in §7 step 5 they move to `cad/legacy/` once
+the parametrized replacement exists. Nothing is deleted before its replacement
+exists.
 
 ## 1. Parts under design (locked, docs/43 §1 + the §5 decisions)
 
@@ -203,11 +203,17 @@ The battery (30 mm) and the display (38 mm) cannot share a layer, and the
 battery must stay away from the antenna → battery under the display band, accel
 beside the board. With 2.0 mm walls and 0.4 mm pocket play:
 
-- **case ≈ 42.4 × 25.7 mm** footprint; Z ≈ **14 mm** with a low-profile mate,
-  ≈ **19–20 mm** with 2.54 header mating (pending the measured S values).
+- **case ≈ 42.40 × 25.55 mm** footprint (inner pocket 38.40 × 21.55);
+  Z ≈ **25.60 mm** with 2.54 header mating, **20.30 mm** with a soldered
+  low-profile mate — a **5.30 mm swing from one decision**.
+
+These are no longer hand-written: `python3 scripts/cad_params.py envelope`
+computes them from `cad/params.yaml` and prints every UNVERIFIED input they
+depend on (16 today). Run it before quoting anything from this section — the
+first revision of this doc guessed "42 × 26 mm / Z 14–20 mm", 5 mm adrift.
 
 Levers if that is too fat, in order of payoff: (a) mate without headers
-(−5 mm); (b) drop the carrier and pocket a bare 30 × 11.5 mm COG panel
+(−5.30 mm); (b) drop the carrier and pocket a bare 30 × 11.5 mm COG panel
 (−8 mm length, −1.5 mm Z, needs a short flex); (c) thinner Li-Po (302020);
 (d) move the accel onto the board's own back face.
 
@@ -243,13 +249,24 @@ into §2 with the row's UNVERIFIED tag removed and the date added.
 ## 7. Redesign plan (gated — no step starts before the previous gate passes)
 
 1. **Fill §6.** No CAD before every UNVERIFIED row in §2 has a caliper number.
-2. **Fit coupon, not the case.** One ~30 min print: gaps 0.10 / 0.15 / 0.20 /
-   0.25 / 0.30 mm, a Ø1.6/1.7/1.8 pilot trio, one snap hook, USB-C cutouts at
-   9.2 / 9.4 / 9.6 mm, and a card slot at 11.4 / 11.6 / 11.8 mm. Every §4 value
-   is confirmed or corrected against this print — then recorded here.
-3. **One parameter source.** `cad/params.scad` (or `params.yaml` consumed by
-   both the SCAD and any FreeCAD script) replaces the disagreeing constants of
-   §0; the 52 legacy artefacts move to `cad/legacy/` in the same commit.
+2. **Fit coupon — DONE (2026-09-28).** `cad/fit_coupon.scad` (every dimension
+   pulled from `cad/params.yaml`) builds `cad/stl/fit_coupon.stl`: 5 pocket
+   gaps, 3 PCB-edge slots, 3 M2 pilots, 3 USB-C openings, 3 microSD openings
+   and a slide-in snap latch (arm, engagement, detent), with raised index dots.
+   ~13.3 g PLA, ~1 h, no supports, loose parts printed beside the plate.
+   **Verified numerically, not by eye** — `scripts/cad_params.py section` reads
+   the built mesh back at z = 3.5: pockets **8.10 / 8.15 / 8.20 / 8.25 / 8.30
+   × 13.00**, PCB slots **1.60 / 1.75 / 1.90**, pilots **Ø1.60 / 1.70 / 1.80**,
+   latch detent **3.00 × 2.00**, and at their own heights the USB-C opening
+   **9.20** and the card opening **11.40**. `check` reports 3 bodies, all
+   watertight. **Print it, then record the winner of each set here.**
+3. **One parameter source — DONE (2026-09-28).** `cad/params.yaml` is the only
+   place a case dimension is written down; every value carries a provenance tag
+   (PROBED / SPEC / DEFAULT / UNVERIFIED + the M-number that will replace it).
+   `scripts/cad_params.py generate` writes `cad/params.scad` for OpenSCAD, so a
+   model and a check cannot disagree. The 52 legacy artefacts move to
+   `cad/legacy/` in step 5's commit, when their replacement actually exists —
+   moving them now would leave the repo with no geometry at all.
 4. **Decide §5.2** (mate hardware) and record the reasoning here.
 5. **Model one variant** — the MVP pendant only: camera window anchored at
    §2c's axis, card opening, USB-C opening, antenna keep-out, button boss.
@@ -262,6 +279,24 @@ into §2 with the row's UNVERIFIED tag removed and the date added.
    (e) keeps BLE range (a walk test with the battery strapped in place).
 
 Until step 6, any dimension in `cad/` is a proposal; §2 + §6 are the truth.
+
+### 7.1 Toolchain (no distro CAD package on this box, no sudo)
+
+- `scripts/get_openscad.sh` extracts the official OpenSCAD **2021.01** AppImage
+  into `~/.local/share/openscad-appimage/` — no FUSE, no root:
+  `OS=~/.local/share/openscad-appimage/squashfs-root/AppRun`
+  `$OS --export-format binstl -o cad/stl/fit_coupon.stl cad/fit_coupon.scad`
+- **Gotcha:** this build rejects the quoted include form. `include "params.scad"`
+  fails with `Parser error: syntax error`; `include <params.scad>` works (the
+  search path includes the main file's directory, so a sibling resolves).
+- `scripts/cad_params.py` needs `pyyaml`; `check` and `section` need `trimesh`:
+  `python3 -m pip install --user --break-system-packages pyyaml trimesh`
+- **Manifold discipline** (learned by building this coupon): CGAL turns
+  face-to-face contact into non-manifold edges. Every solid added to another
+  must *interpenetrate* by ≥0.2 mm — dots, bosses, walls, rails, the latch arm
+  into its handle, the nib into the arm. Symptom when you forget: `ERROR: The
+  given mesh is not closed`, or `WARNING: Object may not be a valid
+  2-manifold`, plus one edge with four faces (find it by counting edge uses).
 
 
 
