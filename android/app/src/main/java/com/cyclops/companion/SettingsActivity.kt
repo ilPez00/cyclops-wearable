@@ -34,8 +34,11 @@ class SettingsActivity : BaseActivity() {
         fun get(key: String) = prefs.getString(key, "") ?: ""
 
         binding.edUrl.setText(if (CyclopsApi.baseUrl.isNotBlank()) CyclopsApi.baseUrl else get("url"))
+        binding.edLanToken.setText(if (CyclopsApi.lanToken.isNotBlank()) CyclopsApi.lanToken else get("lan_token"))
         binding.edLocalEndpoint.setText(get("local_endpoint"))
         binding.edApiKey.setText(get("api_key"))
+        binding.edModel.setText(get("model"))
+        binding.edLocalModel.setText(get("local_model"))
 
         // Provider dropdown + "Get an API key" link (Providers lives in :core).
         ArrayAdapter(this, android.R.layout.simple_spinner_item, Providers.labels).also { ad ->
@@ -128,17 +131,32 @@ class SettingsActivity : BaseActivity() {
             startActivity(Intent(this, OAuthActivity::class.java))
         }
 
+        binding.swPhoneActivity.isChecked = get("phone_activity") == "1"
+        binding.btnUsageAccess.setOnClickListener {
+            startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+
+        binding.btnRemap.setOnClickListener {
+            startActivity(Intent(this, RemapActivity::class.java))
+        }
+
         binding.btnSave.setOnClickListener { save(); finish() }
     }
 
     private fun save() {
         val prefs = getSharedPreferences("cyclops", MODE_PRIVATE)
         val url = binding.edUrl.text?.toString()?.trim() ?: ""
+        val lanToken = binding.edLanToken.text?.toString()?.trim() ?: ""
         prefs.edit().apply {
             putString("url", url)
+            putString("lan_token", lanToken)
             putString("local_endpoint", binding.edLocalEndpoint.text?.toString()?.trim())
             putString("provider", Providers.ALL[binding.spProvider.selectedItemPosition].id)
             putString("api_key", binding.edApiKey.text?.toString()?.trim())
+            putString("model", binding.edModel.text?.toString()?.trim())
+            putString("local_model", binding.edLocalModel.text?.toString()?.trim())
+            putString("phone_activity",
+                if (binding.swPhoneActivity.isChecked) "1" else "")
             putString("persona_name", binding.edPersonaName.text?.toString()?.trim())
             putString("persona_voice", binding.edPersonaVoice.text?.toString()?.trim())
             putString("persona_bio", binding.edPersonaBio.text?.toString()?.trim())
@@ -150,6 +168,18 @@ class SettingsActivity : BaseActivity() {
             }
         }.apply()
         CyclopsApi.baseUrl = url
+        CyclopsApi.lanToken = lanToken
+
+        // Phone activity tracking runs only with the pref on AND the
+        // system usage-access grant; otherwise the service stays down.
+        val svc = Intent(this, PhoneActivityService::class.java)
+        if (binding.swPhoneActivity.isChecked &&
+            PhoneActivityService.hasUsageAccess(this)) {
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(svc)
+            else startService(svc)
+        } else {
+            stopService(svc)
+        }
 
         // push profile (persona/provider + per-tool overrides) to the brain
         val overrides = JSONObject()
@@ -170,6 +200,8 @@ class SettingsActivity : BaseActivity() {
             put("persona_bio", binding.edPersonaBio.text?.toString()?.trim() ?: "")
             put("provider", Providers.ALL[binding.spProvider.selectedItemPosition].id)
             put("api_key", binding.edApiKey.text?.toString()?.trim() ?: "")
+            put("model", binding.edModel.text?.toString()?.trim() ?: "")
+            put("local_model", binding.edLocalModel.text?.toString()?.trim() ?: "")
             if (overrides.length() > 0) put("tool_overrides", overrides)
         }
         if (CyclopsApi.configured) {

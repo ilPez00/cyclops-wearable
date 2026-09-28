@@ -45,6 +45,14 @@
             android:text="B · EAR  — back / voice note / voice cmd"
             android:textSize="15sp"
             android:textColor="#B3B3B3" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Tilt the device to scroll. No wheel, no touchscreen."
+            android:textSize="15sp"
+            android:textColor="#B3B3B3" />
     </LinearLayout>
 
     <!-- page 1: gestures -->

@@ -49,9 +49,17 @@ Imu::Imu(uint8_t addr, int int_pin) : addr_(addr), int_pin_(int_pin) {}
 
 bool Imu::begin() {
     Wire.begin();  // already begun by screen; harmless repeat
-    uint8_t who = read_reg(Wire, addr_, REG_WHOAMI);
-    // MPU-6050=0x68, MPU-9250=0x71/0x73, ICM-206xx=0x98/0x9C. Accept any ack.
-    if (who == 0xFF) { ready_ = false; return false; }
+    whoami_ = read_reg(Wire, addr_, REG_WHOAMI);
+    chip_ = imu_identify(whoami_);
+    // docs/43 C4: drive ONLY parts whose register map this file speaks. The old
+    // "accept any WHO_AM_I ack" rule let a different part (LSM6DS3: its WHO_AM_I
+    // lives at 0x0F, so 0x75 reads junk) pass as "ok", then wrote MPU registers
+    // into it and read nonsense -- silent garbage instead of an error.
+    if (!imu_supported(chip_)) {
+        ready_ = false;
+        imu_status_line(whoami_, addr_, reason_, sizeof(reason_));
+        return false;
+    }
     write_reg(Wire, addr_, REG_PWR_MGMT_1, 0x00);  // wake
     write_reg(Wire, addr_, REG_PWR_MGMT_2, 0x00);  // all axes on
     write_reg(Wire, addr_, REG_SMPLRT_DIV, 0x07);  // ~1kHz/8
@@ -59,6 +67,7 @@ bool Imu::begin() {
     write_reg(Wire, addr_, REG_ACCEL_CFG, 0x08);   // +/-4g
     if (int_pin_ >= 0) pinMode(int_pin_, INPUT);
     ready_ = true;
+    imu_status_line(whoami_, addr_, reason_, sizeof(reason_));
     return true;
 }
 

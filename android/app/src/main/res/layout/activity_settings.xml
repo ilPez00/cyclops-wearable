@@ -38,6 +38,13 @@
             android:hint="…or paste the URL (http://host:8080)"
             android:inputType="textUri" />
 
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edLanToken"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="LAN token (from ~/.cyclops/token on the brain box)"
+            android:inputType="textPassword" />
+
         <LinearLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="horizontal" android:gravity="center_vertical"
@@ -81,10 +88,20 @@
             android:inputType="textPassword" />
 
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edModel"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Model (blank = provider default)" />
+
+        <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/edLocalEndpoint"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:hint="Endpoint (auto-filled for local providers)"
             android:inputType="textUri" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edLocalModel"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Local model (e.g. llama3.1, llava)" />
 
         <!-- Some providers need a browser sign-in instead of a pasted key
              (device flow, RFC 8628): a separate screen since it's a
@@ -95,6 +112,23 @@
             android:layout_marginTop="8dp"
             android:text="Connect an OAuth provider…"
             android:contentDescription="Authenticate a provider that requires browser sign-in" />
+
+        <!-- Phone activity tracking (UsageStats tier): foreground-app
+             sessions become ledger events. Explicit opt-in + the system
+             usage-access grant; no pixels, no view text, ever. -->
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/swPhoneActivity"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Phone activity tracking"
+            android:contentDescription="Send foreground-app sessions to the ledger" />
+
+        <Button
+            android:id="@+id/btnUsageAccess"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Grant usage access…"
+            android:contentDescription="Open system settings to allow usage access" />
 
         <TextView style="@style/SettingsHeader"
             android:id="@+id/hdrPersona"
@@ -124,7 +158,13 @@
             android:inputType="textMultiLine" android:minLines="2" />
 
         <!-- Advanced per-tool overrides: 10 jargon fields most users never
-             touch. Collapsed behind a disclosure so Settings reads clean. -->
+              touch. Collapsed behind a disclosure so Settings reads clean. -->
+        <Button
+            android:id="@+id/btnRemap"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Button remap…"
+            android:contentDescription="Remap wearable button gestures to actions" />
         <TextView
             android:id="@+id/hdrTools"
             android:layout_width="wrap_content" android:layout_height="wrap_content"

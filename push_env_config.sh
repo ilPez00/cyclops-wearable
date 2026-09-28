@@ -58,6 +58,12 @@ OMNIROUTE_KEY=""
 if [ -f "$ENV_FILE" ]; then
   OMNIROUTE_KEY=$(grep -m1 '^OMNIROUTE_API_KEY=' "$ENV_FILE" | cut -d= -f2-)
 fi
+# LAN token: the server gates every route except /health. Over `adb reverse`
+# the phone arrives on 127.0.0.1 and the server treats that as loopback
+# (exempt), but on real LAN Wi-Fi the app must present this or every call
+# gets HTTP 401. ~/.cyclops/token is created by the brain on first boot.
+LAN_TOKEN=""
+[ -f ~/.cyclops/token ] && LAN_TOKEN=$(cat ~/.cyclops/token)
 
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
@@ -72,11 +78,11 @@ if ! adb shell run-as "$PKG" cat "$DEVICE_PATH" 2>/dev/null > "$LOCAL_XML" || [ 
   printf '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n</map>\n' > "$LOCAL_XML"
 fi
 
-python3 - "$LOCAL_XML" "http://127.0.0.1:$PORT" "omniroute" "$OMNIROUTE_KEY" <<'PY'
+python3 - "$LOCAL_XML" "http://127.0.0.1:$PORT" "omniroute" "$OMNIROUTE_KEY" "$LAN_TOKEN" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
 
-path, url, provider, api_key = sys.argv[1:5]
+path, url, provider, api_key, lan_token = sys.argv[1:6]
 tree = ET.parse(path)
 root = tree.getroot()
 
@@ -93,6 +99,8 @@ set_string("url", url)
 set_string("provider", provider)
 if api_key:
     set_string("api_key", api_key)
+if lan_token:
+    set_string("lan_token", lan_token)
 tree.write(path, encoding="utf-8", xml_declaration=True)
 PY
 

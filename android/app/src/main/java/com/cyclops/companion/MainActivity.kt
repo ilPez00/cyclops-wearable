@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         binding.navView.setNavigationItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_chat -> binding.editAsk.requestFocus()
+                R.id.nav_world -> startActivity(Intent(this, WorldActivity::class.java))
                 R.id.nav_feed -> startActivity(Intent(this, FeedActivity::class.java))
                 R.id.nav_vision -> startActivity(Intent(this, VisionActivity::class.java))
                 R.id.nav_memory -> startActivity(Intent(this, MemoryActivity::class.java))
@@ -63,7 +64,6 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_hud -> startActivity(Intent(this, HudMirrorActivity::class.java))
                 R.id.nav_ring -> startActivity(Intent(this, RingActivity::class.java))
                 R.id.nav_transcript -> startActivity(Intent(this, TranscriptActivity::class.java))
-                R.id.nav_remap -> startActivity(Intent(this, RemapActivity::class.java))
                 R.id.nav_settings -> showSettings()
             }
             binding.drawerLayout.closeDrawers()

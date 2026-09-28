@@ -53,27 +53,6 @@ class LocalScreenSink(DisplaySink):
         )
 
 
-class ArduinoSink(DisplaySink):
-    """128x32 OLED: 4 rows x 21 chars. Same DISPLAY_CMD channel as XIAO."""
-
-    def __init__(self, transport):
-        self.t = transport
-
-    def _send(self, text):
-        self.t.write(
-            encode(
-                MSG["DISPLAY_CMD"],
-                json.dumps({"kind": "text", "data": text[:21]}).encode(),
-            )
-        )
-
-    def render(self, note):
-        self._send(f"{note.type[0].upper()}:{note.text[:19]}")
-
-    def render_text(self, text):
-        self._send(text[:21])
-
-
 class G2GlassesSink(DisplaySink):
     """G2 640x200: strict 4 lines x 18 chars (premortem #4)."""
 

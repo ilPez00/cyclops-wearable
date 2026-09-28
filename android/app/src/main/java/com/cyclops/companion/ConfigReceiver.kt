@@ -19,6 +19,7 @@ import android.content.pm.ApplicationInfo
  *   adb shell am broadcast -n com.cyclops.companion/.ConfigReceiver \
  *     -a com.cyclops.companion.SET_CONFIG \
  *     --es url "http://192.168.1.50:8080" \
+ *     --es lan_token "$(cat ~/.cyclops/token)" \
  *     --es provider "omniroute" \
  *     --es api_key "sk-..."
  */
@@ -30,11 +31,13 @@ class ConfigReceiver : BroadcastReceiver() {
         val prefs = context.getSharedPreferences("cyclops", Context.MODE_PRIVATE)
         prefs.edit().apply {
             intent.getStringExtra("url")?.let { putString("url", it) }
+            intent.getStringExtra("lan_token")?.let { putString("lan_token", it) }
             intent.getStringExtra("provider")?.let { putString("provider", it) }
             intent.getStringExtra("api_key")?.let { putString("api_key", it) }
             intent.getStringExtra("local_endpoint")?.let { putString("local_endpoint", it) }
             apply()
         }
         intent.getStringExtra("url")?.let { CyclopsApi.baseUrl = it }
+        intent.getStringExtra("lan_token")?.let { CyclopsApi.lanToken = it }
     }
 }

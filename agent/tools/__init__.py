@@ -22,6 +22,7 @@ from .history import make_history_tool
 from .media import make_media_tool
 from .memory_tool import make_memory_tool
 from .omi import make_omi_tool
+from .physis import make_physis_tool
 from .plugin import make_plugin_tool
 from .screen import make_screen_tool
 from .terminal import make_terminal_tool
@@ -63,6 +64,7 @@ def build_registry(
         "plugin": lambda: make_plugin_tool(config),
         "screen": lambda: make_screen_tool(config),
         "memory": lambda: make_memory_tool(config),
+        "physis": lambda: make_physis_tool(config, session=session),
     }
     for name, factory in factories.items():
         if name in disable:

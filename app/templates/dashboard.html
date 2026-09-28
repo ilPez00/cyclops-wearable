@@ -184,11 +184,15 @@ h2.sec{font:600 .72rem/1 var(--mono);color:var(--faint);text-transform:uppercase
 <main id=main></main>
 <script>
 const TABS=[
- ['feed','Activity','activity'],['notes','Notes','note'],['entities','Entities','tag'],
- ['progress','Progress','chart'],['proposals','Proposals','spark'],
+ ['feed','Activity','activity'],['timeline','Timeline','clock'],['notes','Notes','note'],
+ ['ask','Ask','spark'],['device','Device','watch'],['physis','Physis','atom'],
+ ['entities','Entities','tag'],['progress','Progress','chart'],['proposals','Proposals','spark'],
  ['files','Files','folder'],['cost','Usage','coin']];
 const ICONS={
  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ watch:'<rect x="7" y="7" width="10" height="10" rx="2"/><path d="M9 3h6M9 21h6M12 10.5v1.5"/>',
+ atom:'<circle cx="12" cy="12" r="1.8"/><path d="M4 12c3.5-2.6 12.5-2.6 16 0M12 4c-2.6 3.5-2.6 12.5 0 16"/>',
  note:'<path d="M4 4h13l3 3v13H4z"/><path d="M9 9h7M9 13h7M9 17h4"/>',
  tag:'<path d="M20.6 13.4 13 21l-9-9V4h8z"/><circle cx="8.5" cy="8.5" r="1.4"/>',
  chart:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/>',
@@ -213,6 +217,7 @@ const fmtSz=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(0)+' KB':(b/1048576).toF
 async function j(p){try{const r=await fetch(p);if(!r.ok)throw 0;return await r.json()}catch(e){return null}}
 
 let tab='feed';
+let askq='';                    // last Ask query (kept across tab switches)
 let mcat='images';              // active Files sub-category
 const cache={};                 // tab -> {hash, html}
 const MCATS=[['images','Images','image'],['audio','Audio','audio'],['video','Video','video']];
@@ -272,9 +277,42 @@ const VIEWS={
         <span class=muted>${(p.calls||0).toLocaleString()} calls</span>
         <b class=mono style="color:var(--green);margin-left:.4rem">$${(p.usd||0).toFixed(3)}</b></div>
       <div class=barmini><i style="width:${Math.round((p.usd/max)*100)}%"></i></div>`)}).join('');
-   return `<div class="grid enter">${head}${rows}</div>`; }
+   return `<div class="grid enter">${head}${rows}</div>`; },
+ timeline(d){ if(!d||!d.length) return empty('clock','No events yet — capture something.');
+   return `<div class="tl enter">`+d.map(e=>{const c=kc(e.kind);
+     const dur=e.duration_s?`<span class=time>${Math.round(e.duration_s)}s</span>`:'';
+     return `<div class=item><span class=node style="color:${c}"></span>
+       <div class=card><div class=row>
+         ${badge(e.kind,c,true)}
+         <span class="grow trunc">${esc(e.body||'')}</span>
+         ${dur}<span class=time>${esc(hhmm(e.ts))}</span></div>
+         <div class=muted style="font:.72rem/1.5 var(--mono);margin-top:.25rem">${esc(e.source||'')} · ${esc(e.locator||'')}</div>
+       </div></div>`}).join('')+`</div>`; },
+
+ device(d){ if(!d) return empty('watch','Device state unavailable.');
+   const dev=d.device||{},hud=d.hud||{},cap=d.capture||{},ota=d.ota||{};
+   const yn=v=>v===true?'yes':v===false?'no':'—';
+   const cell=(k,v)=>`<div class=row><span class=muted>${esc(k)}</span><b class=grow style=text-align:right>${esc(String(v))}</b></div>`;
+   const rows=(hud.digest&&hud.digest.length)?hud.digest.map(l=>`<div style="line-height:1.5">${esc(l)}</div>`).join(''):'<span class=muted>no digest yet</span>';
+   const counts=cap.counts||{};
+   return `<div class="grid two enter">
+     ${panel(`<div class=row><b class=grow>Wearable</b>${badge(dev.linked?'linked':'no frame',dev.linked?'#34d399':'#7f95ab')}</div>
+       ${cell('mode',dev.mode||'HOME')}${cell('battery',dev.batt_mv?dev.batt_mv+' mV':'—')}
+       ${cell('charging',yn(dev.charging))}${cell('recording',yn(dev.recording))}
+       ${cell('on-body',yn(dev.presence))}${cell('posture',dev.posture||'—')}
+       ${dev.toast?`<div class=muted style=margin-top:.4rem>toast: ${esc(dev.toast)}</div>`:''}`)}
+     ${panel(`<div class=row><b class=grow>HUD mirror</b>${badge('4 rows','#22d3ee',true)}</div>
+       <div style=margin-top:.5rem>${rows}</div>
+       <div class=muted style=margin-top:.5rem>${esc(hud.hint||'')}</div>`)}
+     ${panel(`<div class=row><b class=grow>Capture</b></div>
+       ${cell('images',counts.images||0)}${cell('audio',counts.audio||0)}${cell('video',counts.video||0)}
+       <div class=muted style="margin-top:.4rem;font:.72rem/1.5 var(--mono)">${esc(cap.url_hint||'')}${esc(cap.stream_path||'')}</div>`)}
+     ${panel(`<div class=row><b class=grow>Firmware</b>${badge(ota.available?'image ready':'no image',ota.available?'#34d399':'#fbbf24',true)}</div>
+       ${cell('path',ota.path||ota.note||'—')}${cell('bytes',ota.bytes||'—')}${cell('built',ota.built||'—')}`)}
+   </div>`; },
 };
-const SRC={feed:'/api/feed',notes:'/api/notes',entities:'/api/entities',
+const SRC={feed:'/api/feed',timeline:'/api/timeline',notes:'/api/notes',
+  device:'/api/device',entities:'/api/entities',
   progress:'/api/domains',proposals:'/api/dreams',cost:'/api/cost'};
 
 function mcard(f){
@@ -345,12 +383,74 @@ async function render(force){
   const m=document.getElementById('main'), t=tab;
   if(force){ m.innerHTML=skeleton(); }              // skeleton only on tab switch
   if(t==='files'){ return renderFiles(force); }
+  if(t==='ask'){ return renderAsk(); }              // interactive (docs/34 §4b)
+  if(t==='physis'){ return renderPhysis(); }        // memory search (docs/43 §6)
   const d=await j(SRC[t]);
   if(t!==tab) return;                               // user switched mid-fetch
   const html=VIEWS[t](d), hash=JSON.stringify(d);
   if(!force && cache[t] && cache[t].hash===hash) return;  // no change -> no flicker
   cache[t]={hash,html};
   m.innerHTML=html;
+}
+
+// ---- Ask + Physis: the two interactive tabs (docs/34 §4b, docs/43 §6) -------
+// Both render defensively: an offline endpoint (j() -> null) shows an honest
+// empty state, never a spinner that never resolves.
+function askCard(d){
+  if(!d) return '';
+  const cites=(d.citations||[]).map(c=>
+    `<div class=muted style="font:.74rem/1.6 var(--mono)">[${esc(c.id)}] ${esc(c.kind)} · ${esc(c.locator||'')} — ${esc(c.text||'')}</div>`).join('');
+  const col=d.cited?'#34d399':(d.degraded?'#fbbf24':'#f87171');
+  return panel(`<div class=row>${badge(d.cited?'cited':'uncited',col,true)}
+      ${d.degraded?badge('no model','#7f95ab',true):''}</div>
+    <div style="line-height:1.55;margin-top:.5rem">${esc(d.answer||'')}</div>
+    ${d.note?`<div style=muted style="margin-top:.4rem;color:var(--amber)">${esc(d.note)}</div>`:''}
+    ${cites?`<div style="margin-top:.6rem;border-top:1px solid var(--border);padding-top:.5rem">${cites}</div>`:''}`);
+}
+function qbox(id,label,placeholder){
+  return panel(`<div class=row><b class=grow>${esc(label)}</b></div>
+    <div class=row style="margin-top:.5rem">
+      <input id=${id} class=grow placeholder="${esc(placeholder)}">
+      <button id=${id}_go>Ask</button></div>
+    <div id=${id}_out style="margin-top:.7rem"></div>`);
+}
+async function runQuery(id,url,render,val){
+  const out=document.getElementById(id+'_out');
+  const q=(val===undefined?(document.getElementById(id).value||''):val).trim();
+  if(!q){out.innerHTML='';return}
+  out.innerHTML=skeleton();
+  const d=await j(url+encodeURIComponent(q));
+  out.innerHTML=d?render(d):empty('spark','No answer — endpoint offline?');
+}
+function renderAsk(){
+  const m=document.getElementById('main');
+  m.innerHTML=qbox('askq','Ask (answers must cite)','e.g. when is the standup?');
+  const box=document.getElementById('askq');
+  if(askq) box.value=askq;
+  const go=()=>{askq=box.value;runQuery('askq','/api/ask?q=',askCard)};
+  document.getElementById('askq_go').onclick=go;
+  box.onkeydown=e=>{if(e.key==='Enter')go()};
+  if(askq) go();
+}
+async function renderPhysis(){
+  const m=document.getElementById('main');
+  const st=await j('/api/physis/status');
+  const head=(st&&st.reachable)
+    ? panel(`<div class=row>${badge('physis-next','#34d399',true)}
+        <span class="grow trunc muted" style=margin-left:.5rem>${esc(st.url||'')}</span></div>
+       <div class=muted style="margin-top:.4rem;font:.74rem/1.6 var(--mono)">api ${esc(st.api_version||'?')} · workspace ${esc(st.workspace||st.root||'?')}</div>`)
+    : panel(`<div class=row>${badge('physis-next offline','#fbbf24',true)}</div>
+       <div class=muted style="margin-top:.4rem">${esc((st&&st.detail)||'no status')}
+       <br>run: physis serve --http 127.0.0.1:19876 --path &lt;ROOT&gt;</div>`);
+  m.innerHTML=`<div class="grid enter">${head}${qbox('pq','Search memory','e.g. bike lock')}</div>`;
+  const box=document.getElementById('pq');
+  const go=()=>runQuery('pq','/api/physis/search?q=',d=>{
+    const hits=d.results||[];
+    return panel(`<div class=row><b class=grow>hits</b>${badge(String(hits.length),'#22d3ee',true)}</div>`
+      +(hits.length?hits.map(h=>`<div class=muted style="font:.74rem/1.6 var(--mono)">${esc(String(h.entity_id||h.file||''))} ${esc(String(h.snippet||''))}</div>`).join('')
+                  :'<div class=muted style=margin-top:.4rem>nothing matched</div>'));});
+  document.getElementById('pq_go').onclick=go;
+  box.onkeydown=e=>{if(e.key==='Enter')go()};
 }
 
 function buildNav(){

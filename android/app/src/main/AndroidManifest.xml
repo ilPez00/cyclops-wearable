@@ -10,6 +10,14 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <!-- W7: notification triage. Read-only listener; the wearer grants access
+         in system settings, and nothing is stored on the phone. -->
+    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
+    <!-- Phone activity tracking (UsageStats tier): foreground-app sessions
+         only, granted by the wearer in system settings, never at runtime. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
@@ -48,6 +56,11 @@
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
+            android:name=".WorldActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".FeedActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
@@ -81,6 +94,13 @@
             android:name=".CyclopsService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Phone activity tracker: UsageStats foreground sessions -> ledger.
+             Started/stopped from Settings (phone_activity pref). -->
+        <service
+            android:name=".PhoneActivityService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <activity
             android:name=".MemoryActivity"
@@ -117,6 +137,17 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/hud_widget_info" />
         </receiver>
+
+        <!-- W7: triages notifications through :core Triage rules; buzz-worthy
+             ones reach the wearable OLED, the rest are ledger-only. -->
+        <service
+            android:name=".CyclopsNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

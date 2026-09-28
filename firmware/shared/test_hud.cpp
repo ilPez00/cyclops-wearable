@@ -364,6 +364,41 @@ int main() {
      assert(strcmp(hj.choice_cb, "note_discard") == 0);
      assert(strcmp(hj.choices[2], "Snooze") == 0);
  }
+ // W4: steps arrive as DISPLAY_CMD JSON (brain -> wearable)
+ {
+     Hud hw; hw.send_cmd = on_cmd; hw.init();
+     hw.apply_display_cmd("{\"kind\":\"steps\",\"items\":[\"Boil\",\"Pasta\",\"Drain\"]}");
+     assert(hw.top() == CHOICE);
+     assert(hw.proc_n == 3 && strcmp(hw.choices[1], "Pasta") == 0);
+     hw.on_select();  // cursor on step 0 -> done=1, advance
+     assert(hw.proc_done == 1 && hw.proc_sel == 1);
+ }
+
+ // ---- W4: procedure overlay (HOWTO steps, tilt + A-confirm) ----
+ {
+     Hud hs; hs.send_cmd = on_cmd; hs.init();
+     const char* steps[] = {"Boil water", "Add pasta", "Drain"};
+     hs.show_steps(steps, 3);
+     assert(hs.top() == CHOICE);
+     assert(hs.proc_n == 3 && hs.proc_sel == 0 && hs.proc_done == 0);
+     // tilt advances the cursor (same on_wheel path, step range)
+     hs.on_wheel(1); assert(hs.proc_sel == 1);
+     hs.on_wheel(1); assert(hs.proc_sel == 2);
+     hs.on_wheel(1); assert(hs.proc_sel == 2);  // clamped
+     // A-confirm off-step does not mark done; on-step does
+     hs.on_wheel(-1); assert(hs.proc_sel == 1);
+     hs.on_select(); assert(hs.proc_done == 0 && hs.proc_sel == 2);
+     hs.on_wheel(-1); hs.on_wheel(-1); assert(hs.proc_sel == 0);
+     hs.on_select(); assert(hs.proc_done == 1 && hs.proc_sel == 1);
+     // finish all steps -> "done" toast + pop
+     hs.on_select(); assert(hs.proc_done == 2 && hs.proc_sel == 2);
+     hs.on_select(); assert(hs.top() != CHOICE);
+     // plain choices still work after steps (no state leak)
+     Hud hc2; hc2.send_cmd = on_cmd; hc2.init();
+     hc2.show_choices(steps, 3, "cb");
+     assert(hc2.proc_n == 0);
+     hc2.on_wheel(1); assert(hc2.choice_sel == 1);
+ }
 
  // ---- COLMI R02 16-byte packet protocol (parser shared with Python) ----
 {
@@ -460,6 +495,33 @@ int main() {
          (void)before; (void)nbefore;
      }
 
+     // ---- docs/43 one-button MVP: use_one_button() keeps BACK + AGENT one
+     // gesture away and teaches that grammar on the HINT row ----
+     {
+         int before = ncmd;
+         Hud h1; h1.send_cmd = on_cmd; h1.use_one_button(); h1.init();
+         assert(strstr(h1.hint_text, "tap:ok") != nullptr);   // HINT row text
+         assert(h1.bindings.cell(0, 1) == ACT_OK);            // tap
+         assert(h1.bindings.cell(0, 2) == ACT_BACK);          // double-tap
+         assert(h1.bindings.cell(0, 3) == ACT_AGENT);         // long press
+         // tap on HOME opens MENU locally (no ACT on the wire)
+         h1.fire_gesture(0, 1);
+         assert(h1.top() == MENU);
+         // double-tap walks back one level
+         h1.fire_gesture(0, 2);
+         assert(h1.top() == HOME);
+         // long press reaches the brain as ACT_AGENT
+         h1.fire_gesture(0, 3);
+         assert(ncmd > before && cmds[ncmd-1] == ACT_AGENT);
+         // remap protocol unchanged: button-0 cells stay overridable
+         h1.apply_display_cmd("{\"kind\":\"bind\",\"btn\":0,\"g\":2,\"act\":3}");
+         assert(h1.bindings.cell(0, 2) == ACT_TRANSLATE);
+         // two-button boards keep the shipped grid + hint
+         Hud h2; h2.init();
+         assert(h2.bindings.cell(0, 2) == ACT_PHOTO);
+         assert(strstr(h2.hint_text, "A:ask") != nullptr);
+     }
+
      // ---- pixel graphics helpers: draw_pixel / drawGauge / drawBatteryIcon / drawProgressBar ----
     {
         // Screen that counts pixel + rect calls (real geometry, no hardware).
@@ -544,6 +606,21 @@ int main() {
         assert(strstr(buf, "\"spo2\":96") != nullptr);
         assert(strstr(buf, "\"toast\":\"sent\"") != nullptr);
         assert(strstr(buf, "\"hr\":74") != nullptr);
+
+        // docs/43 C5: presence + posture ride the status frame so the host can
+        // close claim boundaries ("wearer present" ends at off-body) and cite
+        // the posture cue. Defaults are on-body (pres=1) and no slouch (pos=0).
+        Hud hp; hp.send_cmd = on_cmd; hp.init();
+        char pb[256]; int pn = hp.status_json(pb, sizeof(pb));
+        assert(pn > 0 && strstr(pb, "\"pres\":1") != nullptr);
+        assert(strstr(pb, "\"pos\":0") != nullptr);
+        hp.set_presence(false); hp.set_posture(true);
+        pn = hp.status_json(pb, sizeof(pb));
+        assert(pn > 0 && strstr(pb, "\"pres\":0") != nullptr);
+        assert(strstr(pb, "\"pos\":1") != nullptr);
+        hp.set_presence(true); hp.set_posture(false);
+        hp.status_json(pb, sizeof(pb));
+        assert(strstr(pb, "\"pres\":1") != nullptr && strstr(pb, "\"pos\":0") != nullptr);
     }
 
     // haptic / LED mapping: setters + gesture fires the hooks
@@ -632,6 +709,48 @@ int main() {
         for (int i = 0; i < 24; ++i) if (strstr(a[i], "consent-off")) { consent_off = true; break; }
         assert(consent_off);
 
+        // HOME compact (docs/42 STATUS/ANSWER/DIGEST/HINT on a 4-row panel).
+        {
+            struct Slim4 : Screen {
+                char grid[8][48];
+                int w() const override { return 128; }
+                int h() const override { return 32; }
+                int char_cols() const override { return 21; }
+                int text_rows() const override { return 4; }
+                void begin() override { memset(grid, 0, sizeof(grid)); }
+                void clear() override { memset(grid, 0, sizeof(grid)); }
+                void set_ink(bool) override {}
+                void text_size(int) override {}
+                void draw_text(int, int row, const char* s) override {
+                    if (row >= 0 && row < 8) { strncpy(grid[row], s, 47); grid[row][47]=0; }
+                }
+                void draw_rect(int,int,int,int,bool) override {}
+                void draw_pixel(int,int,bool) override {}
+                void flush() override {}
+            };
+            // idle: ANSWER row teaches gestures, HINT row shows affordance.
+            Hud hv; hv.send_cmd = on_cmd; hv.init();
+            for (int i = 0; i < 4; ++i) hv.tick_sec();  // settle boot spinner
+            Slim4 s0; hv.render(s0);
+            assert(strstr(s0.grid[1], "glance") != nullptr);   // ANSWER idle line
+            assert(strstr(s0.grid[3], "A:ask") != nullptr);    // HINT affordance
+            // with answer + digest: ANSWER shows hud_line, DIGEST the note.
+            Hud hv2; hv2.send_cmd = on_cmd; hv2.init();
+            for (int i = 0; i < 4; ++i) hv2.tick_sec();
+            hv2.set_hud("Meet Bob 3pm");
+            hv2.add_note("standup 14:30 office");
+            Slim4 s1; hv2.render(s1);
+            assert(strstr(s1.grid[1], "Meet Bob") != nullptr);  // ANSWER
+            assert(strstr(s1.grid[2], "standup") != nullptr);   // DIGEST
+            // recording rides the DIGEST row, no extra row consumed.
+            Hud hv3; hv3.send_cmd = on_cmd; hv3.init();
+            for (int i = 0; i < 4; ++i) hv3.tick_sec();
+            hv3.add_note("voice q: budget?");
+            hv3.recording = true;
+            Slim4 s2; hv3.render(s2);
+            assert(strstr(s2.grid[2], "REC") != nullptr);
+        }
+
         // NOTES scrolling: note_sel tracks past visible area on small panels.
         struct SlimScreen : Screen {
             char grid[8][48]; int nrows=5, ncols=21;
@@ -697,9 +816,27 @@ int main() {
         // garbage past the truncated JSON, seen live over BLE 2026-07-12).
         Hud hs; hs.send_cmd = on_cmd; hs.init();
         hs.toast("a fairly long toast message", 5);
-        char big[160]; int full = hs.status_json(big, sizeof(big));
+        char big[200]; int full = hs.status_json(big, sizeof(big));
         assert(full > 0 && full < (int)sizeof(big));
         assert(big[full - 1] == '}');            // complete JSON
+        // docs/43 C5 added pres/pos (~16B); the device-side buffer is sized for
+        // the WORST case, not the average one: a maximal toast (TOAST-1 chars)
+        // in the longest mode name must still produce complete JSON, or the
+        // frame goes on the wire truncated (the exact bug the clamp prevents).
+        Hud hw; hw.send_cmd = on_cmd; hw.init();
+        hw.toast("123456789012345678901234567890123456789012345678", 5);  // 48 -> 47 stored
+        hw.push(IMAGE_ANALYSIS);
+        char worst[200]; int wn = hw.status_json(worst, sizeof(worst));
+        assert(wn > 0 && wn < (int)sizeof(worst));
+        assert(worst[0] == '{' && worst[wn - 1] == '}');
+        // mode_name() is the SHORT wire form ("IMG"), not the enum name -- use
+        // the mapping rather than hardcoding it, so a rename can't make this
+        // assertion vacuous.
+        char mode_key[24];
+        snprintf(mode_key, sizeof(mode_key), "\"mode\":\"%s\"",
+                 Hud::mode_name(IMAGE_ANALYSIS));
+        assert(strstr(worst, mode_key) != nullptr);
+        assert(strstr(worst, "\"toast\":\"1234567890") != nullptr);  // toast survived
         char tiny[40]; int cut = hs.status_json(tiny, sizeof(tiny));
         assert(cut == (int)sizeof(tiny) - 1);    // clamped to written bytes
         assert((int)strlen(tiny) == cut);        // count matches the buffer

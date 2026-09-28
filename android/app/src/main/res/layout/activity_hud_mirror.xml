@@ -14,6 +14,14 @@
         android:textColor="@color/cyclops_secondary" />
 
     <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Input: 2 buttons (A=eye, B=ear · single/double/long) + tilt to scroll. Bind every slot in Button remap."
+        android:textSize="12sp"
+        android:textColor="@color/cyclops_secondary" />
+
+    <TextView
         android:id="@+id/txtHudStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

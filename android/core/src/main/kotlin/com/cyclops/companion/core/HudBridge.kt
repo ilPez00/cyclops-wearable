@@ -14,15 +14,17 @@ class HudBridge(
     private val sink: Sink,
     private val store: Store? = null,
     private val transcriber: Transcriber? = null,
-    private val vision: Vision? = null
+    private val vision: Vision? = null,
+    private val worldLookup: WorldLookup? = null
 ) {
     interface Sink { fun write(frame: ByteArray) }
     interface Store { fun add(text: String) }
     interface Transcriber { fun transcribe(pcm16: ByteArray, rate: Int = 16000): String }
     interface Vision { fun analyze(bytes: ByteArray): String }
-
+    interface WorldLookup { fun lookup(tag: String): String? }
     // Action ids (mirror firmware hud.h)
     companion object {
+        // GENERATED from protocol/acts.yaml — do not hand-edit, run protocol/gen_acts.py
         const val ACT_NOTES = 1
         const val ACT_TRANSCRIBE_START = 2
         const val ACT_TRANSLATE = 3
@@ -36,6 +38,21 @@ class HudBridge(
         const val ACT_CONFIRM_YES = 11
         const val ACT_CONFIRM_NO = 12
         const val ACT_SELECT = 13
+        const val ACT_AGENT = 14
+        const val ACT_AGENT_ABORT = 15
+        const val ACT_PHOTO = 16
+        const val ACT_VIDEO = 17
+        const val ACT_VOICE_NOTE = 18
+        const val ACT_VOICE_CMD = 19
+        const val ACT_OK = 20
+        const val ACT_BACK = 21
+        const val ACT_CONSENT_TOGGLE = 22
+        const val ACT_CHOICE_SELECT = 23
+        const val ACT_WORLD_LOOK = 24
+        const val ACT_WORLD_READ = 25
+        const val ACT_WORLD_PRICE = 26
+        const val ACT_WORLD_HOWTO = 27
+        // END GENERATED
     }
 
     private val itTranslate = mapOf(
@@ -99,6 +116,27 @@ class HudBridge(
             val g = gates.resolveLatest(false)
             if (g != null) { emitText("REJECTED: ${g.action}"); "gate_rejected" }
             else { emitText("CANCELLED"); "confirm_no" }
+        }
+        ACT_WORLD_LOOK, ACT_WORLD_READ, ACT_WORLD_PRICE, ACT_WORLD_HOWTO -> {
+            // Bridge-to-world: resolve arg as a registry tag via the world
+            // lookup; live vision arrives in Phase B (brain on phone). Until
+            // then the miss is honest — never a stub dressed as knowledge.
+            // W6: READ also translates (read-then-translate, one gesture).
+            val hit = worldLookup?.lookup(arg)
+            val label = when (act) {
+                ACT_WORLD_READ -> "READ"
+                ACT_WORLD_PRICE -> "PRICE"
+                ACT_WORLD_HOWTO -> "HOWTO"
+                else -> "LOOK"
+            }
+            if (hit != null) {
+                val out = if (act == ACT_WORLD_READ) {
+                    val tr = translate(hit)
+                    if (tr.lowercase() != hit.lowercase()) "$label: $hit\nTR: $tr" else "$label: $hit"
+                } else "$label: $hit"
+                emitText(out); out
+            }
+            else { emitText("$label: don't know yet - teach me in World"); "world_miss" }
         }
         else -> null
     }

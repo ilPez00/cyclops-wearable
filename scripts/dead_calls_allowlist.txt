@@ -1,0 +1,40 @@
+# dead_calls allowlist — acknowledged dead, each with a reason + date.
+# Format: path:Name (path relative to repo root) or *:Name (any file).
+# Rule: a new entry needs a reason; the gate fails on anything unlisted.
+# Reap rule: entries older than 90 days without a wire-or-delete decision
+# get deleted, not renewed.
+
+# Unwired Telegram sink (docs/37 references it as fitting the ledger shape,
+# but nothing imports the module and ~/TGPmini has no consumer).
+# Decision open: wire to server or delete + fix docs/37. 2026-09-19
+brain/display_telegram.py:TelegramSink
+brain/display_telegram.py:inbound_note
+brain/display_telegram.py:outbox_push
+# Pipeline audio entry: the audio path goes via hud_bridge.handle_audio
+# today; process_audio is the pipeline-level entry if that ever moves.
+# 2026-09-19
+brain/pipeline.py:process_audio
+# FlowOS scorer setter: render_block reads it live; no scorer attached yet.
+# 2026-09-19
+brain/context.py:attach_flow_score
+# Debug introspection (shape asserted in tests once; keep for ops).
+# 2026-09-19
+brain/aikeys.py:as_dict
+# Wire-protocol surface: builders/parsers the firmware may need; kept as
+# the protocol's public surface, not per-call wired.
+# 2026-09-19
+brain/protocol_v2.py:time_sync
+# CyclopsApi client methods mirroring LIVE server endpoints
+# (/api/claims, /api/claims/resolve, /api/learn, /api/memory, /api/settings).
+# No screen calls them yet (docs/38); deleting them orphans the endpoints
+# from the app instead. Screens or deletion, per docs/38 follow-ups.
+# 2026-09-19
+*:claims
+*:resolveClaim
+*:learn
+*:memoryEdit
+*:getSettings
+# Ring protocol surface: stop complements startRealTime (used in
+# RingActivity); protocol pairs stay together.
+# 2026-09-19
+*:stopRealTime

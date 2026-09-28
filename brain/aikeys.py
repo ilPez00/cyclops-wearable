@@ -30,6 +30,51 @@ from typing import Iterable
 DEFAULT_AI_API_TXT = "/home/gio/ai_api.txt"
 DEFAULT_ENV_PATHS = ("~/.env", "/home/gio/.env", "/home/gio/ai_api.txt")
 
+# Default OpenAI-compatible base URLs, used only when the store has no
+# explicit endpoint for the provider. Shapes verified against live
+# endpoints (free-coding-models sources.js) or the provider's own docs.
+DEFAULT_ENDPOINTS = {
+    "openai": "https://api.openai.com/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "mistral": "https://api.mistral.ai/v1",
+    "cerebras": "https://api.cerebras.ai/v1",
+    "cohere": "https://api.cohere.com/compatibility/v1",
+    "together": "https://api.together.xyz/v1",
+    "deepinfra": "https://api.deepinfra.net/v1/openai",
+    "xai": "https://api.x.ai/v1",
+    "nvidia": "https://integrate.api.nvidia.com/v1",
+    "sambanova": "https://api.sambanova.ai/v1",
+    "zhipu": "https://open.bigmodel.cn/api/paas/v4",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "google": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "github": "https://models.github.ai/inference",
+    "kilo": "https://api.kilo.ai/api/gateway",
+    "llm7": "https://api.llm7.io/v1",
+    "pollinations": "https://gen.pollinations.ai/v1",
+    "novita": "https://api.novita.ai/openai/v1",
+    "scaleway": "https://api.scaleway.ai/v1",
+    "vercel": "https://ai-gateway.vercel.sh/v1",
+    "zai": "https://api.z.ai/api/coding/paas/v4",
+    "z": "https://api.z.ai/api/coding/paas/v4",
+    "siliconflow": "https://api.siliconflow.cn/v1",
+    "requesty": "https://router.requesty.ai/v1",
+    "orcarouter": "https://api.orcarouter.ai/v1",
+    "qwen": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "opencode": "https://opencode.ai/zen/v1",
+    "ollama": "http://127.0.0.1:11434/v1",
+    "lmstudio": "http://127.0.0.1:1234/v1",
+    "omniroute": "http://127.0.0.1:20128/v1",
+}
+
+
+def default_endpoint(name: str) -> str | None:
+    """Default base URL for a provider id, or None (ovhcloud/cloudflare
+    need account-specific URLs — those must come from the store)."""
+    return DEFAULT_ENDPOINTS.get((name or "").lower())
+
 
 def _is_url(value: str) -> bool:
     """An endpoint is an http(s) URL. Anything else is a secret or a comment."""
@@ -131,22 +176,48 @@ class AiKeys:
                     self._keys.setdefault(name.lower(), []).append(value)
 
     # ---------------------------------------------------------------- access
+    # BYOK: any provider id resolves against generic name patterns, so a key
+    # works with pretty much anything without per-provider code. Specials
+    # only where the env name doesn't follow the pattern.
+    _ALIASES = {
+        "jev": ("typesafe_api_key",),
+        "gemini": ("google_api_key",),
+    }
+
+    def _key_names(self, name: str) -> tuple[str, ...]:
+        name = name.lower()
+        return (
+            name,
+            f"{name}_api_key",
+            f"{name}_key",
+            f"ai_{name}_key",
+        ) + self._ALIASES.get(name, ())
+
+    def _endpoint_names(self, name: str) -> tuple[str, ...]:
+        name = name.lower()
+        return (name, f"{name}_endpoint", f"ep_{name}")
+
     def get_key(self, name: str) -> str | None:
         """Return the first available key for `name` (provider-agnostic).
         Falls back to a valid (transparently-refreshed) OAuth device-flow
         token for `name` if no static key is configured."""
-        keys = self._keys.get(name.lower())
-        if keys:
-            return keys[0]
+        for cand in self._key_names(name):
+            keys = self._keys.get(cand)
+            if keys:
+                return keys[0]
         return self._oauth_store().get_valid_key(name.lower(), provider_cfg=self._oauth_cfg(name))
 
     def get_keys(self, name: str) -> list[str]:
-        return list(self._keys.get(name.lower(), []))
+        out: list[str] = []
+        for cand in self._key_names(name):
+            out.extend(self._keys.get(cand, []))
+        return out
 
     def get_endpoint(self, name: str) -> str | None:
-        ep = self._endpoints.get(name.lower())
-        if ep:
-            return ep
+        for cand in self._endpoint_names(name):
+            ep = self._endpoints.get(cand)
+            if ep:
+                return ep
         cfg = self._oauth_cfg(name)
         return cfg.api_base_url if cfg and cfg.api_base_url else None
 

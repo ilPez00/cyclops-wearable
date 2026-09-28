@@ -131,6 +131,202 @@ def _get_vision_fn():
     return _vision_fn
 
 
+def _event_log():
+    """The event ledger that belongs to the current store (same directory).
+
+    Deriving the path from STORE_PATH keeps tests and multi-profile setups from
+    writing into each other's ~/.cyclops — in the default deployment both are
+    ~/.cyclops/events.jsonl, so the dashboard sees one ledger.
+    """
+    from brain.events import EventLog
+
+    return EventLog(os.path.join(os.path.dirname(STORE_PATH), "events.jsonl"))
+
+
+def _timeline_rows(limit: int = 60) -> list[dict]:
+    """Timeline tab / /api/timeline (docs/34 §4a): the event ledger plus the
+    legacy stores on ONE time axis. Every row carries source + locator, so the
+    UI can show where it came from — nothing is presented as more than it is."""
+    rows: list[dict] = []
+    # 1. the ledger (docs/34 Phase 1a) — the preferred source
+    try:
+        for e in _event_log().recent(limit):
+            d = e.to_dict()
+            rows.append({"ts": d["ts"], "kind": d["kind"], "source": d["source"],
+                         "body": d["body"], "duration_s": d["duration_s"],
+                         "locator": d["locator"] or "events.jsonl"})
+    except Exception:
+        pass
+    # 2. legacy stores, so the tab is useful before every writer emits Events
+    #    (docs/34 §1b: migrate writers, not readers)
+    try:
+        for n in (pipeline.store.all() if pipeline is not None else []):
+            rows.append({"ts": n.created or "", "kind": "note",
+                         "source": n.source or "capture", "body": n.text,
+                         "duration_s": 0.0, "locator": f"notes.jsonl#{n.id}",
+                         "type": n.type, "due": n.due})
+    except Exception:
+        pass
+    try:
+        from brain.sightings import SightingLog
+
+        for s in SightingLog().all():
+            ts = s.get("ts", "")
+            if isinstance(ts, (int, float)):      # epoch -> the same ISO shape
+                import time as _t
+
+                ts = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(float(ts)))
+            rows.append({"ts": str(ts), "kind": "sighting", "source": "camera",
+                         "body": str(s.get("tags", "")), "duration_s": 0.0,
+                         "locator": "sightings.jsonl"})
+    except Exception:
+        pass
+    try:
+        if bridge is not None and getattr(bridge, "claims", None) is not None:
+            for c in bridge.claims.all():
+                rows.append({"ts": c.created_at, "kind": "claim", "source": "brain",
+                             "body": c.statement, "duration_s": 0.0,
+                             "locator": f"claims.jsonl#{c.id}", "status": c.status,
+                             "confidence": round(c.confidence, 3)})
+    except Exception:
+        pass
+    # ISO-8601 UTC sorts lexically; rows with no ts sink to the bottom.
+    rows.sort(key=lambda r: r.get("ts") or "", reverse=True)
+    return rows[:limit]
+
+
+def _evidence_for(query: str, limit: int = 6) -> list[dict]:
+    """Rows that could support an answer (docs/34 §4b). Retrieve FIRST, then let
+    the model talk — an answer with no citation is a UI bug, not prose."""
+    toks = [t for t in (query or "").lower().split() if len(t) > 2]
+    out: list[dict] = []
+    if bridge is not None and getattr(bridge, "claims", None) is not None:
+        try:
+            for c in bridge.claims.all():
+                hay = c.statement.lower()
+                if any(t in hay for t in toks):
+                    out.append({"id": c.id, "kind": "claim", "text": c.statement,
+                                "source": "brain", "locator": f"claims.jsonl#{c.id}",
+                                "confidence": round(c.confidence, 3)})
+        except Exception:
+            pass
+    try:
+        for e in _event_log().search(query or "", limit=limit):
+            out.append({"id": f"{e.locator or 'event'}@{e.ts}", "kind": e.kind,
+                        "text": e.body or e.kind, "source": e.source,
+                        "locator": e.locator or "events.jsonl"})
+    except Exception:
+        pass
+    try:
+        for n in (pipeline.store.search(query, k=3) if pipeline is not None else []):
+            out.append({"id": n.id, "kind": "note", "text": n.text,
+                        "source": n.source or "capture",
+                        "locator": f"notes.jsonl#{n.id}"})
+    except Exception:
+        pass
+    return out[:limit]
+
+
+def _answer_question(text: str) -> dict:
+    """Cited answer (docs/34 §4b). The model may only reason over the evidence it
+    is handed; `cited` is False when it ignored it, and the UI must show that
+    instead of hiding it as prose."""
+    cites = _evidence_for(text)
+    lines = [f"[{c['id']}] ({c['kind']}) {c['text']}" for c in cites]
+    answer, error = None, None
+    if agent is not None and lines:
+        prompt = ("Answer using ONLY the evidence rows below. Cite every row you "
+                  "use as [id]. If they do not answer the question, say so.\n\n"
+                  f"question: {text}\n\nevidence:\n" + "\n".join(lines))
+        try:
+            with _AGENT_LOCK:
+                res = agent.run(prompt)
+            answer = getattr(res, "text", None)
+        except Exception as e:
+            error = str(e)
+    degraded = not answer
+    if degraded:
+        # No model (or it failed): cite, never invent — same shape as the other
+        # offline stubs, so the UI needs no special case.
+        answer = ("no model configured" if agent is None
+                  else f"model failed: {error}")
+        answer += " — ledger only: " + ("; ".join(lines[:3]) if lines
+                                        else "nothing matched")
+    cited = any(c["id"] in answer for c in cites)
+    return {"q": text, "answer": answer, "citations": cites, "cited": cited,
+            "degraded": degraded, "error": error,
+            "note": "" if cited else "answer carries no citation — unverified"}
+
+
+def _firmware_image() -> dict:
+    """OTA source image when a build exists on this box. The push itself is the
+    APK's OtaSender over BLE (brain/ota_push.py); the dashboard only reports what
+    is available, and where."""
+    import glob
+    import time as _t
+
+    newest, best = 0.0, ""
+    for pat in (os.path.join(REPO, "firmware", ".pio", "build", "*", "firmware.bin"),
+                os.path.join(REPO, "firmware", "dist", "*.bin")):
+        for path in glob.glob(pat):
+            try:
+                m = os.path.getmtime(path)
+            except OSError:
+                continue
+            if m > newest:
+                newest, best = m, path
+    if not best:
+        return {"available": False, "note": "build one: cd firmware && make compile"}
+    return {"available": True, "path": os.path.relpath(best, REPO),
+            "bytes": os.path.getsize(best),
+            "built": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(newest))}
+
+
+def _device_state() -> dict:
+    """Device tab (docs/43 §7): the last status frame the wearable sent, the HUD
+    mirror rows, the capture endpoints, and OTA availability. Everything is a
+    frame we received or a file we can see — nothing is inferred."""
+    st = dict(getattr(bridge, "last_status", {}) or {}) if bridge is not None else {}
+    digest: list[str] = []
+    try:
+        digest = bridge.digest_lines(3) if bridge is not None else []
+    except Exception:
+        pass
+    counts = {}
+    try:
+        counts = media.counts()
+    except Exception:
+        pass
+    return {
+        "device": {
+            "linked": bool(st),
+            "mode": st.get("mode") or (bridge.mode if bridge else "HOME"),
+            "batt_mv": st.get("batt"),
+            "charging": bool(st.get("chg")) if "chg" in st else None,
+            "recording": bool(st.get("rec")) if "rec" in st else None,
+            # docs/43 C5: these two are why the firmware grew pres/pos
+            "presence": (None if "pres" not in st else bool(st.get("pres"))),
+            "posture": (None if "pos" not in st
+                        else ("slouch" if st.get("pos") else "ok")),
+            "toast": st.get("toast") or "",
+        },
+        "hud": {
+            "mode": (bridge.mode if bridge else "HOME"),
+            "banner": (bridge.last_banner if bridge else ""),
+            "digest": digest,
+            "hint": "tap:ok 2x:back hold:ask",
+            "recording": bool(bridge.recording) if bridge else False,
+        },
+        "capture": {
+            "counts": counts,
+            "status_path": "/status", "stream_path": "/stream",
+            "audio_path": "/audio.wav", "snap_path": "/snap",
+            "url_hint": "http://<wearable-ip>/stream",
+        },
+        "ota": _firmware_image(),
+    }
+
+
 def _run_dream_review():
     """One dream/proposal review over recent notes + graded experiences.
     Uses the agent's router when available; falls back to rules offline."""
@@ -171,8 +367,70 @@ def _start_dream_scheduler():
     return t
 
 
+CALENDAR_TICK_S = 60  # minute cadence: calendar triggers are minute-granular
+
+
+def _calendar_tick(now=None) -> list[str]:
+    """One W8 tick: read calendar.jsonl, compute due actions, apply them to
+    the bridge (arm/file capture, leave nudge), persist state. Returns the
+    human lines emitted. Safe to call with no calendar file (no-op)."""
+    from brain.calendar_loop import (
+        apply_actions,
+        due_actions,
+        load_events,
+        load_state,
+        save_state,
+    )
+
+    from datetime import datetime
+
+    events = load_events()
+    if not events:
+        return []
+    now = now or datetime.now()
+    actions, st = due_actions(events, now, load_state())
+    if not actions:
+        return []
+    lines = apply_actions(actions, bridge) if bridge is not None else []
+    save_state(st)
+    if pipeline is not None:
+        for ln in lines:
+            try:
+                pipeline.process_text(ln)
+            except Exception:
+                pass
+    return lines
+
+
+def _start_calendar_scheduler():
+    """Minute-cadence W8 loop. Daemon thread; a bad tick never takes the
+    server down (same discipline as the dream scheduler)."""
+
+    def _loop():
+        import time as _t
+
+        while True:
+            _t.sleep(CALENDAR_TICK_S)
+            try:
+                _calendar_tick()
+            except Exception:
+                pass
+
+    t = threading.Thread(target=_loop, name="cyclops-calendar", daemon=True)
+    t.start()
+    return t
+
+
 _TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
 _HTML: str | None = None
+
+
+def _claim_store():
+    """Process-wide belief store (34 Phase 2). Best-effort: a failure here
+    leaves W9 off rather than taking the server down."""
+    from brain.claims import ClaimStore
+
+    return ClaimStore()
 
 
 def _load_html() -> str:
@@ -266,6 +524,13 @@ class H(BaseHTTPRequestHandler):
             text = q.get("text", [""])[0]
             if text and pipeline:
                 pipeline.process_text(text)
+                # docs/34 §1b: writers append an Event IN ADDITION to what they
+                # already store; readers of the old JSONL keep working.
+                try:
+                    _event_log().append(kind="capture", body=text[:200],
+                                        source="app", locator="api/ingest")
+                except Exception:
+                    pass
             return self._send(200, json.dumps({"ok": True}))
         if p.path == "/api/transcript":
             # in-session conversation turns (role/content) from the running agent
@@ -468,14 +733,10 @@ class H(BaseHTTPRequestHandler):
         if p.path == "/api/memory":
             # Hermes-style memory view: both targets with stable indices.
             try:
-                from agent.memory import MemoryStore
+                from agent.memory import MemoryStore, _as_json_payload
 
                 store = MemoryStore(AgentConfig.load(env=dict(os.environ)))
-                out = {
-                    "agent": [c.to_dict() for c in store.list("agent")],
-                    "user": [c.to_dict() for c in store.list("user")],
-                }
-                return self._send(200, json.dumps(out))
+                return self._send(200, _as_json_payload(store))
             except Exception as e:
                 return self._send(200, json.dumps({"error": str(e)}))
         if p.path == "/api/learn":
@@ -651,10 +912,39 @@ class H(BaseHTTPRequestHandler):
             q = parse_qs(p.query).get("q", [""])[0]
             log = SightingLog()
             return self._send(200, json.dumps(log.search(q) if q else log.all()))
+        if p.path == "/api/world":
+            # Bridge-to-world registry: GET lists (or ?tag= looks up).
+            # Teaching is POST and forgetting is DELETE (see below).
+            from brain.world import WorldRegistry
+
+            reg = WorldRegistry()
+            q = parse_qs(p.query).get("tag", [""])[0]
+            if q:
+                hit = reg.lookup(q)
+                if hit is None:
+                    return self._send(404, json.dumps({"error": "unknown tag"}))
+                return self._send(200, json.dumps({"tag": q, **hit}))
+            return self._send(200, json.dumps(reg.all()))
+        if p.path == "/api/calendar/tick":
+            # W8: run one calendar tick now (the scheduler does this every
+            # minute). Idempotent by state file, so a manual poke is safe.
+            lines = _calendar_tick()
+            return self._send(200, json.dumps({"ok": True, "lines": lines}))
+        if p.path == "/api/claims":
+            # W9 belief state: active claims + any unresolved contradiction
+            # the wearable should surface ("X vs Y — which holds?").
+            if bridge is None or bridge.claims is None:
+                return self._send(200, json.dumps({"active": [], "contradiction": None}))
+            return self._send(200, json.dumps({
+                "active": [c.to_dict() for c in bridge.claims.active()],
+                "contradiction": bridge.claims.latest_supersede(),
+            }))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
             # device is streaming, so the HUD mirror is never a dead demo.
+            # docs/42: the digest is claims-driven, so the mirror shows the
+            # same ANSWER/DIGEST/HINT rows the wrist renders.
             note_count = 0
             try:
                 if pipeline is not None and getattr(pipeline, "store", None):
@@ -665,16 +955,96 @@ class H(BaseHTTPRequestHandler):
             from brain.hitl import get_gatebook
 
             gate = get_gatebook().latest_pending()
+            digest = []
+            try:
+                if b is not None:
+                    digest = b.digest_lines(3)
+            except Exception:
+                pass
             st = {
                 "t": 8,
                 "rec": 1 if (b and b.recording) else 0,
                 "mode": (b.mode if b else "HOME"),
                 "notes": note_count,
                 "banner": (b.last_banner if b else ""),
+                "digest": digest,
+                "hint": "tap:ok 2x:back hold:ask",
                 "online": True,
                 "gate": gate.to_dict() if gate else None,
             }
             return self._send(200, json.dumps(st))
+        if p.path == "/api/device":
+            # Device tab (docs/43 §7). /api/status stays the glanceable mirror
+            # (docs/42 rows); this adds what the DEVICE itself reported: battery,
+            # presence, posture, mode, and where capture/OTA live.
+            return self._send(200, json.dumps(_device_state()))
+        if p.path == "/api/timeline":
+            # docs/34 §4a: events + claims + notes on one time axis.
+            limit = int(parse_qs(p.query).get("limit", ["60"])[0] or 60)
+            return self._send(200, json.dumps(_timeline_rows(limit)))
+        if p.path == "/api/ask":
+            # docs/34 §4b: answer WITH citations (GET form for the dashboard;
+            # POST form below for the app). No citation => `cited: false`, and
+            # the UI shows that as an unverified answer.
+            q = parse_qs(p.query)
+            text = (q.get("q", [""])[0] or q.get("text", [""])[0]).strip()
+            if not text:
+                return self._send(400, json.dumps({"error": "missing q"}))
+            return self._send(200, json.dumps(_answer_question(text)))
+        if p.path == "/api/concepts":
+            # Unified retrieval over notes + memory cards + entities (docs/15
+            # mini4's endpoint matrix). Offline: ConceptIndex falls back to its
+            # keyword leg when no semantic embedder is reachable.
+            q = parse_qs(p.query)
+            from brain.concepts import ConceptIndex
+
+            idx = ConceptIndex(store=getattr(pipeline, "store", None) if pipeline else None)
+            return self._send(200, json.dumps(
+                idx.search(q.get("q", [""])[0], k=int(q.get("k", ["10"])[0] or 10))))
+        if p.path == "/api/concepts/groups":
+            from brain.concepts import ConceptIndex
+
+            idx = ConceptIndex(store=getattr(pipeline, "store", None) if pipeline else None)
+            return self._send(200, json.dumps(idx.groups()))
+        if p.path == "/api/truth/log":
+            # Audited truth edits: before/after log, newest last.
+            from brain.concepts import read_truth_log
+
+            limit = int(parse_qs(p.query).get("limit", ["50"])[0] or 50)
+            return self._send(200, json.dumps(read_truth_log(limit)))
+        if p.path.startswith("/api/physis/"):
+            # physis-next MCP bridge (docs/43 §6). Replaces the retired
+            # physis-pro-web /api/v1/* proxies that used to live here and had
+            # silently gone missing (4 tests red). The upstream is loopback
+            # only: `physis serve --http 127.0.0.1:PORT` never binds 0.0.0.0.
+            from brain import physis_next as px
+
+            q = parse_qs(p.query)
+            try:
+                if p.path == "/api/physis/status":
+                    return self._send(200, json.dumps(px.status()))
+                if p.path == "/api/physis/search":
+                    hits = px.search(q.get("q", [""])[0],
+                                     int(q.get("limit", ["10"])[0]))
+                    return self._send(200, json.dumps({"results": hits}))
+                if p.path == "/api/physis/context":
+                    return self._send(200, json.dumps(px.context_stats(
+                        q.get("q", [""])[0], int(q.get("budget", ["800"])[0]))))
+                if p.path == "/api/physis/history":
+                    return self._send(200, json.dumps(px.history(
+                        q.get("q", [""])[0], int(q.get("limit", ["10"])[0]))))
+                if p.path == "/api/physis/predict":
+                    argv = [a for a in q.get("argv", [""])[0].split() if a]
+                    return self._send(200, json.dumps(px.predict(argv)))
+                if p.path == "/api/physis/capabilities":
+                    return self._send(200, json.dumps(px.capabilities()))
+            except px.PhysisNextUnavailable as e:
+                return self._send(503, json.dumps({
+                    "error": "physis-next unreachable", "detail": str(e),
+                    "hint": "physis serve --http 127.0.0.1:19876 --path <ROOT>"}))
+            except (ValueError, TypeError) as e:
+                return self._send(400, json.dumps({"error": str(e)}))
+            return self._send(404, json.dumps({"error": "not found"}))
         if p.path == "/api/media":
             # ?cat=images|audio|video -> newest-first listing for that folder.
             cat = parse_qs(p.query).get("cat", ["images"])[0]
@@ -695,6 +1065,21 @@ class H(BaseHTTPRequestHandler):
             return self._send(404, json.dumps({"error": "not found"}))
         self._send(404, json.dumps({"error": "not found"}))
 
+    def do_DELETE(self):
+        # Only route: forget a bridge-to-world registry tag (?tag=).
+        p = urlparse(self.path)
+        ok, _ = self._authorized(p)
+        if not ok:
+            return self._deny()
+        if p.path == "/api/world":
+            from brain.world import WorldRegistry
+
+            q = parse_qs(p.query).get("tag", [""])[0]
+            if WorldRegistry().forget(q):
+                return self._send(200, json.dumps({"ok": True}))
+            return self._send(404, json.dumps({"error": "unknown tag"}))
+        return self._send(404, json.dumps({"error": "not found"}))
+
     def do_POST(self):
         p = urlparse(self.path)
         ok, _ = self._authorized(p)
@@ -706,6 +1091,139 @@ class H(BaseHTTPRequestHandler):
             data = json.loads(body or b"{}")
         except Exception:
             data = {}
+        if p.path == "/api/ask":
+            text = str(data.get("q") or data.get("text") or "").strip()
+            if not text:
+                return self._send(400, json.dumps({"error": "missing q"}))
+            return self._send(200, json.dumps(_answer_question(text)))
+        if p.path == "/api/events":
+            # Explicit event append (docs/34 §1a): writers outside the brain
+            # (phone app, scripts) post rows here instead of appending the JSONL
+            # themselves, so the ledger keeps one writer per process.
+            kind = str(data.get("kind", "")).strip()
+            if not kind:
+                return self._send(400, json.dumps({"error": "missing kind"}))
+            try:
+                ev = _event_log().append(
+                    kind=kind, body=str(data.get("body", "")),
+                    duration_s=float(data.get("duration_s", 0) or 0),
+                    source=str(data.get("source", "app")),
+                    locator=str(data.get("locator", "api")))
+            except (TypeError, ValueError) as e:
+                return self._send(400, json.dumps({"error": str(e)}))
+            return self._send(200, json.dumps(ev.to_dict()))
+        if p.path == "/api/truth":
+            # Audited truth editing (docs/15 mini4 matrix): edit/delete a note,
+            # every mutation logged with before/after in ~/.cyclops/truth_log.jsonl.
+            from brain.concepts import delete_note, edit_note_text
+
+            store = getattr(pipeline, "store", None) if pipeline else None
+            if store is None:
+                return self._send(400, json.dumps({"error": "no note store"}))
+            action = str(data.get("action", ""))
+            if action == "edit_note":
+                ok, entry = edit_note_text(store, data.get("ref", ""),
+                                           str(data.get("text", "")))
+            elif action == "delete_note":
+                ok, entry = delete_note(store, data.get("ref", ""))
+            else:
+                return self._send(400, json.dumps(
+                    {"error": f"unknown action: {action or '(none)'}",
+                     "known": ["edit_note", "delete_note"]}))
+            if not ok:
+                return self._send(404, json.dumps(
+                    {"error": "note not found, or empty replacement text"}))
+            return self._send(200, json.dumps({"ok": True, "entry": entry}))
+        if p.path == "/api/physis/remember":
+            # Record an outcome in physis-next (docs/43 §6). Reported evidence,
+            # never certified truth — the MCP tool's own contract.
+            from brain import physis_next as px
+
+            try:
+                out = px.remember(str(data.get("text", "")),
+                                  str(data.get("outcome", "unverified")),
+                                  str(data.get("actor", "cyclops")))
+                return self._send(200, json.dumps(out))
+            except px.PhysisNextUnavailable as e:
+                return self._send(503, json.dumps({
+                    "error": "physis-next unreachable", "detail": str(e)}))
+        if p.path == "/api/claims/resolve":
+            # W9 resolution from the wrist: {"keep_new": true|false}.
+            if bridge is None or bridge.claims is None:
+                return self._send(200, json.dumps({"ok": False, "reason": "no claims store"}))
+            keep_new = bool(data.get("keep_new", True))
+            got = bridge.resolve_contradiction(keep_new=keep_new)
+            if got is None:
+                return self._send(404, json.dumps({"error": "no pending contradiction"}))
+            return self._send(200, json.dumps({"ok": True, "kept": keep_new,
+                                               "claim": got.to_dict()}))
+        if p.path == "/api/notify":
+            # W7 notification triage: the phone already classified (pure rules
+            # in :core). Record the event; when buzz is set, put the line on
+            # the wearable HUD. Silence is the default — a non-buzz here is a
+            # ledger entry, not a display.
+            line = (data.get("line") or "").strip()
+            pkg = (data.get("pkg") or "").strip()
+            buzz = bool(data.get("buzz"))
+            if not line:
+                return self._send(400, json.dumps({"error": "line required"}))
+            if pipeline is not None:
+                try:
+                    pipeline.process_text(f"[notify {pkg}] {line}")
+                except Exception:
+                    pass
+            if buzz and bridge is not None:
+                bridge.last_banner = line
+            return self._send(200, json.dumps(
+                {"ok": True, "buzzed": bool(buzz and bridge is not None)}))
+        if p.path == "/api/activity":
+            # Phone activity classification (UsageStats tier): the phone
+            # already classified foreground sessions on-device; each session
+            # becomes a ledger event (source: phone, locator = package).
+            # Opt-in on the phone; no pixels, no view text ever leaves it.
+            # Body: {"sessions": [{"package":..., "label":..., "started_at":...,
+            # "duration_s": n}]}. Short (<30s) sessions are noise, skipped.
+            from datetime import datetime, timezone
+
+            sessions = data.get("sessions") or []
+            kept = 0
+            if pipeline is not None:
+                from brain.extractor import Note
+
+                for s in sessions:
+                    try:
+                        dur = int(s.get("duration_s", 0))
+                    except (TypeError, ValueError):
+                        continue
+                    if dur < 30:
+                        continue
+                    pkg = str(s.get("package") or "").strip()
+                    if not pkg:
+                        continue
+                    label = str(s.get("label") or pkg).strip()
+                    started = str(s.get("started_at") or "").strip()
+                    if not started:
+                        started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                    nid = "n_" + started.replace(":", "").replace("-", "").replace(".", "")
+                    try:
+                        pipeline.store.add(Note(
+                            id=f"{nid}_{kept}", type="activity",
+                            text=f"{label} ({dur // 60}m {dur % 60}s)",
+                            created=started, source="phone:" + pkg,
+                        ))
+                        kept += 1
+                    except Exception:
+                        pass
+            return self._send(200, json.dumps({"ok": True, "kept": kept}))
+        if p.path == "/api/world":
+            # Teach path of the bridge-to-world registry (GET side lives in
+            # do_GET so listing stays a safe GET; both are auth-gated).
+            from brain.world import WorldRegistry
+
+            tag, answer = (data.get("tag") or "").strip(), (data.get("answer") or "").strip()
+            if not tag or not answer:
+                return self._send(400, json.dumps({"error": "tag and answer required"}))
+            return self._send(200, json.dumps({"ok": True, "tag": tag, **WorldRegistry().teach(tag, answer)}))
         if p.path == "/api/oauth/start":
             # Begin an OAuth authentication, either against an already-
             # configured provider ({"provider": "kimi"}, the original
@@ -1022,6 +1540,7 @@ def main():
             health=None,
             agent=agent,
             vision=_get_vision_fn(),
+            claims=_claim_store(),
         )
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
     # LAN discovery beacon so clients can find us without typing an IP.
@@ -1032,6 +1551,7 @@ def main():
     if beacon.start():
         print(f"Discovery beacon on udp/{beacon.listen_port}")
     _start_dream_scheduler()  # periodic proactive review (dreams/proposals)
+    _start_calendar_scheduler()  # W8: arm/file meetings, leave nudges
     print(f"Cyclops dashboard on http://localhost:{PORT}")
     if ALLOW_INSECURE_LAN:
         print("  !! CYCLOPS_ALLOW_INSECURE_LAN=1 — every route is open to the")

@@ -20,12 +20,14 @@ def make_clipboard_tool(config: AgentConfig) -> Tool:
     def _get() -> str:
         if shutil.which("xclip"):
             try:
-                return subprocess.run(
+                out = subprocess.run(
                     ["xclip", "-o", "-selection", "clipboard"],
                     capture_output=True,
                     text=True,
                     timeout=5,
                 ).stdout.strip()
+                if out:  # xclip present but no display -> empty; use stored value
+                    return out
             except Exception:
                 pass
         if os.path.exists(_STORE):

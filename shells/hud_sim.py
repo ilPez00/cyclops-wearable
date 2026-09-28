@@ -77,6 +77,10 @@ class HudSim:
         elif kind == "text":
             text = obj.get("text") or obj.get("data") or ""
             self.lines = self._wrap(text, self.cols)
+            # answer arrived -> the run is over (docs/42 HINT row semantics)
+            self.progress = None
+            self.steps = []
+            self.toast = None
 
     def feed_hud_frame(self, payload: bytes):
         d = parse_hud(payload)
@@ -85,6 +89,10 @@ class HudSim:
         lines = d.get("lines", [])
         if lines:
             self.lines = [ln[: self.cols] for ln in lines][: self.rows - 1]
+            # a new answer ends the run: the HINT row returns to the affordance
+            self.progress = None
+            self.steps = []
+            self.toast = None
 
     # ---- helpers ----
     @staticmethod
@@ -110,10 +118,10 @@ class HudSim:
     def set_consent(self, on: bool):
         self.consent = on
 
-    # ---- render ----
+    # ---- render (docs/42 STATUS / ANSWER / DIGEST / HINT on 4 rows) ----
     def render(self) -> list[str]:
         grid = []
-        # status bar (row 0)
+        # row0 STATUS: mode + link + power + REC/X.
         flags = []
         if self.hr is not None:
             flags.append(f"HR{self.hr}")
@@ -127,11 +135,12 @@ class HudSim:
         if not self.consent:
             status += " X"
         grid.append(status[: self.cols].ljust(self.cols))
-        # body lines (rows 1..rows-2)
+        # row1 ANSWER: first line is the AI's last line.
+        # row2 DIGEST: second line is the belief digest (or continuation).
         for i in range(self.rows - 2):
             grid.append((self.lines[i] if i < len(self.lines) else "").ljust(self.cols))
-        # progress / step footer (last row)
-        foot = ""
+        # row3 HINT: affordance wins; progress/steps/toast preempt it.
+        foot = "A:ask B:note ~ tilt"
         if self.progress is not None:
             foot = f"[{self.progress:3d}%]"
         if self.steps:

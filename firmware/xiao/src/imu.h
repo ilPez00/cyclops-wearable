@@ -7,6 +7,7 @@
 #ifndef IMU_H
 #define IMU_H
 #include <cstdint>
+#include "imu_whoami.h"   // imu_identify/imu_status_line (docs/43 C4)
 namespace cyclops {
 
 struct ImuSample {
@@ -22,7 +23,10 @@ public:
     Imu(uint8_t addr = 0x68, int int_pin = 1);
 
     // Initialize the sensor (wakes from sleep, sets ranges). Returns false if
-    // no device answers at addr. Host-safe (no-op, returns false).
+    // no device answers at addr, OR if what answered is a part whose register
+    // map this driver does not speak (docs/43 C4: e.g. an LSM6DS3 would ACK and
+    // then read garbage). `reason()` is a human line either way.
+    // Host-safe (no-op, returns false).
     bool begin();
 
     // Read + update. Call from loop. Returns false on bus error.
@@ -30,6 +34,12 @@ public:
 
     const ImuSample& sample() const { return s_; }
     bool ready() const { return ready_; }
+
+    // What answered on the bus (docs/43 C4). IMU_NONE until begin() runs; on an
+    // unsupported part ready() stays false and reason() says why.
+    ImuChip chip() const { return chip_; }
+    uint8_t whoami() const { return whoami_; }
+    const char* reason() const { return reason_; }   // "" until begin() ran
 
     // Tilt auto-scroll: positive = tilt down (scroll forward), negative = up.
     int scroll_tilt() const;
@@ -40,6 +50,9 @@ private:
     bool ready_ = false;
     ImuSample s_;
     int heading_ = 0;   // integrated yaw (no mag on MPU-6050)
+    ImuChip chip_ = IMU_NONE;
+    uint8_t whoami_ = 0xFF;
+    char reason_[72] = "";   // serial/HUD line from imu_status_line()
 };
 
 }  // namespace cyclops

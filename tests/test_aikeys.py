@@ -148,3 +148,56 @@ def test_get_endpoint_falls_back_to_oauth_provider_api_base_url():
                 os.environ.pop("CYCLOPS_OAUTH_PROVIDERS", None)
             else:
                 os.environ["CYCLOPS_OAUTH_PROVIDERS"] = old
+
+
+def test_byok_generic_key_patterns():
+    """Any provider id resolves: bare, _api_key, _key, ai_ prefix."""
+    import tempfile as _tf
+
+    with _tf.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+        f.write("myprov:KEY1\n")
+        api = f.name
+    with _tf.NamedTemporaryFile("w", suffix=".env", delete=False) as f:
+        f.write("FROB_API_KEY=abc\nAI_BAZ_KEY=def\nWIDGET_KEY=ghi\n")
+        env = f.name
+    try:
+        k = AiKeys(ai_api_txt=api, env_paths=(env,), oauth_store=_NullOAuth())
+        assert k.get_key("myprov") == "KEY1"
+        assert k.get_key("frob") == "abc"
+        assert k.get_key("baz") == "def"
+        assert k.get_key("widget") == "ghi"
+    finally:
+        os.unlink(api)
+        os.unlink(env)
+
+
+def test_byok_generic_endpoint_patterns():
+    import tempfile as _tf
+
+    with _tf.NamedTemporaryFile("w", suffix=".env", delete=False) as f:
+        f.write("FROB_ENDPOINT=https://frob.example/v1\nEP_BAZ=https://baz.example/v1\n")
+        env = f.name
+    try:
+        k = AiKeys(ai_api_txt="/nonexistent-ai-api.txt",
+                   env_paths=(env,), oauth_store=_NullOAuth())
+        assert k.get_endpoint("frob") == "https://frob.example/v1"
+        assert k.get_endpoint("baz") == "https://baz.example/v1"
+    finally:
+        os.unlink(env)
+
+
+def test_default_endpoint_map():
+    from brain.aikeys import default_endpoint
+
+    assert default_endpoint("groq") == "https://api.groq.com/openai/v1"
+    assert default_endpoint("MISTRAL") == "https://api.mistral.ai/v1"
+    assert default_endpoint("jev") is None  # decision model, not chat
+    assert default_endpoint("nonsense") is None
+
+
+class _NullOAuth:
+    def get_valid_key(self, *a, **k):
+        return None
+
+    def available_providers(self):
+        return set()

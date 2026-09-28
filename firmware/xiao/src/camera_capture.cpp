@@ -48,6 +48,10 @@ void CameraCapture::teardown_wifi() {}
 namespace cyclops {
 
 static WebServer* g_server = nullptr;
+// Camera-init result, readable by the free-standing HTTP handlers below
+// (CameraCapture::cam_ready_ is a private member they cannot see). Set in
+// ensure_camera(), reported by GET /status (docs/43 C2).
+static bool s_cam_ok = false;
 static const char* STREAM_BOUNDARY = "\r\n--frame\r\n";
 static const char* STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
 
@@ -67,15 +71,19 @@ static void handle_snap() {
     esp_camera_fb_return(fb);
 }
 
-static void handle_stream_root() {
-    String html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-        "<title>Cyclops Camera</title>"
-        "<style>body{margin:0;background:#111;color:#eee;"
-        "font-family:system-ui,sans-serif;text-align:center}"
-        "h1{padding:1em}img{max-width:100%;height:auto}</style></head><body>"
-        "<h1>Cyclops &mdash; live</h1>"
-        "<img src=\"/stream\" /></body></html>";
-    g_server->send(200, "text/html; charset=utf-8", html);
+// GET /status -- JSON only. AGENTS.md: the firmware never serves browser
+// pages (the companion app is the single UI surface, and it must work while
+// the wearable is asleep); this endpoint is JSON so the app can render it.
+// It also answers "is the camera/WiFi/SD really up, and where is the stream"
+// for the app's Device tab and the capture flow.
+static void handle_status() {
+    char body[192];
+    snprintf(body, sizeof(body),
+             "{\"cam\":%d,\"wifi\":%d,\"sd\":%d,\"ip\":\"%s\","
+             "\"stream\":\"/stream\",\"audio\":\"/audio.wav\",\"snap\":\"/snap\"}",
+             s_cam_ok ? 1 : 0, WiFi.status() == WL_CONNECTED ? 1 : 0,
+             sd_ready() ? 1 : 0, WiFi.localIP().toString().c_str());
+    g_server->send(200, "application/json", body);
 }
 
 static void handle_stream() {
@@ -224,6 +232,7 @@ bool CameraCapture::ensure_camera() {
         esp_err_t err = esp_camera_init(&c);
         if (err == ESP_OK) {
             cam_ready_ = true;
+            s_cam_ok = true;   // /status reports this (see handle_status)
             Serial.printf("[cam-cap] camera OK profile=%dx%d@%dHz psram=%d\n",
                           profile_width(c.frame_size), profile_height(c.frame_size), (int)c.xclk_freq_hz, has_psram);
             return true;
@@ -282,7 +291,7 @@ bool CameraCapture::ensure_wifi_and_server() {
     g_server->on("/snap", handle_snap);
     g_server->on("/stream", handle_stream);
     g_server->on("/audio.wav", handle_audio);
-    g_server->on("/", handle_stream_root);
+    g_server->on("/status", handle_status);   // JSON only -- no HTML page (C2)
     g_server->begin();
     snprintf(url_, sizeof(url_), "http://%s/capture", WiFi.localIP().toString().c_str());
     server_up_ = true;

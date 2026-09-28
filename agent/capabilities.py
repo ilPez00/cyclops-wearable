@@ -91,6 +91,12 @@ CAPABILITIES = [
         [],
     ),
     ("memory", "memory", "Access persona, health and long-term memory.", []),
+    (
+        "physis",
+        "memory",
+        "Search/remember outcomes through physis-next (MCP over HTTP).",
+        ["physis-next"],
+    ),
 ]
 
 

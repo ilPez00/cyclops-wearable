@@ -1,0 +1,485 @@
+// Cyclops wearable firmware — one application, two ESP32-S3 boards.
+//
+// TARGET (V3 slim, docs/42): 2 buttons + HW-123 accel + 4-pin I2C SSD1306
+//   128x32 + battery sense. Input: BTN_A (eye: OK/photo/video), BTN_B (ear:
+//   back/voice-note/voice-cmd); scroll = HW-123 tilt -> on_wheel.
+// BOARD: see board_config.h — `-DCYCLOPS_BOARD_XIAO` (S3 *Sense*: adds OV2640
+//   camera + PDM mic + microSD) or `-DCYCLOPS_BOARD_FEATHER` (Adafruit Feather
+//   ESP32-S3: same HUD/BLE/input surface, no Sense peripherals).
+// Mic (PDM) -> ADPCM -> BLE audio chunks; BLE (NimBLE) to phone/app, which with
+//   physis is the single access point to computer/internet/AI.
+// Battery divider (board_config.h) -> status_json batt + bead_mv.
+// Build: pio run -e xiao_128x32_i2c   |   pio run -e feather_128x32_i2c
+#include "cyclops_shared.h"
+#include "screen.h"
+#include "screens.h"
+#include "hud.h"
+#include "gestures.h"
+#include "adpcm.h"
+#include "ota.h"
+#include <esp_ota_ops.h>
+#include "sd_log.h"
+#include "imu.h"
+#include "battery.h"
+#include "presence.h"
+#include "posture.h"
+#include "audio_trigger.h"
+#include "soc/rtc_cntl_reg.h"
+#include "config_store.h"
+#include "config_portal.h"
+#include "board_config.h"
+#if BOARD_HAS_CAMERA
+#include "camera_capture.h"
+#endif
+#include <Wire.h>
+#include <NimBLEDevice.h>
+#if BOARD_HAS_MIC
+#include <driver/i2s.h>
+#endif
+
+// Which board this build is for (docs/42): XIAO S3 Sense = full sensor node,
+// Feather ESP32-S3 = same HUD/BLE/input surface without the Sense peripherals.
+// All differences live in board_config.h.
+static const char* BOARD = BOARD_NAME;
+
+// 4-pin I2C OLED only: SDA/SCL from board_config.h, addr 0x3C, no RST.
+static cyclops::Ssd1306_128x32_I2C_Screen screen(0, 0, 0, 0, 0, 0, -1);
+
+
+static cyclops::Hud hud;
+// HW-123 (ITG/MPU) on the shared I2C bus; INT optional (no pin -> no IRQ use).
+static cyclops::Imu imu(BOARD_I2C_ADDR_IMU, -1);
+// Battery: divider per board_config.h. Percent lands in hud.bead_batt via
+// set_health(); status_json() reports both percent and raw mV.
+static cyclops::Battery batt(PIN_VBAT, 4200, 3300, 16, BOARD_VBAT_DIVIDER,
+#if defined(BOARD_VBAT_ENABLE)
+                             BOARD_VBAT_ENABLE
+#else
+                             -1
+#endif
+);
+// Off-body privacy gate: a device resting on a surface reads a near-constant
+// gravity vector for 4s straight -> consent forced off + any capture already
+// running is force-stopped. This must be a firmware-local invariant (holds
+// even with the BLE link down), same fail-closed principle as the phone-side
+// HITL gate. Re-worn (motion resumes) restores consent immediately.
+static cyclops::PresenceDetector presence;
+// Posture cue: calibrated to "neutral" on first read after boot and again
+// whenever the device is re-worn (presence edge on->off->on), since pin/
+// lapel mounting angle isn't fixed. 30 deg sustained 10 min, per the product
+// pitch; breathing-rate is real DSP work (chest-rise extraction), deferred.
+static cyclops::PostureDetector posture(30, 600000);
+static NimBLEServer* srv;
+static NimBLECharacteristic* note_ch;
+static NimBLECharacteristicCallbacks* note_cb = nullptr;
+static const char* SRVC = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+static const char* NOTE_CH = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx);
+static void send_cmd(uint8_t act, const char* arg);
+static void send_frame(uint8_t type, const uint8_t* p, size_t n);
+static void ui_apply_display(const char* json);
+static void start_capture();
+static void stop_capture();
+static void audio_task(void*);
+
+static cyclops::FrameDecoder dec(on_frame, nullptr);
+static bool capturing = false;
+static TaskHandle_t cap_task = nullptr;
+// Sudden loud-sound tier (#6): only runs on chunks already being read for an
+// active capture — piggybacks on the existing mic path rather than adding a
+// new always-on listen loop, which would need real hardware to power/false-
+// positive tune before it's safe to leave running unattended. Set by
+// audio_task (a separate FreeRTOS task); loop() picks it up on the main task
+// so hud.notify() is only ever touched from one task, same as `capturing`'s
+// existing plain-bool cross-task convention.
+static cyclops::AudioTrigger audio_trigger;
+static cyclops::VadGate vad_gate;
+static volatile bool loud_flag = false;
+// Deferred ACT_PHOTO handoff from BLE-callback-context to the main loop
+// task -- see hud.on_photo below for why this can't just do the work inline.
+static volatile bool photo_flag = false;
+// On-demand photo capture (#1): camera + WiFi + HTTP come up only when a
+// photo is actually requested, torn down after 60s idle. See camera_capture.h.
+// On a board without an OV2640 (Feather) these four shims compile in instead,
+// so loop() and the photo gesture stay board-agnostic: ACT_PHOTO still travels
+// to the phone as a command, only the on-device capture is absent.
+#if BOARD_HAS_CAMERA
+static cyclops::CameraCapture camera_capture;
+#else
+struct NoCamera {
+    const char* request(unsigned long) { return ""; }
+    void tick(unsigned long) {}
+    void shutdown() {}
+};
+static NoCamera camera_capture;
+#endif
+
+class NoteCb : public NimBLECharacteristicCallbacks {
+    void onWrite(NimBLECharacteristic* c) override {
+        std::string v = c->getValue();
+        for (size_t i = 0; i < v.size(); ++i) dec.push((uint8_t)v[i]);
+    }
+};
+
+// ---- OTA-over-BLE receive path (shared OtaReceiver + esp_ota_* sinks) ----
+// Rationale: the USB-C connector is the board's weakest part (one died
+// 2026-07-12 with a live chip behind a dead port). BLE reflash means a broken
+// connector no longer strands the firmware. Trust model matches the rest of
+// the link (unauthenticated, ~1 m body range — see docs/07 §4).
+static esp_ota_handle_t ota_handle = 0;
+static const esp_partition_t* ota_part = nullptr;
+
+static bool ota_sink_begin(uint32_t size, void*) {
+    ota_part = esp_ota_get_next_update_partition(NULL);
+    if (!ota_part) return false;  // no OTA partition in the table
+    return esp_ota_begin(ota_part, size, &ota_handle) == ESP_OK;
+}
+static bool ota_sink_write(const uint8_t* d, size_t len, void*) {
+    return esp_ota_write(ota_handle, d, len) == ESP_OK;
+}
+static bool ota_sink_finish(bool commit, void*) {
+    if (!commit) { esp_ota_abort(ota_handle); return true; }
+    if (esp_ota_end(ota_handle) != ESP_OK) return false;
+    return esp_ota_set_boot_partition(ota_part) == ESP_OK;
+}
+static cyclops::OtaSink make_ota_sink() {
+    cyclops::OtaSink s;
+    s.begin = ota_sink_begin;
+    s.write = ota_sink_write;
+    s.finish = ota_sink_finish;
+    s.ctx = nullptr;
+    return s;
+}
+static cyclops::OtaReceiver& ota_rx() {
+    static cyclops::OtaReceiver rx(make_ota_sink());
+    return rx;
+}
+
+// Handle one MSG_OTA_* frame: drive the receiver, ACK every message, show
+// progress on the HUD, reboot after a committed END.
+static void on_ota_frame(uint8_t type, const uint8_t* p, size_t n) {
+    uint32_t seq = 0;
+    cyclops::OtaStatus st;
+    if (type == cyclops::MSG_OTA_BEGIN) {
+        st = ota_rx().on_begin(p, n, &seq);
+        if (st == cyclops::OTA_OK) { hud.notify("OTA start", cyclops::Hud::NOTE_INFO, 3); hud.progress = 0; }
+    } else if (type == cyclops::MSG_OTA_CHUNK) {
+        st = ota_rx().on_chunk(p, n, &seq);
+        uint32_t exp = ota_rx().expected();
+        if (st == cyclops::OTA_OK && exp) hud.progress = (int)(100ull * ota_rx().received() / exp);
+    } else {  // MSG_OTA_END
+        st = ota_rx().on_end(&seq);
+    }
+    char ack[48]; int m = cyclops::OtaReceiver::ack_json(ack, sizeof(ack), seq, st);
+    send_frame(cyclops::MSG_OTA_ACK, (const uint8_t*)ack, (size_t)m);
+    if (type == cyclops::MSG_OTA_END && st == cyclops::OTA_OK) {
+        hud.notify("OTA ok, reboot", cyclops::Hud::NOTE_OK, 2);
+        cyclops::sd_log_line("ota", "commit + reboot");
+        delay(400);  // let the ACK notify flush before the link drops
+        esp_restart();
+    } else if (st != cyclops::OTA_OK) {
+        hud.progress = 0;
+        hud.notify("OTA fail", cyclops::Hud::NOTE_ERR, 3);
+    }
+}
+
+static void on_frame(uint8_t type, const uint8_t* p, size_t n, void* ctx) {
+    (void)ctx;
+    if (type == cyclops::MSG_OTA_BEGIN || type == cyclops::MSG_OTA_CHUNK ||
+        type == cyclops::MSG_OTA_END) {
+        on_ota_frame(type, p, n);  // binary payload — must not go through tmp
+        return;
+    }
+    char tmp[256]; if (n >= sizeof(tmp)) n = sizeof(tmp)-1;
+    memcpy(tmp, p, n); tmp[n] = 0;
+    if (type == cyclops::MSG_DISPLAY_CMD || type == cyclops::MSG_NOTE) {
+        ui_apply_display(tmp);
+        if (type == cyclops::MSG_NOTE) cyclops::sd_log_line("note", tmp);
+    }
+    else if (type == cyclops::MSG_HEALTH_SAMPLE) {
+        hud.on_health_sample(tmp);  // P2-C relay
+        cyclops::sd_log_line("health", tmp);
+    }
+    else if (type == cyclops::MSG_CMD) {
+        // Phone -> wearable action, same {"a":<ACT_*>,"arg":...} shape the
+        // wearable emits. Lets the brain drive capture/menu remotely instead
+        // of only reacting to on-device input.
+        const char* av = strstr(tmp, "\"a\":");
+        if (av) {
+            int a = atoi(av + 4);
+            if (a == cyclops::ACT_TRANSCRIBE_START) {
+                // Same consent gate as on-device capture (on_nod/do_action):
+                // remote start must not bypass Consent Mode.
+                if (!capturing && !hud.consent) { hud.notify("consent off", cyclops::Hud::NOTE_WARN, 2); }
+                else if (capturing) stop_capture();
+                else start_capture();
+            } else {
+                hud.do_action((uint8_t)a);
+            }
+        }
+    }
+}
+
+static void ui_apply_display(const char* json) {
+    hud.apply_display_cmd(json);
+}
+
+static void send_cmd(uint8_t act, const char* arg) {
+    uint8_t buf[300];
+    char payload[200]; int pl = snprintf(payload, sizeof(payload), "{\"a\":%u,\"arg\":\"%s\"}", act, arg ? arg : "");
+    size_t k = cyclops::encode_frame(cyclops::MSG_CMD, (uint8_t*)payload, pl, buf, sizeof(buf));
+    if (note_ch) { note_ch->setValue(buf, k); note_ch->notify(); }
+}
+
+static void send_frame(uint8_t type, const uint8_t* p, size_t n) {
+    uint8_t buf[400]; size_t k = cyclops::encode_frame(type, p, n, buf, sizeof(buf));
+    if (note_ch) { note_ch->setValue(buf, k); note_ch->notify(); }
+}
+
+class SrvCb : public NimBLEServerCallbacks {
+    void onConnect(NimBLEServer*) override { hud.bt = true; }
+    void onDisconnect(NimBLEServer*) override { hud.bt = false; }
+};
+
+// Raw PCM16 at 16 kHz is 32 KB/s; the BLE notify link measures ~2-8 KB/s
+// (docs/13 premortem #2), so raw streaming can never keep up. Compress each
+// read with IMA ADPCM (4:1, shared/include/adpcm.h): a 256-sample read
+// becomes 4+128 = 132 B — one notify-sized frame, no slicing. The step index
+// is carried across chunks (warm adaption); each chunk stays self-contained
+// so a lost notify costs only its own ~16 ms window.
+#if BOARD_HAS_MIC
+static void audio_task(void*) {
+    int16_t samples[MIC_BUF_SAMPLES];
+    uint8_t enc[4 + (MIC_BUF_SAMPLES + 1) / 2];
+    int adpcm_index = 0;
+    size_t rd;
+    while (capturing) {
+        i2s_read((i2s_port_t)0, samples, sizeof(samples), &rd, pdMS_TO_TICKS(100));
+        if (rd > 0) {
+            if (audio_trigger.feed(samples, rd / 2, millis())) loud_flag = true;
+            // VAD gate: skip silence to save BLE bandwidth and battery.
+            // Only streams when RMS exceeds the adaptive threshold.
+            if (!vad_gate.feed(samples, rd / 2)) {
+                cyclops::audio_dropped++;  // silence -> drop
+                continue;
+            }
+            // Backpressure: only stream audio when a phone is actually
+            // connected to receive it. Sending into the void wastes the BLE
+            // queue and battery; drop the chunk instead. (D)
+            if (hud.bt) {
+                size_t k = cyclops::adpcm_encode_chunk(samples, rd / 2, enc,
+                                                       sizeof(enc),
+                                                       adpcm_index, &adpcm_index);
+                if (k > 0) send_frame(cyclops::MSG_AUDIO_CHUNK, enc, k);
+            } else {
+                cyclops::audio_dropped++;  // no consumer -> drop
+            }
+        }
+    }
+    vTaskDelete(NULL);
+}
+#endif  // BOARD_HAS_MIC
+
+static void start_capture() {
+    if (capturing) return;
+#if BOARD_HAS_MIC
+    i2s_config_t cfg = {};
+    cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM);
+    cfg.sample_rate = MIC_RATE;
+    cfg.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
+    cfg.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;
+    cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+    cfg.intr_alloc_flags = 0;
+    cfg.dma_buf_count = 4; cfg.dma_buf_len = MIC_BUF_SAMPLES;
+    i2s_pin_config_t pins = {};
+    // PDM RX: ws pin carries the PDM clock, data_in the PDM bitstream.
+    pins.mck_io_num = I2S_PIN_NO_CHANGE;
+    pins.bck_io_num = I2S_PIN_NO_CHANGE; pins.ws_io_num = MIC_PDM_CLK;
+    pins.data_in_num = MIC_PDM_DATA; pins.data_out_num = I2S_PIN_NO_CHANGE;
+    i2s_driver_install((i2s_port_t)0, &cfg, 0, NULL);
+    i2s_set_pin((i2s_port_t)0, &pins);
+    capturing = true;
+    // announce format once: bits, rate, channels, codec (meta[5])
+    uint8_t meta[8]; meta[0]=16; meta[1]=0; meta[2]=MIC_RATE&0xFF; meta[3]=(MIC_RATE>>8)&0xFF;
+    meta[4]=1; meta[5]=cyclops::AUDIO_CODEC_ADPCM; meta[6]=0; meta[7]=0;
+    send_frame(cyclops::MSG_AUDIO_META, meta, 8);
+    xTaskCreatePinnedToCore(audio_task, "cap", 6144, NULL, 5, &cap_task, 0);
+#else
+    // No onboard mic on this board: recording is refused loudly rather than
+    // pretending. The gesture's MSG_CMD still reached the phone, so the
+    // brain-side voice path (transcribe/document/ask) is unaffected.
+    hud.notify("no mic on this board", cyclops::Hud::NOTE_WARN, 3);
+    hud.recording = false;
+    return;
+#endif
+    hud.recording = true;
+    cyclops::sd_log_line("rec", "start");
+}
+
+static void stop_capture() {
+    if (!capturing) return;
+    capturing = false;
+    delay(120);
+#if BOARD_HAS_MIC
+    i2s_driver_uninstall((i2s_port_t)0);
+#endif
+    send_frame(cyclops::MSG_AUDIO_STOP, NULL, 0);
+    hud.recording = false;
+    cyclops::sd_log_line("rec", "stop");
+}
+
+void setup() {
+    // Brownout detector disable — prevents random resets under high load
+    // (camera + WiFi + BLE concurrently). From xiao-esp32s3-edge-ai reference.
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
+    Serial.begin(115200);
+    Serial.println("[boot] Cyclops XIAO S3 Sense");
+    // Factory reset: hold both buttons at boot
+    pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
+    delay(50);
+    if (!digitalRead(PIN_BTN_A) && !digitalRead(PIN_BTN_B)) {
+        Serial.println("[boot] BTN_A+BTN_B held — factory reset");
+        cyclops::ConfigStore::instance().reset();
+    }
+    cyclops::ConfigStore::instance().load();
+    Serial.printf("[boot] Cyclops — board=%s\n", BOARD);
+    Serial.printf("[boot] screen=SSD1306 128x32 I2C (SDA=%d SCL=%d)\n",
+                  (int)PIN_I2C_SDA, (int)PIN_I2C_SCL);
+    // I2C bus shared by the 4-pin OLED + HW-123 accel (pins from board_config.h).
+    screen.begin();
+    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+    batt.begin();
+    Serial.printf("[boot] screen.begin ok + Wire(%d,%d) + batt\n",
+                  (int)PIN_I2C_SDA, (int)PIN_I2C_SCL);
+    if (!cyclops::ConfigStore::instance().is_configured()) {
+        Serial.println("[boot] not configured — starting config portal");
+        config_portal_start();
+        Serial.printf("[boot] Connect to Cyclops-Setup-XXXX, open http://192.168.4.1\n");
+        while (!config_portal_timeout()) {
+            config_portal_tick();
+            delay(10);
+        }
+        config_portal_stop();
+        Serial.println("[boot] portal timeout — continuing boot");
+    }
+    pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
+    hud.send_cmd = send_cmd;
+    hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
+    hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
+    // Deliberately just sets a flag -- do_action(ACT_PHOTO) (and therefore
+    // this callback) can run on the NimBLE host task's own stack when
+    // triggered by a phone-relayed MSG_CMD (on_frame() -> do_action() is
+    // called directly from the GATT write callback), not the main loop
+    // task. That stack is small by default; esp_camera_init()'s local
+    // camera_config_t plus WiFi.begin()'s blocking join loop, run directly
+    // on it, is a real overflow risk -- and a strong suspect for the
+    // "sd_ready() false right after camera init succeeds" bug seen live on
+    // metal (smashed static BSS is exactly this failure's shape). The
+    // actual capture work now happens in loop() on the main task instead;
+    // see photo_flag below. The immediate cmd(ACT_PHOTO,"") notify is
+    // cheap/safe here -- it's just a function-pointer call, no blocking I/O.
+    hud.on_photo = []() -> const char* { photo_flag = true; return ""; };
+    hud.init();
+    Serial.println("[boot] hud.init ok");
+#if BOARD_HAS_SD
+    if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
+    else Serial.println("[boot] sd card NOT present (logging disabled)");
+#else
+    // No slot on this board: sd_log_line() is a no-op via sd_ready()==false.
+    Serial.println("[boot] no SD slot on this board (logging disabled)");
+#endif
+    // Single access point: phone/app + physis route computer/internet/AI.
+    // Device stays a thin client: MSG_CMD up, DISPLAY_CMD/HUD_FRAME down.
+    // BLE name is board-specific so a phone can tell the two apart when both
+    // are on the bench (CyclopsXIAO / CyclopsFeather).
+#if defined(CYCLOPS_BOARD_FEATHER)
+    NimBLEDevice::init("CyclopsFeather");
+#else
+    NimBLEDevice::init("CyclopsXIAO");
+#endif
+    srv = NimBLEDevice::createServer();
+    srv->setCallbacks(new SrvCb());
+    NimBLEService* s = srv->createService(SRVC);
+    note_ch = s->createCharacteristic(NOTE_CH, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::WRITE);
+    note_cb = new NoteCb();
+    note_ch->setCallbacks(note_cb);
+    s->start();
+    NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
+    adv->addServiceUUID(SRVC);
+    adv->start();
+    if (imu.begin()) Serial.println("[boot] imu ok (HW-123 0x68)");
+    else Serial.println("[boot] imu NOT found (0x68)");
+    Serial.printf("[boot] batt %dmV %d%%\n", batt.read_mv(), batt.percent());
+}
+
+static uint32_t last_hb=0;
+static cyclops::GestureDetector gest_a, gest_b;   // A="eye", B="ear"
+
+void loop() {
+    config_portal_tick();
+    uint32_t now = millis();
+    if (loud_flag) {
+        loud_flag = false;
+        hud.notify("loud sound detected", cyclops::Hud::NOTE_WARN, 3);
+        cyclops::sd_log_line("audio_trigger", "loud");
+    }
+    if (photo_flag) {
+        photo_flag = false;
+        const char* url = camera_capture.request(now);
+        if (url[0]) cyclops::sd_log_line("photo", url);
+        else hud.toast("photo: no wifi.txt / cam fail", 3);
+        hud.notify_result(cyclops::ACT_PHOTO, url);
+    }
+    camera_capture.tick(now);
+    // 2 buttons, active-low; detector wants pressed=true.
+    // A=eye: single=OK double=photo long=video; B=ear: single=back
+    // double=voice-note long=voice-cmd.
+    cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
+    cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
+    if (ga) hud.fire_gesture(0, ga);
+    if (gb) hud.fire_gesture(1, gb);
+    // HW-123 accel: tilt scroll + off-body privacy gate + posture cue.
+    if (imu.update()) {
+        hud.nav_head = imu.sample().heading;
+        int tilt = imu.scroll_tilt();
+        if (tilt != 0) hud.on_wheel(tilt);
+        const auto& s = imu.sample();
+        bool off = presence.poll(s.ax, s.ay, s.az, now);
+        if (presence.changed()) {
+            hud.set_consent(!off);
+            if (off && capturing) stop_capture();  // guarantee, not just a future gate
+            if (off) camera_capture.shutdown();    // camera+WiFi off too, immediately
+            hud.notify(off ? "off-body: sensors off" : "on-body: sensors on",
+                       cyclops::Hud::NOTE_WARN, 2);
+            cyclops::sd_log_line("presence", off ? "off" : "on");
+            if (!off) posture.calibrate(s.pitch);  // just re-worn: reset "neutral"
+        }
+        if (!posture.calibrated() && !off) posture.calibrate(s.pitch);  // first read after boot
+        if (!off && posture.poll(s.pitch, now) && posture.changed()) {
+            hud.notify("posture: sit up straight", cyclops::Hud::NOTE_INFO, 3);
+        }
+    }
+    if (millis()-last_hb > 5000) {
+        last_hb = millis();
+        // Battery: percent (0..100, -1 unread) into bead_batt; mV into batt_mv
+        // so status_json "batt" stays mV-compatible for older parsers.
+        int pct = batt.percent();
+        if (pct >= 0) hud.set_health(0, 0, 0, pct);
+        int mv = batt.read_mv();
+        if (mv > 0) hud.bead_batt_mv = (uint16_t)mv;
+        if (batt.low()) hud.notify("battery low", cyclops::Hud::NOTE_WARN, 3);
+        char s[160]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
+        Serial.printf("[hb] %s rec=%d bt=%d mode=%s drop=%lu\n", s, hud.recording,
+                      hud.bt, hud.mode_name(hud.top()), cyclops::audio_dropped);
+    }
+    hud.render(screen);
+    // Power: when the screen is off and we're not recording, the wearable is
+    // idle — skip the per-frame render and sleep longer to save juice. (C)
+    if (!hud.screen_on && !capturing) {
+        delay(250);
+    } else {
+        delay(50);
+    }
+}

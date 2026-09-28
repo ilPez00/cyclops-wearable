@@ -85,6 +85,11 @@ class GateBook:
     def clear_resolved(self) -> None:
         self._gates = {k: v for k, v in self._gates.items() if not v.resolved}
 
+    def clear(self) -> None:
+        """Drop every gate, resolved or not. Test hygiene and the W9 path
+        closing its own contradiction gate."""
+        self._gates = {}
+
 
 _book = GateBook()
 

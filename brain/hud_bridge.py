@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 
 from .hitl import get_gatebook
+from .events import EventLog, seconds_since, utc_now
 from .protocol import MSG, crc16_ccitt_false, encode
 from .protocol_v2 import (
     ACT_AGENT,
@@ -36,6 +37,10 @@ from .protocol_v2 import (
     ACT_VOICE_CMD,
     ACT_VOICE_NOTE,
     ACT_CHOICE_SELECT,
+    ACT_WORLD_HOWTO,
+    ACT_WORLD_LOOK,
+    ACT_WORLD_PRICE,
+    ACT_WORLD_READ,
     HUD_KINDS,
     MSG_RING_GESTURE,
     build_hud,
@@ -64,6 +69,33 @@ except Exception:  # pragma: no cover - optional integration
 MSG_AUDIO_META = _MSG["AUDIO_META"]
 MSG_AUDIO_CHUNK = _MSG["AUDIO_CHUNK"]
 MSG_AUDIO_STOP = _MSG["AUDIO_STOP"]
+# Wire type 8. COLLISION, on purpose documented: ACT_IMAGE_ANALYSIS is also 8.
+# The two live in different namespaces (frame header type vs ACT id inside a v2
+# CMD wrapper {"a":8}), but both can reach dispatch(). looks_like_status() is how
+# a status body is told apart from an image-analysis argument — never the int.
+MSG_STATUS = _MSG["STATUS"]
+
+# Keys a MSG_STATUS body carries (firmware Hud::status_json). Used only to
+# disambiguate from an ACT_IMAGE_ANALYSIS argument.
+_STATUS_KEYS = ("t", "batt", "chg", "rec", "bt", "hr", "spo2", "mode", "pres",
+                "pos", "recs", "bead", "toast")
+
+
+def looks_like_status(arg) -> bool:
+    """True when `arg` is a MSG_STATUS body rather than an ACT_* argument.
+
+    ACT ids and wire types share one integer space (ACT_IMAGE_ANALYSIS == 8 ==
+    MSG_STATUS), so a handler choice must never be made on the number alone: a
+    status body is a JSON object carrying at least one status key, while an
+    image-analysis argument is a note id or free text and parses as neither.
+    """
+    if isinstance(arg, dict):
+        return any(k in arg for k in _STATUS_KEYS)
+    try:
+        d = json.loads(arg or "{}")
+    except Exception:
+        return False
+    return isinstance(d, dict) and any(k in d for k in _STATUS_KEYS)
 
 # --- tiny local stubs (replace with real backends) ---
 _IT_TRANSLATE = {
@@ -79,19 +111,33 @@ _IT_TRANSLATE = {
 
 
 def _translate(text):
-    out = []
-    for w in text.lower().split():
-        out.append(_IT_TRANSLATE.get(w, w))
-    return " ".join(out)
+    """Gesture translation entry point: local LLM (Ollama gemma3:4b) when the
+    daemon is up, else the dict above. Never raises — a backend miss returns
+    the source text and the caller (world.py) treats identity as no-op."""
+    try:
+        from .translator import get_translator
+
+        return get_translator().translate(text)
+    except Exception:
+        out = []
+        for w in text.lower().split():
+            out.append(_IT_TRANSLATE.get(w, w))
+        return " ".join(out)
 
 
 _MASK = 0xFF
 
 
+def _short(text: str, n: int = 22) -> str:
+    """One OLED-sized fragment for the W9 wrist line (NCOLS = 23)."""
+    t = (text or "").strip()
+    return t if len(t) <= n else t[: n - 1] + "…"
+
+
 class HudBridge:
     def __init__(
         self, sink, store=None, transcriber=None, health=None, agent=None,
-        vision=None, user_id="wearer",
+        vision=None, user_id="wearer", claims=None,
     ):
         self.sink = sink
         self.store = store
@@ -115,6 +161,133 @@ class HudBridge:
         self.mode = "HOME"  # HOME | AGENT | REC — drives the HUD mirror
         self.recording = False
         self.last_gesture = None
+        # docs/43 C5: newest MSG_STATUS frame (device -> brain). The firmware
+        # reports battery/mode/rec/presence/posture in it; before this the app
+        # had no way to see presence or posture at all -- they were emitted into
+        # the void.
+        self.last_status: dict = {}
+        self._presence: bool | None = None   # last pres bit seen (None = unknown)
+        self._presence_ts: str = ""          # when the current presence began
+        # belief layer (34 Phase 2). None -> W9 claim surfacing is a no-op,
+        # which keeps the bridge usable without a claims store.
+        self.claims = claims
+
+    # ---- docs/43 C5: device status frames + presence claim boundaries -----
+
+    def handle_status(self, arg):
+        """MSG_STATUS (t=8) -> last_status, plus an Event on a presence edge.
+
+        docs/34 §5c: an off-body transition is a CLAIM BOUNDARY, not a silent
+        sensor gap -- the ledger should show "on-body" ending, with how long it
+        lasted. The firmware already force-stops capture and drops consent; this
+        makes the gap auditable instead of invisible.
+        """
+        try:
+            d = json.loads(arg or "{}")
+        except Exception:
+            return ("status", "bad json")
+        if not isinstance(d, dict):
+            return ("status", "bad json")
+        self.last_status = d
+        if "pres" in d:
+            on_body = bool(d.get("pres", 1))
+            if self._presence is None:
+                self._presence = on_body
+                self._presence_ts = utc_now()
+            elif on_body != self._presence:
+                now = utc_now()
+                dur = seconds_since(self._presence_ts, now)
+                try:
+                    EventLog().append(
+                        kind="presence",
+                        body="on-body" if self._presence else "off-body",
+                        duration_s=dur, source="wearable",
+                        locator="ble:status", ts=now,
+                    )
+                except Exception:
+                    pass  # the ledger must never break a status frame
+                self._presence = on_body
+                self._presence_ts = now
+        return ("status", d)
+
+    # ---- W9: contradiction on the wrist ---------------------------------
+
+    def note_claim(self, statement: str, evidence: list[str] | None = None):
+        """Assert a claim through the belief layer. When it SUPERSEDES an
+        older claim, surface the disagreement on the wearable as one line and
+        open a HITL gate: A-single = newer holds, B-single = older holds.
+        Returns (action, claim) or (None, None) when no claims store is wired."""
+        if self.claims is None:
+            return (None, None)
+        claim, action = self.claims.assert_claim(statement, evidence=evidence)
+        if action == "superseded":
+            old = self.claims.latest_supersede()
+            if old:
+                line = f"{_short(old['old_statement'])} vs {_short(old['new_statement'])}"
+                self.last_banner = line
+                self._emit_text("WHICH HOLDS?  A=new  B=old\n" + line)
+                try:
+                    from .hitl import get_gatebook
+
+                    gb = get_gatebook()
+                    already = any(
+                        g.action == "contradiction" and g.arg == old["old_id"]
+                        for g in gb.pending()
+                    )
+                    if not already:
+                        gb.request("contradiction", old["old_id"])
+                except Exception:
+                    pass
+        return (action, claim)
+
+    def digest_lines(self, n: int = 3) -> list[str]:
+        """Claims-driven digest (docs/41 §1, docs/42 vision): top-confidence
+        active claims as glanceable lines for the OLED DIGEST row.
+        Empty when no claims store is wired."""
+        if self.claims is None:
+            return []
+        top = sorted(self.claims.active(),
+                     key=lambda c: c.confidence, reverse=True)[:n]
+        return [_short(c.statement, 40) for c in top]
+
+    def push_digest(self, cite: str = "") -> str:
+        """Emit the digest's top line as a wrist row (docs/42 DIGEST slot).
+
+        Glanceable, cited when a claim id is known: `cite` rides the row so
+        the wrist shows the evidence id, never bare prose. Returns the row
+        (\"\" when there is nothing to say — caller keeps the old DIGEST)."""
+        lines = self.digest_lines(1)
+        if not lines:
+            return ""
+        tag = f" [{cite}]" if cite else ""
+        row = _short(lines[0], 22 - len(tag)) + tag
+        self._emit_text(row)
+        self.last_banner = row
+        return row
+
+    def resolve_contradiction(self, keep_new: bool):
+        """W9 resolution from the wrist (A=new / B=old). Reverts cleanly when
+        the older claim wins; both evidence sets survive either way."""
+        if self.claims is None:
+            return None
+        old = self.claims.latest_supersede()
+        if not old:
+            return None
+        got = self.claims.resolve_supersede(old["old_id"], keep_new=keep_new)
+        # close the W9 gate this contradiction opened, so it stops surfacing
+        try:
+            from .hitl import get_gatebook
+
+            gb = get_gatebook()
+            for g in gb.pending():
+                if g.action == "contradiction":
+                    gb.resolve(g.id, approved=keep_new)
+        except Exception:
+            pass
+        self.last_banner = ("kept: " if keep_new else "reverted: ") + _short(
+            (got.statement if got else old["new_statement"])
+        )
+        return got
 
     def _emit_text(self, text):
         if hasattr(self.sink, "render_text"):
@@ -130,10 +303,9 @@ class HudBridge:
     def _emit_hud(self, kind, lines, more=False):
         if hasattr(self.sink, "write"):
             self.sink.write(build_hud(kind, lines, more))
-
     def _emit_display_cmd(self, kind, **fields):
         """Emit a DISPLAY_CMD JSON the wearable parses into Hud state
-        (progress / step ticks). Kind is a string like 'progress' or 'step'."""
+        (progress / step ticks / choices / steps). Kind is a string."""
         obj = {"kind": kind}
         obj.update(fields)
         payload = json.dumps(obj).encode()
@@ -165,16 +337,19 @@ class HudBridge:
             except Exception:
                 pass
 
-    def push_hud(self, text):
+    def push_hud(self, text, cite: str = ""):
         """Push a glanceable banner line to the wearable HUD (Omi/G2 style).
 
         Called by the server's /api/agent endpoint so the agent answer shows up
-        on the glasses without the device initiating it.
+        on the glasses without the device initiating it. `cite` is the
+        claim/event id behind the answer (docs/42: no answer without a
+        citation); it rides the banner so the wrist can show it.
         """
         banner = (text or "").split("\n", 1)[0][:40]
         self.last_banner = banner
         self.mode = "AGENT"
-        self._emit_text("AGENT: " + banner)
+        tag = f" [{cite}]" if cite else ""
+        self._emit_text("AGENT: " + banner + tag)
         self._emit_hud(
             HUD_KINDS.index("agent"),
             [ln[:18] for ln in (text or "").split("\n") if ln][:4],
@@ -253,6 +428,12 @@ class HudBridge:
         return (None, None)
 
     def dispatch(self, act, arg=""):
+        if act == MSG_STATUS and looks_like_status(arg):
+            # A status frame, not a command: record it (presence/posture ride it)
+            # and never route it through the command handlers below. The guard is
+            # required because ACT_IMAGE_ANALYSIS is also 8 — an image-analysis
+            # argument falls through to its own handler instead.
+            return self.handle_status(arg)
         if act == ACT_TRANSCRIBE_START:
             txt = (
                 self.trans.transcribe(b"")
@@ -335,6 +516,12 @@ class HudBridge:
             return ("choice_select", cb)
         if act == ACT_NOTES:
             n = len(self.store.all()) if self.store else 0
+            if arg == "digest":
+                # Claims-driven digest (docs/41 §1): top-confidence active
+                # claims as glanceable lines. Deterministic — no oracle call.
+                lines = self.digest_lines()
+                self._emit_text("DIGEST: " + (" | ".join(lines) if lines else "(no active claims)"))
+                return ("digest", lines)
             self._emit_text("NOTES: %d stored" % n)
             # maintain the wearer's lifeOS with the latest extracted notes
             if _cyclops_sink is not None and self.store:
@@ -371,11 +558,10 @@ class HudBridge:
             # glanceable banner = first line of the answer (Omi/G2 HUD style)
             banner = ans.split("\n", 1)[0][:40]
             self._emit_text("AGENT: " + banner)
-            self._emit_hud(
-                HUD_KINDS.index("agent"),
-                [ln[:18] for ln in ans.split("\n") if ln][:4],
-                more=len(ans) > 72,
-            )
+            from .protocol_v2 import build_hud_agent
+
+            if hasattr(self.sink, "write"):
+                self.sink.write(build_hud_agent(ans, more=len(ans) > 72))
             return ("agent", ans)
         if act == ACT_AGENT_ABORT:
             self._emit_text("AGENT: aborted")
@@ -391,6 +577,15 @@ class HudBridge:
 
                 entry = capture_and_tag(arg, self.vision)
                 line = f"PHOTO: {entry['tags']}" if entry else "PHOTO: capture/tag failed"
+                # Capture→belief (docs/41 §1): tags reinforce a matching
+                # active claim only — photos never auto-claim.
+                if entry and entry.get("tags") and self.claims is not None:
+                    from .claims import REINFORCE, similarity
+
+                    tags = entry["tags"]
+                    if any(similarity(tags, c.statement) >= REINFORCE
+                           for c in self.claims.active()):
+                        self.note_claim(tags, evidence=["photo:" + (arg or "")])
             else:
                 line = "PHOTO: captured (stub)"
             self._emit_text(line)
@@ -409,6 +604,10 @@ class HudBridge:
 
                 for n in extract(txt):
                     self.store.add(n)
+            # Capture→belief (docs/41 §1): a spoken question becomes a claim,
+            # the transcript its evidence. Statements stay notes-only.
+            if txt.strip().endswith("?") and self.claims is not None:
+                self.note_claim(txt.strip(), evidence=["vnote:" + txt.strip()[:40]])
             self._emit_text("VNOTE: " + txt[:120])
             self._emit_tts("Voice note saved.")
             return ("voice_note", txt)
@@ -421,6 +620,29 @@ class HudBridge:
             if ans:
                 self._emit_tts(ans.split("\n", 1)[0][:200])
             return ("voice_cmd", ans)
+        if act in (ACT_WORLD_LOOK, ACT_WORLD_READ, ACT_WORLD_PRICE, ACT_WORLD_HOWTO):
+            # Bridge-to-world: one gesture asks about the physical scene.
+            # arg is a short registry tag ("menu", "sign", ...); registry
+            # hits win, else live vision on the current frame, else honest
+            # miss. Bytes are never persisted (sightings privacy design).
+            # W6: READ also translates (read-then-translate, one gesture).
+            from .world import answer_world
+
+            tier, text = answer_world(act, arg or "", vision_fn=self.vision,
+                                      translate_fn=_translate if act == ACT_WORLD_READ else None)
+            # W4: HOWTO answers from any tier become a step overlay the OLED
+            # walks (tilt + A-confirm); other acts stay single-line text.
+            if act == ACT_WORLD_HOWTO and tier != "miss":
+                from .world import split_steps
+
+                steps = split_steps(text.split("\nTR:", 1)[0].split(": ", 1)[-1]
+                                    if ": " in text else text)
+                self._emit_display_cmd("steps", items=steps)
+                return ("world_howto", {"tier": tier, "steps": steps})
+            self._emit_text(text[:120])
+            if tier != "miss":
+                self._emit_tts(text[:200])
+            return ("world", {"tier": tier, "text": text})
         return (None, None)
 
 
@@ -485,5 +707,11 @@ class FrameReceiver:
                     )
                 elif self._type == MSG_RING_GESTURE:
                     self.br.handle_gesture(bytes(self._buf[3 : 3 + self._len]))
+                elif self._type == MSG_STATUS:
+                    # Status frames used to be dropped here, so presence/posture
+                    # never reached the brain (docs/43 C5).
+                    self.br.handle_status(
+                        bytes(self._buf[3 : 3 + self._len]).decode("utf-8", "replace")
+                    )
             self._st = 0
             self._got = 0

@@ -75,10 +75,12 @@ def test_router_per_tool_override():
     assert "api.openai.com/v1/chat/completions" in url, url
     assert json.loads(payload)["model"] == "gpt-4o"
     assert headers["Authorization"] == "Bearer sk-vision"
-    # a non-overridden tool call falls back to base config
+    # a non-overridden tool call falls back to base config: groq provider
+    # resolves to groq's own default endpoint (not openrouter — a groq key
+    # sent to openrouter's URL would 401), authenticated with the base key
     r.chat([{"role": "user", "content": "y"}], tool="web_search")
     url2, payload2, headers2 = sess.calls[1]
-    assert "openrouter.ai/api/v1" in url2, url2
+    assert "api.groq.com/openai/v1/chat/completions" in url2, url2
     assert headers2["Authorization"] == "Bearer sk-base"
     print("OK router applies per-tool override, else base config")
 

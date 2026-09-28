@@ -3,10 +3,13 @@
 // HUD + menu system (resolution-agnostic). Thin client: sends MSG_CMD, renders
 // results streamed back as DISPLAY_CMD / HUD_FRAME. Host-testable, no display dep.
 //
-// UX model (XIAO ESP32-S3 Sense + round/e-ink screen + scrollwheel + buttons):
-//   HOME  -> glanceable banner (the AI's last line) + status. wheel opens MENU.
+// UX model (XIAO ESP32-S3 Sense + 4-pin 128x32 OLED + 2 buttons + HW-123
+// tilt-scroll; see docs/42-vision.md for the grand vision):
+//   HOME  -> STATUS / ANSWER / DIGEST / HINT (the AI's last line + the
+//            belief digest + gesture affordance; tilt scrolls, A asks).
 //   AGENT -> ask the brain/agent; streams the answer into DETAIL (the "answer" view).
-//   Every view shows a 1-line mode breadcrumb in the status bar and transient toasts.
+//   Every glanceable answer carries its claim/event citation; toasts and
+//   REC/consent state ride existing rows, never new ones.
 #include "cyclops_shared.h"
 #include <stdint.h>
 #include <stdlib.h>  // AVR/Arduino-safe; declares atoi
@@ -21,14 +24,17 @@ enum Mode : uint8_t {
 };
 
 // Action ids sent to the brain via MSG_CMD
+// GENERATED from protocol/acts.yaml — do not hand-edit, run protocol/gen_acts.py
 enum Action : uint8_t {
     ACT_NOTES=1, ACT_TRANSCRIBE_START=2, ACT_TRANSLATE=3, ACT_HEALTH=4,
     ACT_NAV=5, ACT_TELEPROMPTER=6, ACT_CAMERA=7, ACT_IMAGE_ANALYSIS=8,
     ACT_SSH=9, ACT_SETTINGS=10, ACT_CONFIRM_YES=11, ACT_CONFIRM_NO=12,
-    ACT_SELECT=13, ACT_AGENT=14, ACT_AGENT_ABORT=15,
-    ACT_PHOTO=16, ACT_VIDEO=17, ACT_VOICE_NOTE=18, ACT_VOICE_CMD=19,
-    ACT_OK=20, ACT_BACK=21, ACT_CONSENT_TOGGLE=22, ACT_CHOICE_SELECT=23
+    ACT_SELECT=13, ACT_AGENT=14, ACT_AGENT_ABORT=15, ACT_PHOTO=16,
+    ACT_VIDEO=17, ACT_VOICE_NOTE=18, ACT_VOICE_CMD=19, ACT_OK=20,
+    ACT_BACK=21, ACT_CONSENT_TOGGLE=22, ACT_CHOICE_SELECT=23, ACT_WORLD_LOOK=24,
+    ACT_WORLD_READ=25, ACT_WORLD_PRICE=26, ACT_WORLD_HOWTO=27,
 };
+// END GENERATED
 
 // Two buttons x three gestures = the remappable binding grid. Index:
 // [button 0=A/1=B][gesture 1=single/2=double/3=long]. Defaults implement the
@@ -113,7 +119,11 @@ struct Hud {
     int sleep_after = 8;     // idle seconds before auto-sleep (OLED burn-in)
     int idle = 0;            // idle counter since last input
 
+    // Battery: bead_batt = percent (0..100, HUD gauge + icon), bead_batt_mv =
+    // raw pack mV for status_json "batt" (older parsers expect mV ~3300..4200).
+    // V3 slim: BAT+ divider -> D2/GPIO2 (see xiao/src/battery.h).
     int hr = 0, spo2 = 0, ring_batt = 0, bead_batt = 0;
+    uint16_t bead_batt_mv = 0;
     int nav_dist = 0, nav_head = 0; char nav_label[24] = "";
     int tele_page = 0;
     char confirm_prompt[32] = ""; uint8_t confirm_action = 0;
@@ -138,15 +148,49 @@ struct Hud {
         int c = 0; while (cb && cb[c] && c < 31) { choice_cb[c] = cb[c]; ++c; } choice_cb[c] = 0;
         push(CHOICE);
     }
+    // ---- Procedure overlay (W4): HOWTO answers become a step checklist ----
+    // The brain pushes steps via show_steps(); tilt advances (on_wheel),
+    // A-single confirms the current step (done++), B backs out. Steps live
+    // in the CHOICE slot array (same 6x23 budget) with a done counter.
+    int proc_n = 0;
+    int proc_sel = 0;
+    int proc_done = 0;
+    void show_steps(const char* const items[], int n) {
+        proc_n = 0; proc_sel = 0; proc_done = 0;
+        int m = (n < MAX_CHOICES) ? n : MAX_CHOICES;
+        for (int i = 0; i < m; ++i) {
+            int k = 0; while (items[i] && items[i][k] && k < NCOLS) { choices[proc_n][k] = items[i][k]; ++k; }
+            choices[proc_n][k] = 0; ++proc_n;
+        }
+        push(CHOICE);
+    }
+    void step_confirm() {
+        wake();
+        if (top() != CHOICE || !proc_n) return;
+        if (proc_sel == proc_done && proc_done < proc_n) ++proc_done;
+        if (proc_sel + 1 < proc_n) ++proc_sel;
+        else if (proc_done >= proc_n) { toast("done", 2); pop(); }
+    }
     int rec_secs = 0;
     int haptic_pattern[2] = {1, 2};   // per-button (A=0,B=1) vibration pattern id
     int led_hue[2] = {0, 200};        // per-button LED hue (0..360) for the paired LED
+    // HINT row text (docs/42: the wrist teaches its own gestures). Boards with
+    // a single button call use_one_button(), which swaps this to the one-button
+    // grammar so the affordance never names a button that isn't there.
+    char hint_text[32] = "A:ask B:note ~ tilt";
+    bool one_btn = false;             // true after use_one_button()
     Mode prev_mode = HOME;    // last-rendered mode, for transition wipe
     int trans_frame = 0;        // transition wipe frame counter (0..3)
     int low_frame = 0;        // low-battery flash counter (member: template statics diverge per screen type)
     int rec_pulse = 0;        // REC indicator pulse counter (member for the same reason)
     uint32_t clock = 0;
     bool recording = false, screen_on = true, bt = false, consent = true;
+    // docs/43 C5 / docs/34 §5b-§5c: sensor edges the host turns into claim
+    // boundaries. presence=false ends "wearer present" (consent is already
+    // forced off in firmware); slouch=true is the posture cue. Both ride the
+    // status frame so a sensor gap is honest instead of silent.
+    bool presence = true;   // on-body (false = PresenceDetector latched off)
+    bool slouch = false;    // PostureDetector flag (cue only, never a gate)
     bool charging = false;            // bead/ring battery charging state
     bool video = false;              // video capture active (A-long)
     int boot_frame = 0;              // 0..3 boot spinner, then settled
@@ -162,13 +206,20 @@ struct Hud {
     void (*on_note)(const char* text) = nullptr;  // fired when a note line is added (SD/log sink)
     // MSG_STATUS frame (t=8). v2 adds mode/spo2/prog/toast/recs/steps while
     // keeping the v1 keys (batt/chg/rec/bt/hr) so older parsers still work.
+    // docs/43 C5 adds pres/pos (presence + posture) as claim-boundary signals.
+    void set_presence(bool on_body) { presence = on_body; }
+    void set_posture(bool slouching) { slouch = slouching; }
     int status_json(char* out, size_t cap) const {
         const char* m = mode_name(top());
+        // "batt" stays pack mV when known (older parsers), else bead percent.
+        unsigned batt = bead_batt_mv > 0 ? (unsigned)bead_batt_mv : (unsigned)bead_batt;
         int n = snprintf(out, cap,
             "{\"t\":8,\"batt\":%u,\"chg\":%d,\"rec\":%d,\"bt\":%d,\"hr\":%d,"
-            "\"spo2\":%d,\"mode\":\"%s\",\"prog\":%d,\"recs\":%d,\"toast\":\"%s\"}",
-            (unsigned)bead_batt, charging?1:0, recording?1:0, bt?1:0, hr,
-            spo2, m, progress, rec_secs,
+            "\"spo2\":%d,\"mode\":\"%s\",\"prog\":%d,\"recs\":%d,\"bead\":%d,\"bead_mv\":%u,"
+            "\"pres\":%d,\"pos\":%d,\"toast\":\"%s\"}",
+            batt, charging?1:0, recording?1:0, bt?1:0, hr,
+            spo2, m, progress, rec_secs, bead_batt, (unsigned)bead_batt_mv,
+            presence?1:0, slouch?1:0,
             toast_ttl > 0 ? toast_msg : "");
         // snprintf returns the WOULD-BE length; callers put `n` bytes on the
         // wire, so an undersized buffer used to leak `n - cap` bytes of
@@ -201,7 +252,10 @@ struct Hud {
     void set_hud(const char* t) {
         hud_len = 0; while (t && t[hud_len] && hud_len < HUD_LINE-1) { hud_line[hud_len] = t[hud_len]; ++hud_len; }
         hud_line[hud_len] = 0;
+        clear_run();   // the answer arrived: the progress bar's job is done
     }
+    // End an agent run: reset progress + tool ticks (docs/42 HINT row).
+    void clear_run() { progress = 0; step_n = 0; }
     // Stream an agent answer (keeps appending, capped at DETAIL).
     void append_agent(const char* chunk) {
         while (chunk && *chunk && detail_len < DETAIL-1) { detail[detail_len++] = *chunk++; }
@@ -248,6 +302,25 @@ struct Hud {
                 if (pb && pg && pa) set_binding(atoi(pb+6), atoi(pg+4), (uint8_t)atoi(pa+6));
                 return;
             }
+            if (strstr(k, "\"steps\"")) {
+                // W4 procedure overlay: "items":["s1","s2",...] -> show_steps
+                static char sbuf[6][24];
+                const char* items = strstr(k, "\"items\"");
+                const char* arr = items ? strchr(items, '[') : nullptr;
+                const char* list[6]; int ln2 = 0;
+                if (arr) { const char* p = arr + 1;
+                    while (*p && *p != ']' && ln2 < 6) {
+                        while (*p==' '||*p=='\"'||*p==',') ++p;
+                        if (!*p || *p==']') break;
+                        int i=0; while (*p && *p!='\"' && *p!=',' && *p!=']' && i<23) sbuf[ln2][i++]=*p++;
+                        sbuf[ln2][i]=0;
+                        if (!*p) break; ++p;
+                        list[ln2]=sbuf[ln2]; ++ln2;
+                    }
+                }
+                show_steps(list, ln2);
+                return;
+            }
         }
         // dynamic choice list (Talon-HUD choice panel)
         if (strstr(k, "\"choices\"")) {
@@ -273,7 +346,10 @@ struct Hud {
             show_choices(list, ln2, cbtag[0] ? cbtag : "choice");
             return;
         }
-        // default: treat as a text line -> note
+        // default: treat as a text line -> note. A new text answer ENDS any
+        // in-flight progress: leaving the old bar on the HINT row would show
+        // a finished run as still running (docs/42 row semantics).
+        clear_run();
         const char* key = strstr(json, "\"data\"") ? "\"data\"" : "\"text\"";
         const char* t = strstr(json, key);
         if (!t) return;
@@ -304,7 +380,10 @@ struct Hud {
         Mode m = top();
         if (m == MENU) menu_sel = clamp(menu_sel + d, 0, menu_n-1);
         else if (m == NOTES) note_sel = clamp(note_sel + d, 0, note_count-1);
-        else if (m == CHOICE) choice_sel = clamp(choice_sel + d, 0, choice_n-1);
+        else if (m == CHOICE) {
+            if (proc_n) proc_sel = clamp(proc_sel + d, 0, proc_n - 1);
+            else choice_sel = clamp(choice_sel + d, 0, choice_n-1);
+        }
         else if (m == NOTE_DETAIL || m == TRANSLATE || m == IMAGE_ANALYSIS || m == SSH || m == CAMERA || m == AGENT)
             scroll_off = clamp(scroll_off + d*16, 0, detail_len);
         else if (m == TELEPROMPTER) tele_page = clamp(tele_page + d, 0, 999);
@@ -336,8 +415,9 @@ struct Hud {
         } else if (m == CONFIRM) {
             cmd(ACT_CONFIRM_YES); pop();
         } else if (m == CHOICE) {
-            if (choice_n) cmd(ACT_CHOICE_SELECT, choice_cb);
-            pop();
+            if (proc_n) step_confirm();
+            else if (choice_n) { cmd(ACT_CHOICE_SELECT, choice_cb); pop(); }
+            else pop();
         } else if (m == HOME) {
             push(MENU);
         }
@@ -379,6 +459,24 @@ struct Hud {
         if (btn < 0 || btn > 1 || g < 1 || g > 3) return;
         bindings.cell(btn, g) = act;
     }
+    // ---- single-button MVP (docs/43) ----
+    // The XIAO MVP harness populates ONE button (BTN_A). The three gestures that
+    // must stay one-touch go on it: select (menu traffic), back (menu traversal
+    // is the most-used input) and agent (the product's core ask). Photo, video
+    // and voice-note stay reachable via MENU and the nod gesture, so the single
+    // button loses no ACT - only the shortcut. Button-1 cells stay in the struct
+    // so the {"kind":"bind"} remap protocol is unchanged.
+    void use_one_button() {
+        one_btn = true;
+        bindings.a[1] = ACT_OK;      // tap        -> select / open menu
+        bindings.a[2] = ACT_BACK;    // double-tap -> back one level
+        bindings.a[3] = ACT_AGENT;   // long press -> ask the agent
+        set_hint("tap:ok 2x:back hold:ask");
+    }
+    void set_hint(const char* h) {
+        if (!h) return;
+        snprintf(hint_text, sizeof(hint_text), "%s", h);
+    }
     void fire_gesture(int btn, int g) {
         if (btn < 0 || btn > 1 || g < 1 || g > 3) return;
         if (on_haptic) on_haptic(haptic_pattern[btn]);   // buzz the wearer
@@ -412,6 +510,18 @@ struct Hud {
                 break;
             case ACT_CONSENT_TOGGLE:
                 set_consent(!consent); toast(consent ? "consent on" : "consent off", 2); break;
+            case ACT_WORLD_LOOK:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("looking…", 2); push(AGENT); cmd(ACT_WORLD_LOOK); break;
+            case ACT_WORLD_READ:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("reading…", 2); push(AGENT); cmd(ACT_WORLD_READ); break;
+            case ACT_WORLD_PRICE:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("pricing…", 2); push(AGENT); cmd(ACT_WORLD_PRICE); break;
+            case ACT_WORLD_HOWTO:
+                if (!consent) { toast("consent off", 2); break; }
+                toast("how-to…", 2); push(AGENT); cmd(ACT_WORLD_HOWTO); break;
             default: if (act) cmd(act); break;
         }
     }
@@ -568,9 +678,11 @@ struct Hud {
                 char ln[32]; snprintf(ln, sizeof(ln), "Cyclops %d", boot_frame);
                 scr.draw_text(0, rows - 1, ln);
             } else if (rows >= 6) {
-                // expanded layout (128x128: 21x16 rows)
+                // expanded layout (128x128: 21x16 rows) — same STATUS /
+                // ANSWER / DIGEST / HINT order as the 4-row panel (docs/42),
+                // with room for health + notes preview in between.
                 if (hud_len) { scr.draw_text(0, body, trunc(hud_line, cols)); }
-                else { scr.draw_text(0, body, "Cyclops ready"); }
+                else { scr.draw_text(0, body, "glance: A ask B note"); }
                 body++;
                 // health preview
                 if (hr > 0 || spo2 > 0 || ring_batt > 0 || bead_batt > 0) {
@@ -602,9 +714,12 @@ struct Hud {
                                   ri > 0 ? "  " : "");
                 }
                 if (ri > 0) { trim(rec_line, cols); scr.draw_text(0, body, rec_line); body++; }
-                // bottom strip + LED mapping
+                // bottom strip: affordance hint (docs/42 — the wrist teaches
+                // its own gestures; no wheel on V3 slim, tilt scrolls).
+                // docs/43: the text is per-board (hint_text), so a one-button
+                // MVP never names a button that isn't populated.
                 char strip[40];
-                snprintf(strip, sizeof(strip), "%s | wheel:menu", mode_name(top()));
+                snprintf(strip, sizeof(strip), "%s", hint_text);
                 trim(strip, cols); scr.draw_text(0, rows - 1, strip);
                 if (scr.w() >= 64) {
                     char li[32];
@@ -614,24 +729,32 @@ struct Hud {
                     trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
                 }
             } else {
-                // compact layout (4-row panels)
+                // compact layout (4-row panels: STATUS / ANSWER / DIGEST / HINT)
+                // Grand vision (docs/42): the wearable is the computer. Row
+                // priorities: answer > digest > hint; toasts/REC/consent and
+                // contradiction prompts preempt from the bottom up.
                 if (hud_len) { scr.text_size(2); scr.draw_text(0, body, trunc(hud_line, cols/2)); scr.text_size(1); body++; }
-                else { scr.draw_text(0, body, "Cyclops ready"); body++; }
-                if (scr.w() >= 64) {
-                    char li[32];
-                    int wa = (led_hue[0] * 10) / 360;
-                    int wb = (led_hue[1] * 10) / 360;
-                    snprintf(li, sizeof(li), "A%d B%d", wa, wb);
-                    trim(li, cols); scr.draw_text(scr.char_cols() - (int)strlen(li), rows - 1, li);
-                }
+                else { scr.draw_text(0, body, one_btn ? "glance: tap ~ ask" : "glance: A ask B note"); body++; }
+                // DIGEST row: newest note doubles as the belief digest line
+                // (bridge pushes top-confidence claims as notes). REC +
+                // consent state ride along instead of taking their own row.
                 char ln[40];
-                snprintf(ln, sizeof(ln), "%dmV %d notes%s", (bead_batt>0?bead_batt:ring_batt),
-                         note_count, recording ? " REC" : "");
+                if (note_count > 0) {
+                    snprintf(ln, sizeof(ln), "%s%s", recording ? "REC " : "",
+                             notes[note_count-1]);
+                } else {
+                    snprintf(ln, sizeof(ln), "%s%s%s", recording ? "REC " : "",
+                             note_count ? "" : "no notes",
+                             !consent ? " X" : "");
+                }
                 trim(ln, cols); scr.draw_text(0, body, ln); body++;
                 bool booting = (boot_frame < 4 && scr.w() >= 48 && scr.h() >= 32);
                 if (!booting) {
                     char strip[40];
-                    snprintf(strip, sizeof(strip), "%s | wheel:menu", mode_name(top()));
+                    // HINT row: affordance, not a mode breadcrumb (docs/42
+                    // vision: the wrist teaches its own gestures). Per-board
+                    // text since docs/43 (one-button MVP harness).
+                    snprintf(strip, sizeof(strip), "%s", hint_text);
                     trim(strip, cols); scr.draw_text(0, rows - 1, strip);
                 }
             }
@@ -719,14 +842,24 @@ struct Hud {
             scr.draw_text(0,body,confirm_prompt);
             scr.draw_text(0,body+1,"A:yes  B:no");
         } else if (m == CHOICE) {
-            char hdr[32]; snprintf(hdr, sizeof(hdr), "choose [%s]", choice_cb);
+            int n = proc_n ? proc_n : choice_n;
+            char hdr[32];
+            if (proc_n) snprintf(hdr, sizeof(hdr), "step %d/%d", proc_done + 1 <= proc_n ? proc_done + 1 : proc_n, proc_n);
+            else snprintf(hdr, sizeof(hdr), "choose [%s]", choice_cb);
             trim(hdr, cols); scr.draw_text(0, body, hdr); body++;
-            for (int i = 0; i < rows-2 && i < choice_n; ++i) {
-                const char* mk = (i == choice_sel) ? ">" : " ";
-                char ln[40]; snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, choices[i]);
+            for (int i = 0; i < rows-2 && i < n; ++i) {
+                const char* mk;
+                char ln[40];
+                if (proc_n) {
+                    mk = (i < proc_done) ? "x" : (i == proc_sel) ? ">" : " ";
+                    snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, choices[i]);
+                } else {
+                    mk = (i == choice_sel) ? ">" : " ";
+                    snprintf(ln, sizeof(ln), "%s%d %s", mk, i+1, choices[i]);
+                }
                 trim(ln, cols); scr.draw_text(0, body+i, ln);
             }
-            scr.draw_text(0, rows-1, "wheel:pick A:ok B:back");
+            scr.draw_text(0, rows-1, "tilt:move A:done B:back");
         }
         // transient toast overlay (last row) wins over body content
         if (toast_ttl > 0) {

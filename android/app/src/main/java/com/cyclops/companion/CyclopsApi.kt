@@ -28,16 +28,26 @@ object CyclopsApi {
     // Brain server base URL, e.g. http://192.168.1.50:8080. Empty until the
     // user configures it — a fake LAN default just produced connect-timeout
     // toast spam on every fresh install.
-    @Volatile
-    var baseUrl: String = ""
+  @JvmStatic
+  @Volatile
+  var baseUrl: String = ""
 
-    val configured: Boolean get() = baseUrl.isNotBlank()
+  val configured: Boolean get() = baseUrl.isNotBlank()
 
     /** Load the persisted URL (call once from the launcher activity). */
     fun load(ctx: android.content.Context) {
         val prefs = ctx.getSharedPreferences("cyclops", android.content.Context.MODE_PRIVATE)
         baseUrl = prefs.getString("url", "")?.trim() ?: ""
+        lanToken = prefs.getString("lan_token", "")?.trim() ?: ""
     }
+
+    /** LAN shared secret (~/.cyclops/token on the brain box). The server gates
+     *  every route except /health; without it all calls fail with HTTP 401.
+     *  Sent as the X-Cyclops-Token header (never in the URL, so it stays out
+     *  of server logs and history). */
+    @JvmStatic
+    @Volatile
+    var lanToken: String = ""
 
     /** Cheap reachability probe of GET /health (short timeouts, never throws).
      *  Drives the status pill; individual calls no longer toast about the
@@ -70,6 +80,10 @@ object CyclopsApi {
 
     private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
+    private fun auth(conn: HttpURLConnection) {
+        if (lanToken.isNotEmpty()) conn.setRequestProperty("X-Cyclops-Token", lanToken)
+    }
+
     private fun post(url: URL, body: String): String {
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
@@ -77,6 +91,7 @@ object CyclopsApi {
         conn.readTimeout = 30_000
         conn.doOutput = true
         conn.setRequestProperty("Content-Type", "application/json")
+        auth(conn)
         try {
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
@@ -94,6 +109,7 @@ object CyclopsApi {
         conn.requestMethod = "GET"
         conn.connectTimeout = 10_000
         conn.readTimeout = 30_000
+        auth(conn)
         try {
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
@@ -264,9 +280,48 @@ object CyclopsApi {
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
+    // W9: belief state. A contradiction is one line ("X vs Y — which holds?")
+    // the wearer resolves with A (new holds) / B (old holds).
+    data class Contradiction(val oldId: String, val oldStatement: String,
+                             val newId: String, val newStatement: String)
+
+    fun claims(onResult: (Contradiction?) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/claims")))
+            val c = obj.optJSONObject("contradiction")
+            val out = if (c == null) null else Contradiction(
+                c.optString("old_id"), c.optString("old_statement"),
+                c.optString("new_id"), c.optString("new_statement"))
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun resolveClaim(keepNew: Boolean,
+                     onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val body = JSONObject().put("keep_new", keepNew)
+            post(url("/api/claims/resolve"), body.toString())
+            onMain { onResult(true) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
     fun ingest(text: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
         try {
             get(url("/api/ingest", "text" to text))
+            onMain { onResult(true) }
+        } catch (e: Exception) {
+            onMain { onError(e.message ?: e.toString()) }
+        }
+    }
+
+    /** W7: report one triaged notification. The brain records the event and,
+     *  when [buzz] is set, puts [line] on the wearable OLED. Best-effort —
+     *  a failure here is silence, never a user-facing error. */    fun notify(line: String, pkg: String, buzz: Boolean,
+               onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val body = JSONObject()
+                .put("line", line).put("pkg", pkg).put("buzz", buzz)
+            post(url("/api/notify"), body.toString())
             onMain { onResult(true) }
         } catch (e: Exception) {
             onMain { onError(e.message ?: e.toString()) }
@@ -392,6 +447,32 @@ object CyclopsApi {
                     o.optString("ts", ""), o.optString("kind", ""), o.optString("message", "")))
             }
             onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    // Bridge-to-world registry (GET /api/world, POST teach). The wearer
+    // teaches answers about the physical scene; the wearable's ACT_WORLD_*
+    // gestures resolve against them.
+    data class WorldEntry(val tag: String, val answer: String, val source: String)
+
+    fun worldList(onResult: (List<WorldEntry>) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(get(url("/api/world")))
+            val out = mutableListOf<WorldEntry>()
+            for (k in obj.keys()) {
+                val e = obj.optJSONObject(k) ?: continue
+                out.add(WorldEntry(k, e.optString("answer", ""), e.optString("source", "")))
+            }
+            onMain { onResult(out) }
+        } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
+    }
+
+    fun worldTeach(tag: String, answer: String,
+                   onResult: () -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val body = JSONObject().put("tag", tag).put("answer", answer)
+            post(url("/api/world"), body.toString())
+            onMain { onResult() }
         } catch (e: Exception) { onMain { onError(e.message ?: e.toString()) } }
     }
 
@@ -524,6 +605,18 @@ object CyclopsApi {
             val obj = JSONObject(get(url("/api/learn")))
             val learned = obj.optJSONObject("learned") ?: JSONObject()
             onMain { onResult(learned.optInt("user", 0), learned.optInt("agent", 0)) }
+        } catch (e: Exception) {
+            onMain { onError(e.message ?: e.toString()) }
+        }
+    }
+
+    // Phone activity sessions (UsageStats tier) -> the brain's ledger.
+    // Response: { "ok": true, "kept": n }. Fire-and-forget by design:
+    // a dropped batch is a gap, never an error the wearer sees.
+    fun postActivity(json: String, onResult: (Boolean) -> Unit, onError: (String) -> Unit) = thread {
+        try {
+            val obj = JSONObject(post(url("/api/activity"), json))
+            onMain { onResult(obj.optBoolean("ok", false)) }
         } catch (e: Exception) {
             onMain { onError(e.message ?: e.toString()) }
         }

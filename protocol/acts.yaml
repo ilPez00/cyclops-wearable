@@ -1,0 +1,36 @@
+# protocol/acts.yaml — single source of truth for HUD action ids (B4).
+#
+# The C++ enum (firmware/lib/cyclops_shared/include/hud.h Action), the
+# Python mirror (brain/protocol_v2.py), and the Kotlin constants
+# (android/core/.../HudBridge.kt companion) are GENERATED from this file by
+# protocol/gen_acts.py. Never hand-edit the generated blocks — edit here and
+# regenerate. The parity tests (test_acts_parity.py, ProtoTest) fail on drift.
+
+acts:
+  - { name: NOTES,             id: 1 }
+  - { name: TRANSCRIBE_START,  id: 2 }
+  - { name: TRANSLATE,         id: 3 }
+  - { name: HEALTH,            id: 4 }
+  - { name: NAV,               id: 5 }
+  - { name: TELEPROMPTER,      id: 6 }
+  - { name: CAMERA,            id: 7 }
+  - { name: IMAGE_ANALYSIS,    id: 8 }
+  - { name: SSH,               id: 9 }
+  - { name: SETTINGS,          id: 10 }
+  - { name: CONFIRM_YES,       id: 11 }
+  - { name: CONFIRM_NO,        id: 12 }
+  - { name: SELECT,            id: 13 }
+  - { name: AGENT,             id: 14 }
+  - { name: AGENT_ABORT,       id: 15 }
+  - { name: PHOTO,             id: 16 }
+  - { name: VIDEO,             id: 17 }
+  - { name: VOICE_NOTE,        id: 18 }
+  - { name: VOICE_CMD,         id: 19 }
+  - { name: OK,                id: 20 }
+  - { name: BACK,              id: 21 }
+  - { name: CONSENT_TOGGLE,    id: 22 }
+  - { name: CHOICE_SELECT,     id: 23 }
+  - { name: WORLD_LOOK,        id: 24 }
+  - { name: WORLD_READ,        id: 25 }
+  - { name: WORLD_PRICE,       id: 26 }
+  - { name: WORLD_HOWTO,       id: 27 }

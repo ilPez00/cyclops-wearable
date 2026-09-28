@@ -103,6 +103,14 @@ SHARED_HEADERS = (
                  "cyclops_shared.h"),
     os.path.join(REPO, "firmware", "shared", "include", "cyclops_shared.h"),
 )
+# Same two-copy convention for the IMU identification header (docs/43 C4): the
+# driver and the host gate include it from different dirs, so drift between the
+# copies would mean the tested table is not the shipped table.
+IMU_HEADERS = (
+    os.path.join(REPO, "firmware", "lib", "cyclops_shared", "include",
+                 "imu_whoami.h"),
+    os.path.join(REPO, "firmware", "shared", "include", "imu_whoami.h"),
+)
 
 
 def _cpp_msg_types(header_path: str) -> dict:
@@ -144,6 +152,19 @@ def test_shared_header_copies_are_identical():
         f"{SHARED_HEADERS[0]} and {SHARED_HEADERS[1]} have diverged")
 
 
+def test_imu_header_copies_are_identical():
+    """Same rule for imu_whoami.h (docs/43 C4): imu.cpp includes the copy in
+    lib/, the native gate (shared/test_imu_whoami.cpp) includes the copy in
+    shared/. If they drift, the tested identification table is not the one that
+    ships and a wrong IMU part would be accepted on the board."""
+    bodies = [open(p).read() for p in IMU_HEADERS]
+    assert bodies[0] == bodies[1], (
+        f"{IMU_HEADERS[0]} and {IMU_HEADERS[1]} have diverged")
+    # The refusal table itself must not silently lose its teeth.
+    src = bodies[0]
+    assert "IMU_UNSUPPORTED" in src and "0x0F" in src, src[:200]
+
+
 if __name__ == "__main__":
     test_crc_standard_vector()
     test_frame_layout()
@@ -152,4 +173,5 @@ if __name__ == "__main__":
     test_brain_protocol_matches_firmware_crc_window()
     test_python_msg_map_matches_the_cpp_enum()
     test_shared_header_copies_are_identical()
+    test_imu_header_copies_are_identical()
     print("ALL WIRE-CONTRACT TESTS PASSED")

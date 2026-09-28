@@ -22,6 +22,12 @@ SRVC_UUID = os.environ.get("CYCLOPS_BLE_SRVC", "4fafc201-1fb5-459e-8fcc-c5c9c331
 NOTE_UUID = os.environ.get("CYCLOPS_BLE_NOTE", "beb5483e-36e1-4688-b7f5-ea07361b26a8")
 DEVICE_NAME = os.environ.get("CYCLOPS_BLE_NAME", "CyclopsXIAO")
 
+# Wire type 8 = MSG_STATUS (firmware Hud::status_json heartbeat). NOTE: the wire
+# type and the ACT space collide numerically (ACT_IMAGE_ANALYSIS is also 8).
+# Here `typ` comes from the frame HEADER, so it is unambiguous — an ACT id can
+# only arrive inside a v2 CMD wrapper (type 9), handled separately below.
+MSG_STATUS = 8
+
 
 class BleBackend:
     """Radio abstraction. Implement with `bleak` for real hardware.
@@ -259,20 +265,26 @@ class BleLink:
         self._decoder.feed(chunk)
 
     def _on_frame(self, typ: int, payload: bytes):
+        text = payload.decode("utf-8", "replace")
+        # Header type first: 8 here can only be a status frame (see MSG_STATUS).
+        # It used to fall through to dispatch(8, text) and be handled as
+        # ACT_IMAGE_ANALYSIS — the same integer, a different namespace.
+        if typ == MSG_STATUS:
+            self.bridge.handle_status(text)
+            return
         # A v2 CMD (typ=9) frame carries an INNER command as JSON
         # {"a":<ACT_*>, "arg":"..."} (the firmware/HUD command contract).
         # Unwrap it so the bridge gets the real action; fall back to a raw
         # dispatch(typ, text) for non-JSON payloads.
         try:
-            inner = json.loads(payload.decode("utf-8", "replace"))
+            inner = json.loads(text)
             if isinstance(inner, dict) and "a" in inner:
                 self.bridge.dispatch(int(inner["a"]), str(inner.get("arg", "")))
                 return
         except Exception:
             pass
-        arg = payload.decode("utf-8", "replace")
         try:
-            self.bridge.dispatch(typ, arg)
+            self.bridge.dispatch(typ, text)
         except Exception:
             pass
 

@@ -191,11 +191,14 @@ class AgentConfig:
         # OpenRouter's URL regardless.
         if prov and prov != "auto":
             try:
-                from brain.aikeys import AiKeys
+                from brain.aikeys import AiKeys, default_endpoint
 
                 ep = AiKeys().get_endpoint(prov)
                 if ep:
                     return ep
+                dep = default_endpoint(prov)
+                if dep:
+                    return dep
             except Exception:
                 pass  # AiKeys is best-effort here; fall through to the default
         return "https://openrouter.ai/api/v1"

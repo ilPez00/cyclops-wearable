@@ -43,6 +43,14 @@ def make_calendar_tool(config: AgentConfig) -> Tool:
                 "kind": args.get("kind", "reminder"),
                 "created": datetime.now().isoformat(timespec="seconds"),
             }
+            # W8 trigger fields (optional): a timed entry with `at` arms/files
+            # itself; `place` enables the leave-now nudge.
+            if args.get("at"):
+                entry["at"] = args["at"]
+            if args.get("duration_min"):
+                entry["duration_min"] = int(args["duration_min"])
+            if args.get("place"):
+                entry["place"] = args["place"]
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
             return f"added {entry['kind']} on {entry['when']}: {entry['title']}"
@@ -77,6 +85,9 @@ def make_calendar_tool(config: AgentConfig) -> Tool:
                 "title": {"type": "string"},
                 "when": {"type": "string"},
                 "kind": {"type": "string", "enum": ["reminder", "event", "task"]},
+                "at": {"type": "string", "description": "HH:MM — enables W8 auto arm/file"},
+                "duration_min": {"type": "integer", "description": "meeting length, default 30"},
+                "place": {"type": "string", "description": "enables the leave-now nudge"},
             },
             "required": ["action"],
         },

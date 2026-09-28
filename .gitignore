@@ -18,6 +18,10 @@ venv/
 .env
 *.env
 ai_api.txt
+
+# physis-next (the loop's memory store — see docs/43 §6, justfile physis-serve)
+.physis-next/
+.physis/
 secrets.json
 credentials.*
 

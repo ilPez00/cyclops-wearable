@@ -22,6 +22,7 @@ HUD_KINDS = ("note", "notify", "teleprompter", "clear", "agent")
 GEST = {"up": 1, "down": 2, "select": 3, "back": 4, "nod": 5, "home": 6}
 GEST_NAME = {v: k for k, v in GEST.items()}
 
+# GENERATED from protocol/acts.yaml — do not hand-edit, run protocol/gen_acts.py
 # HUD action ids (mirror of firmware/lib/cyclops_shared/include/hud.h Action)
 ACT_NOTES = 1
 ACT_TRANSCRIBE_START = 2
@@ -46,6 +47,11 @@ ACT_OK = 20
 ACT_BACK = 21
 ACT_CONSENT_TOGGLE = 22
 ACT_CHOICE_SELECT = 23
+ACT_WORLD_LOOK = 24
+ACT_WORLD_READ = 25
+ACT_WORLD_PRICE = 26
+ACT_WORLD_HOWTO = 27
+# END GENERATED
 
 
 # numeric constants for convenience

@@ -94,3 +94,28 @@ def test_get_transcriber_cloud_with_keys():
     keys = FakeKeys("deepgram", "tok")
     t = get_transcriber("cloud", keys=keys)
     assert isinstance(t, CloudTranscriber)
+
+
+def test_get_transcriber_auto_picks_any_provider():
+    """BYOK: auto selects cloud with whatever provider has a key."""
+    keys = FakeKeys("mistral", "tok")
+    t = get_transcriber("auto", keys=keys)
+    assert isinstance(t, CloudTranscriber)
+    assert t.audio_provider == "mistral"
+
+
+def test_get_transcriber_auto_prefers_deepgram():
+    keys = FakeKeys("deepgram", "tok")
+    t = get_transcriber("auto", keys=keys)
+    assert isinstance(t, CloudTranscriber)
+    assert t.audio_provider == "deepgram"
+
+
+def test_openai_branch_uses_default_endpoint():
+    """No stored endpoint -> default map, not openai.com."""
+    keys = FakeKeys("mistral", "tok")
+    s = Session("api.mistral.ai", {"text": "hi"})
+    from brain.transcriber import CloudTranscriber as CT
+
+    t = CT(keys=keys, audio_provider="mistral", session=s)
+    assert t.transcribe(b"\x00\x00") == "hi"

@@ -33,6 +33,11 @@ def test_display_cmd_progress_and_steps():
     grid = sim.render()
     assert any("42%" in r for r in grid)
     assert any("device" in r and "web" in r for r in grid)
+    # the answer ends the run: HINT row returns to the affordance
+    sim.feed_display_cmd(b'{"kind":"text","text":"done"}')
+    grid = sim.render()
+    assert sim.progress is None and sim.steps == []
+    assert "A:ask" in grid[3]
     print("OK DISPLAY_CMD progress + steps rendered")
 
 
@@ -81,12 +86,32 @@ def test_profile_g2_geometry():
     print("OK g2 profile is 18x4")
 
 
+def test_vision_answer_digest_hint_rows():
+    # docs/42: row1 = AI's last line (ANSWER), row2 = belief digest,
+    # row3 = gesture affordance (preempted by progress/steps/toast).
+    sim = HudSim(cols=21, rows=4)
+    sim.feed_hud_frame(
+        build_hud(
+            HUD_KINDS.index("agent"), ["Meet Bob at 3pm", "standup 14:30"], more=False
+        )
+    )
+    grid = sim.render()
+    assert "Meet Bob" in grid[1]           # ANSWER row
+    assert "standup" in grid[2]            # DIGEST row
+    assert "A:ask" in grid[3]              # HINT affordance row
+    sim.feed_display_cmd(b'{"kind":"progress","p":42}')
+    grid = sim.render()
+    assert "42%" in grid[3]                # progress preempts the hint
+    print("OK vision ANSWER/DIGEST/HINT rows")
+
+
 if __name__ == "__main__":
     test_hud_frame()
     test_display_cmd_progress_and_steps()
     test_display_cmd_text_note()
     test_health_status_bar()
     test_grid_geometry()
+    test_vision_answer_digest_hint_rows()
     test_profile_128x128_geometry()
     test_profile_g2_geometry()
     print("PASS tests/test_hud_sim.py")

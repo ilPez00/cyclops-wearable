@@ -7,6 +7,7 @@ offline with no API keys. A cloud adapter can be added later (see APITranscriber
 
 from __future__ import annotations
 
+import os
 import time
 
 
@@ -120,16 +121,23 @@ class CloudTranscriber(Transcriber):
             raise RuntimeError(
                 f"no key/endpoint for audio provider {self.audio_provider}"
             )
-        endpoint = prov["endpoint"] or "https://api.openai.com/v1"
+        from .aikeys import default_endpoint
+
+        endpoint = (
+            prov["endpoint"]
+            or default_endpoint(self.audio_provider)
+            or "https://api.openai.com/v1"
+        )
         url = endpoint.rstrip("/") + "/audio/transcriptions"
         headers = {"Authorization": f"Bearer {prov['key']}"}
+        model = os.environ.get("CYCLOPS_STT_MODEL", "whisper-1")
         files = {
             "file": (
                 "audio.wav",
                 self._encode_wav_header(pcm16, rate) + pcm16,
                 "audio/wav",
             ),
-            "model": (None, "whisper-1"),
+            "model": (None, model),
         }
         resp = self.session.post(url, files=files, headers=headers, timeout=30)
         data = resp.json()
@@ -157,11 +165,6 @@ def _urllib_session():
     return stdlib_session()
 
 
-def from_aikeys(keys=None, audio_provider: str = "deepgram") -> CloudTranscriber:
-    """Build a cloud transcriber backed by the local AI-stack key store."""
-    return CloudTranscriber(keys=keys, audio_provider=audio_provider)
-
-
 def get_transcriber(
     prefer: str = "auto", language: str = "en", keys=None
 ) -> Transcriber:
@@ -171,17 +174,26 @@ def get_transcriber(
         return WhisperTranscriber(language=language)
     if prefer == "cloud":
         return CloudTranscriber(keys=keys, language=language)
-    # auto: edge whisper if present -> cloud if keys -> stub
+    # auto: edge whisper if present -> cloud on any usable provider -> stub.
+    # BYOK: pretty much any provider with a key works — deepgram first
+    # (native STT API), then any OpenAI-compatible chat/STT endpoint.
     try:
         return WhisperTranscriber(language=language)
     except Exception:
         pass
     try:
-        from .aikeys import AiKeys
+        from .aikeys import AiKeys, DEFAULT_ENDPOINTS
 
         k = keys or AiKeys()
-        if k.has("deepgram") or k.has("groq"):
+        if k.get_key("deepgram"):
             return CloudTranscriber(keys=k, language=language)
+        for prov in DEFAULT_ENDPOINTS:
+            if prov in ("deepgram", "ollama", "lmstudio", "omniroute",
+                        "opencode", "cohere"):
+                continue
+            if k.get_key(prov) or k.get_endpoint(prov):
+                return CloudTranscriber(keys=k, language=language,
+                                        audio_provider=prov)
     except Exception:
         pass
     return StubTranscriber()

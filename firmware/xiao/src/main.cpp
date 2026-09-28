@@ -1,8 +1,16 @@
-// Cyclops XIAO ESP32-S3 Sense — wearable HUD + audio capture.
-// scrollwheel + 2 buttons + screen (ST7735 / 128x64 / 128x32 via SCREEN_*).
-// PDM mic (clk 42, data 41) -> ADPCM -> BLE audio chunks -> phone decodes+transcribes.
-// BLE (NimBLE) to phone. Shares Hud + Screen.
-// Build: pio run -e xiao_st7735 | xiao_128x64 | xiao_128x32
+// Cyclops wearable firmware — one application, two ESP32-S3 boards.
+//
+// TARGET (docs/43 MVP): ONE button + HW-123 accel + 4-pin I2C SSD1306
+//   128x32 + battery sense; the two-button/Feather harness keeps BTN_B and the
+//   old 2x3 grid. Input (MVP): BTN_A tap=OK, double=BACK, long=AGENT; scroll =
+//   HW-123 tilt -> on_wheel; nod = quick capture.
+// BOARD: see board_config.h — `-DCYCLOPS_BOARD_XIAO` (S3 *Sense*: adds OV2640
+//   camera + PDM mic + microSD) or `-DCYCLOPS_BOARD_FEATHER` (Adafruit Feather
+//   ESP32-S3: same HUD/BLE/input surface, no Sense peripherals).
+// Mic (PDM) -> ADPCM -> BLE audio chunks; BLE (NimBLE) to phone/app, which with
+//   physis is the single access point to computer/internet/AI.
+// Battery divider (board_config.h) -> status_json batt + bead_mv.
+// Build: pio run -e xiao_128x32_i2c   |   pio run -e feather_128x32_i2c
 #include "cyclops_shared.h"
 #include "screen.h"
 #include "screens.h"
@@ -11,75 +19,46 @@
 #include "adpcm.h"
 #include "ota.h"
 #include <esp_ota_ops.h>
-#include "ring_ble.h"
 #include "sd_log.h"
 #include "imu.h"
+#include "battery.h"
 #include "presence.h"
 #include "posture.h"
 #include "audio_trigger.h"
-#include "camera_capture.h"
 #include "soc/rtc_cntl_reg.h"
 #include "config_store.h"
 #include "config_portal.h"
+#include "board_config.h"
+#if BOARD_HAS_CAMERA
+#include "camera_capture.h"
+#endif
 #include <Wire.h>
 #include <NimBLEDevice.h>
+#if BOARD_HAS_MIC
 #include <driver/i2s.h>
+#endif
 
-#if defined(SCREEN_ST7735)
-// XIAO S3: HW-SPI SCK=GPIO7(D8) MOSI=GPIO9(D10) MISO=GPIO8(D9).
-// CS=GPIO6(D5) DC=GPIO2(D1) RST=GPIO1(D0). CS must NOT be GPIO7 (that's SCK).
-static cyclops::St7735Screen screen(6, 2, 1, 8, 10, 9);
-#elif defined(SCREEN_128x64)
-static cyclops::Ssd1306_128x64_Screen screen(6, 2, 1, 8, 10, 9, 1);
-#elif defined(SCREEN_128x32)
-// CS=GPIO6(D5) — was GPIO5, which collides with BTN_B; matches ST7735/128x64.
-static cyclops::Ssd1306_128x32_Screen screen(6, 2, 1, 8, 10, 9, 1);
-#elif defined(SCREEN_128x32_I2C)
-// 4-pin I2C OLED: only SDA/SCL/VCC/GND wired. SPI args ignored, rst_pin=-1.
+// Which board this build is for (docs/42): XIAO S3 Sense = full sensor node,
+// Feather ESP32-S3 = same HUD/BLE/input surface without the Sense peripherals.
+// All differences live in board_config.h.
+static const char* BOARD = BOARD_NAME;
+
+// 4-pin I2C OLED only: SDA/SCL from board_config.h, addr 0x3C, no RST.
 static cyclops::Ssd1306_128x32_I2C_Screen screen(0, 0, 0, 0, 0, 0, -1);
-#elif defined(SCREEN_TRANSPARENT_151)
-// Waveshare 1.51" transparent OLED (128x64, SSD1309), 4-wire SPI.
-// CS=GPIO6(D5) DC=GPIO2(D1) RST=GPIO1(D0). SCK=GPIO7 MOSI=GPIO9 MISO=GPIO8.
-static cyclops::Transparent151Screen screen(6, 2, 1, 8, 10, 9, 1);
-#elif defined(SCREEN_TRANSPARENT_151_I2C)
-// Waveshare 1.51" transparent OLED in I2C mode: only SDA/SCL/VCC/GND wired.
-static cyclops::Transparent151I2CScreen screen(0, 0, 0, 0, 0, 0, -1);
-#endif
 
-// WHEEL_A was GPIO0 — a boot STRAPPING pin. The encoder pulsing it during
-// reset drops the S3 into download mode / can brick boot (suspected board fry).
-// Moved off GPIO0 to a real header pad. SPI-screen builds saturate D0/D1/D5
-// (screen CS/DC/RST), so the free pad differs by screen bus:
-//   I2C screen  -> D0 = GPIO1  (free; matches wiring doc label)
-//   SPI screen  -> D7 = GPIO44 (D0/D1/D5 taken by screen; 43/44 free, no I2C)
-#if defined(SCREEN_128x32_I2C) || defined(SCREEN_TRANSPARENT_151_I2C)
-#define PIN_WHEEL_A 1
-#else
-#define PIN_WHEEL_A 44
-#endif
-#define PIN_WHEEL_B 4
-#define PIN_BTN_A  3   // GPIO3 is a strapping pin (JTAG sel) but idle-HIGH as a
-                       // pull-up button is safe; held-at-boot is a designed combo
-#define PIN_BTN_B  5   // was 4 (aliased WHEEL_B); GPIO5 is free on XIAO S3
-
-// Onboard mic (XIAO S3 Sense MSM261D) is a PDM mic: clock GPIO42, data GPIO41.
-// Verified on metal 2026-07-12 — standard I2S on 40/41/42 reads silence, and
-// GPIO40 is the camera's SCCB SDA. PDM mode is the only correct config here.
-#ifndef MIC_PDM_CLK
-#define MIC_PDM_CLK 42
-#endif
-#ifndef MIC_PDM_DATA
-#define MIC_PDM_DATA 41
-#endif
-#define MIC_RATE 16000
-#define MIC_BUF_SAMPLES 256
 
 static cyclops::Hud hud;
-#ifdef ENABLE_RING
-static cyclops::RingBle ring;          // COLMI R02 BLE central (opt-in)
+// HW-123 (ITG/MPU) on the shared I2C bus; INT optional (no pin -> no IRQ use).
+static cyclops::Imu imu(BOARD_I2C_ADDR_IMU, -1);
+// Battery: divider per board_config.h. Percent lands in hud.bead_batt via
+// set_health(); status_json() reports both percent and raw mV.
+static cyclops::Battery batt(PIN_VBAT, 4200, 3300, 16, BOARD_VBAT_DIVIDER,
+#if defined(BOARD_VBAT_ENABLE)
+                             BOARD_VBAT_ENABLE
+#else
+                             -1
 #endif
-#ifdef ENABLE_IMU
-static cyclops::Imu imu(0x68, 1);      // HW-123 ITG/MPU on I2C (D6/D7), INT->D1
+);
 // Off-body privacy gate: a device resting on a surface reads a near-constant
 // gravity vector for 4s straight -> consent forced off + any capture already
 // running is force-stopped. This must be a firmware-local invariant (holds
@@ -91,7 +70,6 @@ static cyclops::PresenceDetector presence;
 // lapel mounting angle isn't fixed. 30 deg sustained 10 min, per the product
 // pitch; breathing-rate is real DSP work (chest-rise extraction), deferred.
 static cyclops::PostureDetector posture(30, 600000);
-#endif
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
 static NimBLECharacteristicCallbacks* note_cb = nullptr;
@@ -124,7 +102,19 @@ static volatile bool loud_flag = false;
 static volatile bool photo_flag = false;
 // On-demand photo capture (#1): camera + WiFi + HTTP come up only when a
 // photo is actually requested, torn down after 60s idle. See camera_capture.h.
+// On a board without an OV2640 (Feather) these four shims compile in instead,
+// so loop() and the photo gesture stay board-agnostic: ACT_PHOTO still travels
+// to the phone as a command, only the on-device capture is absent.
+#if BOARD_HAS_CAMERA
 static cyclops::CameraCapture camera_capture;
+#else
+struct NoCamera {
+    const char* request(unsigned long) { return ""; }
+    void tick(unsigned long) {}
+    void shutdown() {}
+};
+static NoCamera camera_capture;
+#endif
 
 class NoteCb : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* c) override {
@@ -132,14 +122,6 @@ class NoteCb : public NimBLECharacteristicCallbacks {
         for (size_t i = 0; i < v.size(); ++i) dec.push((uint8_t)v[i]);
     }
 };
-
-volatile int wheel_ticks = 0;
-static void IRAM_ATTR wheel_isr() {
-    static uint8_t last = 0;
-    uint8_t a = digitalRead(PIN_WHEEL_A);
-    uint8_t b = digitalRead(PIN_WHEEL_B);
-    if (a != last) { wheel_ticks += (a == b) ? 1 : -1; last = a; }
-}
 
 // ---- OTA-over-BLE receive path (shared OtaReceiver + esp_ota_* sinks) ----
 // Rationale: the USB-C connector is the board's weakest part (one died
@@ -267,6 +249,7 @@ class SrvCb : public NimBLEServerCallbacks {
 // becomes 4+128 = 132 B — one notify-sized frame, no slicing. The step index
 // is carried across chunks (warm adaption); each chunk stays self-contained
 // so a lost notify costs only its own ~16 ms window.
+#if BOARD_HAS_MIC
 static void audio_task(void*) {
     int16_t samples[MIC_BUF_SAMPLES];
     uint8_t enc[4 + (MIC_BUF_SAMPLES + 1) / 2];
@@ -297,9 +280,11 @@ static void audio_task(void*) {
     }
     vTaskDelete(NULL);
 }
+#endif  // BOARD_HAS_MIC
 
 static void start_capture() {
     if (capturing) return;
+#if BOARD_HAS_MIC
     i2s_config_t cfg = {};
     cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM);
     cfg.sample_rate = MIC_RATE;
@@ -321,6 +306,14 @@ static void start_capture() {
     meta[4]=1; meta[5]=cyclops::AUDIO_CODEC_ADPCM; meta[6]=0; meta[7]=0;
     send_frame(cyclops::MSG_AUDIO_META, meta, 8);
     xTaskCreatePinnedToCore(audio_task, "cap", 6144, NULL, 5, &cap_task, 0);
+#else
+    // No onboard mic on this board: recording is refused loudly rather than
+    // pretending. The gesture's MSG_CMD still reached the phone, so the
+    // brain-side voice path (transcribe/document/ask) is unaffected.
+    hud.notify("no mic on this board", cyclops::Hud::NOTE_WARN, 3);
+    hud.recording = false;
+    return;
+#endif
     hud.recording = true;
     cyclops::sd_log_line("rec", "start");
 }
@@ -329,7 +322,9 @@ static void stop_capture() {
     if (!capturing) return;
     capturing = false;
     delay(120);
+#if BOARD_HAS_MIC
     i2s_driver_uninstall((i2s_port_t)0);
+#endif
     send_frame(cyclops::MSG_AUDIO_STOP, NULL, 0);
     hud.recording = false;
     cyclops::sd_log_line("rec", "stop");
@@ -342,27 +337,39 @@ void setup() {
 
     Serial.begin(115200);
     Serial.println("[boot] Cyclops XIAO S3 Sense");
-    // Factory reset: hold both buttons at boot
-    pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
+    // Factory reset (docs/43): two-button boards keep the A+B boot combo; the
+    // one-button MVP harness holds BTN_A alone for >=2s instead. Runs before
+    // any gesture polling, so the hold is never also seen as an input.
+    pinMode(PIN_BTN_A, INPUT_PULLUP);
+#if BOARD_HAS_BTN_B
+    pinMode(PIN_BTN_B, INPUT_PULLUP);
+#endif
     delay(50);
+#if BOARD_HAS_BTN_B
     if (!digitalRead(PIN_BTN_A) && !digitalRead(PIN_BTN_B)) {
         Serial.println("[boot] BTN_A+BTN_B held — factory reset");
         cyclops::ConfigStore::instance().reset();
     }
-    cyclops::ConfigStore::instance().load();
-#ifdef SCREEN_ST7735
-    Serial.println("[boot] screen=ST7735 128x128");
-#elif defined(SCREEN_128x64)
-    Serial.println("[boot] screen=SSD1306 128x64");
-#elif defined(SCREEN_128x32)
-    Serial.println("[boot] screen=SSD1306 128x32");
-#elif defined(SCREEN_TRANSPARENT_151)
-    Serial.println("[boot] screen=Transparent 1.51in SSD1309 128x64");
-#elif defined(SCREEN_TRANSPARENT_151_I2C)
-    Serial.println("[boot] screen=Transparent 1.51in SSD1309 128x64 (I2C)");
+#else
+    if (!digitalRead(PIN_BTN_A)) {
+        uint32_t t0 = millis();
+        while (millis() - t0 < 2000 && !digitalRead(PIN_BTN_A)) delay(10);
+        if (millis() - t0 >= 2000) {
+            Serial.println("[boot] BTN_A held >=2s — factory reset");
+            cyclops::ConfigStore::instance().reset();
+        }
+    }
 #endif
+    cyclops::ConfigStore::instance().load();
+    Serial.printf("[boot] Cyclops — board=%s\n", BOARD);
+    Serial.printf("[boot] screen=SSD1306 128x32 I2C (SDA=%d SCL=%d)\n",
+                  (int)PIN_I2C_SDA, (int)PIN_I2C_SCL);
+    // I2C bus shared by the 4-pin OLED + HW-123 accel (pins from board_config.h).
     screen.begin();
-    Serial.println("[boot] screen.begin ok");
+    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+    batt.begin();
+    Serial.printf("[boot] screen.begin ok + Wire(%d,%d) + batt\n",
+                  (int)PIN_I2C_SDA, (int)PIN_I2C_SCL);
     if (!cyclops::ConfigStore::instance().is_configured()) {
         Serial.println("[boot] not configured — starting config portal");
         config_portal_start();
@@ -374,9 +381,16 @@ void setup() {
         config_portal_stop();
         Serial.println("[boot] portal timeout — continuing boot");
     }
-    pinMode(PIN_BTN_A, INPUT_PULLUP); pinMode(PIN_BTN_B, INPUT_PULLUP);
-    pinMode(PIN_WHEEL_A, INPUT_PULLUP); pinMode(PIN_WHEEL_B, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(PIN_WHEEL_A), wheel_isr, CHANGE);
+    pinMode(PIN_BTN_A, INPUT_PULLUP);
+#if BOARD_HAS_BTN_B
+    pinMode(PIN_BTN_B, INPUT_PULLUP);
+#endif
+#if !BOARD_HAS_BTN_B
+    // One button on the MVP harness (docs/43): tap=OK, double-tap=BACK,
+    // long=AGENT, and the HINT row teaches exactly that. Photo/video/
+    // voice-note stay reachable via MENU + the nod gesture.
+    hud.use_one_button();
+#endif
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
     hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
@@ -395,9 +409,22 @@ void setup() {
     hud.on_photo = []() -> const char* { photo_flag = true; return ""; };
     hud.init();
     Serial.println("[boot] hud.init ok");
+#if BOARD_HAS_SD
     if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
     else Serial.println("[boot] sd card NOT present (logging disabled)");
+#else
+    // No slot on this board: sd_log_line() is a no-op via sd_ready()==false.
+    Serial.println("[boot] no SD slot on this board (logging disabled)");
+#endif
+    // Single access point: phone/app + physis route computer/internet/AI.
+    // Device stays a thin client: MSG_CMD up, DISPLAY_CMD/HUD_FRAME down.
+    // BLE name is board-specific so a phone can tell the two apart when both
+    // are on the bench (CyclopsXIAO / CyclopsFeather).
+#if defined(CYCLOPS_BOARD_FEATHER)
+    NimBLEDevice::init("CyclopsFeather");
+#else
     NimBLEDevice::init("CyclopsXIAO");
+#endif
     srv = NimBLEDevice::createServer();
     srv->setCallbacks(new SrvCb());
     NimBLEService* s = srv->createService(SRVC);
@@ -408,22 +435,30 @@ void setup() {
     NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
     adv->addServiceUUID(SRVC);
     adv->start();
-#ifdef ENABLE_RING
-    ring.begin("R02_");   // scan for + connect to the COLMI R02 (see docs/30)
-#endif
-#ifdef ENABLE_IMU
-    if (imu.begin()) Serial.println("[boot] imu ok");
-    else Serial.println("[boot] imu NOT found (0x68)");
-#endif
+    if (imu.begin()) {
+        Serial.printf("[boot] %s\n", imu.reason());
+    } else {
+        // docs/43 C4: start() refuses a part this driver cannot speak, so say
+        // which byte answered (and why) rather than a flat "not found".
+        Serial.printf("[boot] %s\n", imu.reason());
+        hud.notify(cyclops::imu_refusal_short(imu.chip()), cyclops::Hud::NOTE_WARN, 3);
+    }
+    cyclops::sd_log_line("imu", imu.reason());
+    Serial.printf("[boot] batt %dmV %d%%\n", batt.read_mv(), batt.percent());
 }
 
 static uint32_t last_hb=0;
-static cyclops::GestureDetector gest_a, gest_b;   // A="eye", B="ear"
+// One detector per populated button (docs/43). Two-button boards keep the
+// A="eye" / B="ear" split; the one-button MVP harness instantiates gest_a
+// only, and use_one_button() rebinds its grid.
+static cyclops::GestureDetector gest_a
+#if BOARD_HAS_BTN_B
+    , gest_b
+#endif
+    ;
 
 void loop() {
     config_portal_tick();
-    static int prev = 0;
-    if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
     uint32_t now = millis();
     if (loud_flag) {
         loud_flag = false;
@@ -438,27 +473,27 @@ void loop() {
         hud.notify_result(cyclops::ACT_PHOTO, url);
     }
     camera_capture.tick(now);
-    // buttons are active-low; detector wants pressed=true
+    // Buttons, active-low; detector wants pressed=true.
+    // Two-button boards: A=eye (single=OK double=photo long=video),
+    // B=ear (single=back double=voice-note long=voice-cmd).
+    // One-button MVP (docs/43): A carries single=OK double=BACK long=AGENT
+    // via hud.use_one_button().
     cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
+    if (ga) hud.fire_gesture(0, ga);
+#if BOARD_HAS_BTN_B
     cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
-    if (ga) hud.fire_gesture(0, ga);   // A: single=OK double=photo long=video
-    if (gb) hud.fire_gesture(1, gb);   // B: single=back double=voice-note long=voice-cmd
-#ifdef ENABLE_RING
-    ring.update();
-    if (ring.connected()) {
-        const auto& s = ring.sample();
-        hud.set_health(s.hr, s.spo2, s.battery, s.battery);  // ring_batt == bead_batt slot
-    }
+    if (gb) hud.fire_gesture(1, gb);
 #endif
-#ifdef ENABLE_IMU
+    // HW-123 accel: tilt scroll + off-body privacy gate + posture cue.
     if (imu.update()) {
-        hud.nav_head = imu.sample().heading;           // tilt/nav heading
+        hud.nav_head = imu.sample().heading;
         int tilt = imu.scroll_tilt();
-        if (tilt != 0) hud.on_wheel(tilt);             // tilt = scroll
+        if (tilt != 0) hud.on_wheel(tilt);
         const auto& s = imu.sample();
         bool off = presence.poll(s.ax, s.ay, s.az, now);
         if (presence.changed()) {
             hud.set_consent(!off);
+            hud.set_presence(!off);   // C5: host closes the "wearer present" claim
             if (off && capturing) stop_capture();  // guarantee, not just a future gate
             if (off) camera_capture.shutdown();    // camera+WiFi off too, immediately
             hud.notify(off ? "off-body: sensors off" : "on-body: sensors on",
@@ -467,14 +502,24 @@ void loop() {
             if (!off) posture.calibrate(s.pitch);  // just re-worn: reset "neutral"
         }
         if (!posture.calibrated() && !off) posture.calibrate(s.pitch);  // first read after boot
-        if (!off && posture.poll(s.pitch, now) && posture.changed()) {
-            hud.notify("posture: sit up straight", cyclops::Hud::NOTE_INFO, 3);
+        if (!off) {
+            bool slouch = posture.poll(s.pitch, now);
+            hud.set_posture(slouch);   // C5: posture rides status_json too
+            if (slouch && posture.changed()) {
+                hud.notify("posture: sit up straight", cyclops::Hud::NOTE_INFO, 3);
+            }
         }
     }
-#endif
     if (millis()-last_hb > 5000) {
         last_hb = millis();
-        char s[160]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
+        // Battery: percent (0..100, -1 unread) into bead_batt; mV into batt_mv
+        // so status_json "batt" stays mV-compatible for older parsers.
+        int pct = batt.percent();
+        if (pct >= 0) hud.set_health(0, 0, 0, pct);
+        int mv = batt.read_mv();
+        if (mv > 0) hud.bead_batt_mv = (uint16_t)mv;
+        if (batt.low()) hud.notify("battery low", cyclops::Hud::NOTE_WARN, 3);
+        char s[200]; int n = hud.status_json(s, sizeof(s)); send_frame(cyclops::MSG_STATUS, (uint8_t*)s, n);
         Serial.printf("[hb] %s rec=%d bt=%d mode=%s drop=%lu\n", s, hud.recording,
                       hud.bt, hud.mode_name(hud.top()), cyclops::audio_dropped);
     }

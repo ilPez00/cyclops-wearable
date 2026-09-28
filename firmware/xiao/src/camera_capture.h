@@ -5,11 +5,13 @@
 // permanent WiFi/BLE coexistence overhead is paid for a feature that fires
 // a few times an hour at most.
 //
-// Endpoints:
+// Endpoints (JSON/binary only -- the firmware never serves a browser page:
+// the companion app is the single UI surface, see AGENTS.md):
 //   /capture  — single JPEG, no Content-Disposition
 //   /snap     — single JPEG with filename snap.jpg
 //   /stream   — MJPEG multipart/x-mixed-replace (~10 fps)
-//   /         — HTML page with embedded <img src="/stream">
+//   /audio.wav— PDM mic as 16 kHz mono WAV (ffmpeg pulls it)
+//   /status   — JSON {cam,wifi,sd,ip,stream,audio,snap} (docs/43 C2)
 //
 // WiFi credentials come from /sdcard/wifi.txt (line 1 = SSID, line 2 =
 // password). If the file or the SD card itself is absent, this feature is
