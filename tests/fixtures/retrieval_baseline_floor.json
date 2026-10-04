@@ -1,0 +1,15 @@
+{
+  "source": "docs/34-measurements.md phase-0a, authored fixture, 2026-10-04",
+  "corpus_docs": 44,
+  "queries": 16,
+  "k": 10,
+  "current_mrr": 0.677083,
+  "current_recall": 0.9375,
+  "bm25_mrr": 0.875,
+  "bm25_recall": 1.0,
+  "rrf_mrr": 0.703125,
+  "rrf_recall": 1.0,
+  "reference_arm": "bm25",
+  "reference_mrr": 0.875,
+  "reference_recall": 1.0
+}

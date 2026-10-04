@@ -1,0 +1,18 @@
+[
+  {"q": "who signed the Ankara lease amendment", "gold": ["f01"], "kind": "ambiguous_terms"},
+  {"q": "March hosting invoice total", "gold": ["f02"], "kind": "ambiguous_terms"},
+  {"q": "which depot shipped the serial", "gold": ["f03"], "kind": "ambiguous_terms"},
+  {"q": "how long is the drive assembly warranty", "gold": ["f04"], "kind": "ambiguous_terms"},
+  {"q": "average resting heart rate overnight", "gold": ["f05"], "kind": "ambiguous_terms"},
+  {"q": "permit expiry deadline", "gold": ["f06"], "kind": "ambiguous_terms"},
+  {"q": "what time does Marcus want the standup", "gold": ["f07"], "kind": "rare_token"},
+  {"q": "which ferry sailing was cancelled", "gold": ["f08"], "kind": "ambiguous_terms"},
+  {"q": "grinder burr replacement month", "gold": ["f09"], "kind": "ambiguous_terms"},
+  {"q": "boat bank capacity in Ah", "gold": ["f10"], "kind": "ambiguous_terms"},
+  {"q": "yard invoice date", "gold": ["f11"], "kind": "ambiguous_terms"},
+  {"q": "dentist slot and practitioner", "gold": ["f12"], "kind": "ambiguous_terms"},
+  {"q": "student loan monthly repayment", "gold": ["f13"], "kind": "ambiguous_terms"},
+  {"q": "garage heater seal part number", "gold": ["f14"], "kind": "rare_token"},
+  {"q": "Tromso flights booked for when", "gold": ["f15"], "kind": "ambiguous_terms"},
+  {"q": "who signed off the storage contract", "gold": ["f16"], "kind": "ambiguous_terms"}
+]

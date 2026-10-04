@@ -1,0 +1,437 @@
+{
+  "probe": "docs/34 phase 0c model-swap",
+  "evidence": "tests/fixtures/swap_probe_transcripts.jsonl (10 transcripts)",
+  "structure_definition": "sorted multiset of (note.type, note.due); confidence excluded (float noise)",
+  "deferred": "entities/topology/grades: entity extraction is deterministic keyword tagging, not model-derived, so a swap cannot perturb them yet",
+  "arms": [
+    {
+      "arm": "space-bunny-free",
+      "family": "zen-keyless",
+      "valid": true,
+      "degraded_transcripts": 0,
+      "degraded_detail": [],
+      "notes_total": 14,
+      "type_histogram": {
+        "decision": 3,
+        "idea": 1,
+        "reminder": 2,
+        "summary": 3,
+        "task": 5
+      },
+      "dues_resolved": 1,
+      "confidence_buckets": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "confidence_mean": 0.985,
+      "structure_sha256": "ef1287d3dc406d37b8984295e6b37f2122d0d462105aec38ccc4e6a670dab45e",
+      "per_transcript": [
+        {
+          "id": "t01",
+          "count": 2,
+          "structure": [
+            [
+              "task",
+              ""
+            ],
+            [
+              "task",
+              "2026-10-09"
+            ]
+          ]
+        },
+        {
+          "id": "t02",
+          "count": 3,
+          "structure": [
+            [
+              "decision",
+              ""
+            ],
+            [
+              "summary",
+              ""
+            ],
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t03",
+          "count": 2,
+          "structure": [
+            [
+              "reminder",
+              ""
+            ],
+            [
+              "summary",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t04",
+          "count": 1,
+          "structure": [
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t05",
+          "count": 1,
+          "structure": [
+            [
+              "idea",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t06",
+          "count": 1,
+          "structure": [
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t07",
+          "count": 1,
+          "structure": [
+            [
+              "decision",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t08",
+          "count": 1,
+          "structure": [
+            [
+              "reminder",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t09",
+          "count": 1,
+          "structure": [
+            [
+              "decision",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t10",
+          "count": 1,
+          "structure": [
+            [
+              "summary",
+              ""
+            ]
+          ]
+        }
+      ],
+      "prose": [
+        {
+          "text": "Send the Ankara lease amendment to the holding company by Friday.",
+          "type": "task"
+        },
+        {
+          "text": "Raise the deposit before November.",
+          "type": "task"
+        },
+        {
+          "text": "Kestrel slipped by two weeks.",
+          "type": "summary"
+        },
+        {
+          "text": "Keep the existing March date for Kestrel.",
+          "type": "decision"
+        },
+        {
+          "text": "Update the schedule and inform the team.",
+          "type": "task"
+        },
+        {
+          "text": "Parking permit expires on the 30th.",
+          "type": "reminder"
+        },
+        {
+          "text": "Paid €96 for the parking permit last year.",
+          "type": "summary"
+        },
+        {
+          "text": "Order a 35 uF capacitor for the compressor.",
+          "type": "task"
+        },
+        {
+          "text": "Explore delivering the digest to the watch instead of the phone for a calmer experience and lower battery usage.",
+          "type": "idea"
+        },
+        {
+          "text": "Arrive at the dentist ten minutes early for the appointment moved to 16:40 on the 12th (arrive by 16:30).",
+          "type": "task"
+        },
+        {
+          "text": "Marta will run the standup at 08:15 from now on; no need to revisit this decision.",
+          "type": "decision"
+        },
+        {
+          "text": "Check the card for invoice Zephyra-7741 (€41.20) before the 14th.",
+          "type": "reminder"
+        },
+        {
+          "text": "Cancel the 07:40 ferry booking and rebook it for the 18th.",
+          "type": "decision"
+        },
+        {
+          "text": "Three weeks of notes failed to sync while the host was offline, but nothing was lost.",
+          "type": "summary"
+        }
+      ]
+    },
+    {
+      "arm": "nvidia/nemotron-3.5-lightning:free",
+      "family": "openrouter-free",
+      "valid": true,
+      "degraded_transcripts": 0,
+      "degraded_detail": [],
+      "notes_total": 15,
+      "type_histogram": {
+        "decision": 2,
+        "idea": 1,
+        "reminder": 2,
+        "summary": 3,
+        "task": 7
+      },
+      "dues_resolved": 0,
+      "confidence_buckets": [
+        0.5,
+        0.8,
+        0.8,
+        0.8,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        0.9,
+        1.0
+      ],
+      "confidence_mean": 0.8833,
+      "structure_sha256": "9412a5c37bc9f17fea996a386ec03ac70ed0a46c2188fa826841aa40bb41d811",
+      "per_transcript": [
+        {
+          "id": "t01",
+          "count": 2,
+          "structure": [
+            [
+              "task",
+              ""
+            ],
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t02",
+          "count": 3,
+          "structure": [
+            [
+              "decision",
+              ""
+            ],
+            [
+              "summary",
+              ""
+            ],
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t03",
+          "count": 1,
+          "structure": [
+            [
+              "reminder",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t04",
+          "count": 2,
+          "structure": [
+            [
+              "summary",
+              ""
+            ],
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t05",
+          "count": 1,
+          "structure": [
+            [
+              "idea",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t06",
+          "count": 1,
+          "structure": [
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t07",
+          "count": 1,
+          "structure": [
+            [
+              "decision",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t08",
+          "count": 2,
+          "structure": [
+            [
+              "reminder",
+              ""
+            ],
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t09",
+          "count": 1,
+          "structure": [
+            [
+              "task",
+              ""
+            ]
+          ]
+        },
+        {
+          "id": "t10",
+          "count": 1,
+          "structure": [
+            [
+              "summary",
+              ""
+            ]
+          ]
+        }
+      ],
+      "prose": [
+        {
+          "text": "Send the Ankara lease amendment to the holding company",
+          "type": "task"
+        },
+        {
+          "text": "Raise the deposit",
+          "type": "task"
+        },
+        {
+          "text": "Kestrel slipped a fortnight",
+          "type": "summary"
+        },
+        {
+          "text": "we keep the March date",
+          "type": "decision"
+        },
+        {
+          "text": "update the schedule and tell the team",
+          "type": "task"
+        },
+        {
+          "text": "Parking permit expires on the 30th",
+          "type": "reminder"
+        },
+        {
+          "text": "Compressor tripped the breaker again; suspected capacitor failure",
+          "type": "summary"
+        },
+        {
+          "text": "Order a 35 uF capacitor",
+          "type": "task"
+        },
+        {
+          "text": "Shift digest delivery to watch instead of phone for calmer experience and lower battery usage",
+          "type": "idea"
+        },
+        {
+          "text": "Dentist appointment moved to 16:40 on the 12th, arrive 10 minutes early",
+          "type": "task"
+        },
+        {
+          "text": "Marta will run the standup at 08:15 from now on",
+          "type": "decision"
+        },
+        {
+          "text": "Pay invoice Zephyra-7741 for 41.20 euro",
+          "type": "task"
+        },
+        {
+          "text": "Check the card before the 14th",
+          "type": "reminder"
+        },
+        {
+          "text": "Cancel the 07:40 ferry booking and rebook for the 18th",
+          "type": "task"
+        },
+        {
+          "text": "Three weeks of notes failed to sync while the host was offline, but nothing was lost.",
+          "type": "summary"
+        }
+      ]
+    }
+  ]
+}

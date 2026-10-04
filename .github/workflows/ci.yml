@@ -24,7 +24,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [xiao_st7735, xiao_128x64, xiao_128x32, xiao_transparent_151]
+        # Only envs that actually exist in firmware/platformio.ini.
+        # The previous list named four that exist in no platformio.ini, so
+        # every matrix job failed to resolve (last synced 2026-07-10, before
+        # the _i2c renames).
+        env: [xiao_128x32_i2c, feather_128x32_i2c]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,6 +41,10 @@ jobs:
       - name: Build ${{ matrix.env }}
         run: pio run -e ${{ matrix.env }}
         working-directory: firmware
+
+      - name: Build xiao_mini4 (separate PlatformIO project)
+        run: pio run
+        working-directory: firmware/mini4
 
   native:
     name: Native host tests (C++ logic)
@@ -64,3 +72,5 @@ jobs:
           python-version: '3.11'
       - name: Run full zero-dep test suite
         run: python3 tests/run_tests.py tests/test_*.py
+      - name: Declared-never-called sweep (docs/34 phase 0b)
+        run: python3 scripts/dead_calls.py

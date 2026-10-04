@@ -38,3 +38,22 @@ brain/protocol_v2.py:time_sync
 # RingActivity); protocol pairs stay together.
 # 2026-09-19
 *:stopRealTime
+
+# --- Phase 0b sweep, 2026-10-04 -------------------------------------------
+# Six Android components flagged by scripts/dead_calls.py. NOT dead: each is
+# declared in android/app/src/main/AndroidManifest.xml and launched by the
+# Android OS, so there is no Kotlin reference for a code scanner to find. The
+# scanner does not read the manifest; this is a known blind spot, not debt.
+# Decision open: teach dead_calls.py to read AndroidManifest.xml and drop these
+# six entries, so the gate stops crying wolf. 2026-10-04
+android/app/src/main/java/com/cyclops/companion/AgentActivity.kt:AgentActivity
+android/app/src/main/java/com/cyclops/companion/CameraActivity.kt:CameraActivity
+android/app/src/main/java/com/cyclops/companion/CoherenceActivity.kt:CoherenceActivity
+android/app/src/main/java/com/cyclops/companion/ConceptsActivity.kt:ConceptsActivity
+android/app/src/main/java/com/cyclops/companion/FilesActivity.kt:FilesActivity
+android/app/src/main/java/com/cyclops/companion/LifeOSActivity.kt:LifeOSActivity
+# Genuinely dead: a one-line convenience wrapper (tokens.forEach { register(it) })
+# superseded by calling register() directly. Zero call sites, not even in
+# PlannerTest. Kept rather than deleted this phase (allowlist-only decision,
+# 2026-10-04); safe to delete whenever deletions are next in scope.
+android/core/src/main/kotlin/com/cyclops/companion/core/Planner.kt:extend
