@@ -13,6 +13,9 @@ class DeviceSim:
     MAX_NOTES = 8
     COLS = 22
     ROWS = 4
+    # Mirrors the firmware cadence: main.cpp emits MSG_STATUS when
+    # millis()-last_hb > 5000. Unconditional — never gated on capture.
+    HEARTBEAT_MS = 5000
 
     def __init__(self):
         self.notes = []
@@ -20,6 +23,33 @@ class DeviceSim:
         self.view_top = 0
         self.recording = False
         self.screen_on = True
+        # Simulated time. Explicit only: there is no wall clock and no radio
+        # anywhere in this module, so tests stay deterministic and existing
+        # callers (which never call advance) are unaffected.
+        self.t_ms = 0
+        self.status_count = 0
+        self._last_hb = 0
+
+    # -- simulated timeline -------------------------------------------------
+    def advance(self, ms):
+        """Advance the simulated clock by ms milliseconds."""
+        assert ms >= 0, "time only moves forward"
+        self.t_ms += ms
+
+    def heartbeat_due(self):
+        return self.t_ms - self._last_hb > self.HEARTBEAT_MS
+
+    def poll_heartbeat(self):
+        """One simulated loop iteration. True when a status frame was due.
+
+        Deliberately independent of self.recording: the device owes a status
+        frame whether or not audio is streaming.
+        """
+        if not self.heartbeat_due():
+            return False
+        self._last_hb = self.t_ms
+        self.status_count += 1
+        return True
 
     def add_note(self, text):
         if len(self.notes) >= self.MAX_NOTES:

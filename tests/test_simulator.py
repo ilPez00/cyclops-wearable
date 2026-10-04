@@ -125,3 +125,67 @@ def test_simulator_emits_frame_shape():
     assert json.loads(json.dumps(frame)) == {"a": 16, "arg": "photo"}
     # simulator state is decoupled from the external frame
     assert s.recording is True
+
+
+
+# --- status heartbeat contract -------------------------------------------------
+# Guards the invariant behind the firmware fix: MSG_STATUS is due every 5000 ms
+# unconditionally, including while audio streams. This models the cadence rule
+# (main.cpp `millis()-last_hb > 5000`); it cannot reproduce FreeRTOS scheduling,
+# which is why the on-metal pass stays separate.
+
+CHUNK_MS = 16
+
+
+def test_heartbeat_fires_on_schedule_while_idle():
+    dev = DeviceSim()
+    seen = []
+    for _ in range(700):# 700 * 16 ms = 11.2 s of simulated time
+        dev.advance(CHUNK_MS)
+        if dev.poll_heartbeat():
+            seen.append(dev.t_ms)
+    assert len(seen) >= 2, f"expected >=2 heartbeats in 11.2 s, got {len(seen)}"
+    gaps = [b - a for a, b in zip(seen, seen[1:])]
+    assert max(gaps) <= DeviceSim.HEARTBEAT_MS + CHUNK_MS, f"heartbeat gap {max(gaps)} ms exceeds the bound"
+
+
+def test_heartbeat_is_not_conditional_on_recording():
+    dev = DeviceSim()
+    dev.recording = True          # audio streaming
+    while_streaming = dev.status_count
+    for _ in range(700):
+        dev.advance(CHUNK_MS)
+        dev.poll_heartbeat()
+    streaming_statuses = dev.status_count - while_streaming
+
+    idle = DeviceSim()
+    for _ in range(700):
+        idle.advance(CHUNK_MS)
+        idle.poll_heartbeat()
+
+    assert streaming_statuses >= 2, "status must keep flowing while audio streams"
+    assert streaming_statuses == idle.status_count, (
+        f"cadence must not depend on recording: {streaming_statuses} vs {idle.status_count}"
+    )
+
+
+def test_heartbeat_never_waits_on_a_silent_stream():
+    # A VAD-dropped chunk still costs 16 ms of device time, so the gate must
+    # still be polled. Regression guard against gating the poll on a send.
+    dev = DeviceSim()
+    dev.recording = True
+    for _ in range(700):
+        dev.advance(CHUNK_MS)
+        dev.poll_heartbeat()# nothing "sent" this tick
+    assert dev.status_count >= 2
+
+
+def test_advance_only_moves_forward():
+    dev = DeviceSim()
+    dev.advance(100)
+    assert dev.t_ms == 100
+    try:
+        dev.advance(-1)
+    except AssertionError:
+        return
+    raise AssertionError("advance() must reject negative time")

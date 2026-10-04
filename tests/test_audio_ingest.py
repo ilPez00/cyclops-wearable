@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from brain.adpcm import AdpcmEncoder
+from brain.adpcm import AdpcmEncoder, decode_chunk, encode_chunk
 from brain.hud_bridge import MSG_AUDIO_CHUNK, MSG_AUDIO_META, MSG_AUDIO_STOP, HudBridge
 
 
@@ -99,3 +99,79 @@ def test_codec_resets_per_meta():
     br.handle_audio(MSG_AUDIO_STOP, b"")
     assert tr.pcm == raw
     print("OK codec follows each META (no sticky state)")
+
+
+
+# --- multi-chunk sequence contract ---------------------------------------------
+# Per-chunk coverage already exists above; what was missing is the *sequence*:
+# the step index must carry across chunk boundaries (warm adaption), each chunk
+# must still decode standalone, and the firmware/host pair must agree on the
+# codec byte. Chunk header is [0..1] int16 LE predictor, [2] step index,
+# [3] pad flag -- firmware/shared/include/adpcm.h.
+
+def _mean_abs_err(chunks, pcm):
+    # decode_chunk handles exactly one self-contained chunk, so decode per
+    # chunk and concatenate -- decoding the joined buffer would silently yield
+    # only the first chunk.
+    raw = b"".join(decode_chunk(c) for c in chunks)
+    got = struct.unpack(f"<{len(raw) // 2}h", raw)
+    assert len(got) == len(pcm), f"decoded {len(got)} samples, expected {len(pcm)}"
+    return sum(abs(a - b) for a, b in zip(got, pcm)) // len(pcm)
+
+
+def test_step_index_continues_across_chunk_boundaries():
+    # Chunks stay self-contained (a lost notify costs one window) but the step
+    # index must be fed forward, or every chunk restarts cold. Measured here on
+    # a quiet->loud onset over 2048 samples: mean abs error 34 warm vs 65 cold,
+    # because a cold encoder overestimates the step size until it adapts. The
+    # 0.7x bound sits under the measured 0.52x with margin.
+    pcm = [
+        int((400 if i < 1024 else 9000) * math.sin(2 * math.pi * i / 48))
+        for i in range(2048)
+    ]
+    seed, warm, cold = 0, [], []
+    for off in range(0, len(pcm), 256):
+        chunk, seed = encode_chunk(pcm[off : off + 256], seed)
+        warm.append(chunk)
+        cold.append(encode_chunk(pcm[off : off + 256], 0)[0])
+
+    assert warm != cold, "feeding the step index forward changed nothing"
+    warm_err, cold_err = _mean_abs_err(warm, pcm), _mean_abs_err(cold, pcm)
+    assert warm_err * 10 < cold_err * 7, (
+        f"continuity not effective: warm={warm_err} cold={cold_err}"
+    )
+    for off in range(0, len(pcm), 256):
+        standalone, _ = encode_chunk(pcm[off : off + 256], 0)
+        assert len(decode_chunk(standalone)) == 256 * 2, "chunk must decode alone"
+
+
+def test_full_sequence_roundtrips_through_the_bridge():
+    tr = PcmCapTranscriber()
+    br = HudBridge(NullSink(), transcriber=tr)
+    br.handle_audio(MSG_AUDIO_META, _meta(codec=1))
+    pcm = _sine(2048, amp=2500)
+    for off in range(0, len(pcm), 256):
+        br.handle_audio(MSG_AUDIO_CHUNK, encode_chunk(pcm[off : off + 256])[0])
+    kind, txt = br.handle_audio(MSG_AUDIO_STOP, b"")
+    assert kind == "transcribed" and txt == "captured"
+    got = struct.unpack(f"<{len(tr.pcm) // 2}h", tr.pcm)
+    assert len(got) == len(pcm), "8-chunk sequence must yield every sample"
+
+
+def test_sequence_survives_a_dropped_chunk():
+    # A lost BLE notify costs only its own window: the next chunk is still
+    # self-contained and the stream continues.
+    tr = PcmCapTranscriber()
+    br = HudBridge(NullSink(), transcriber=tr)
+    br.handle_audio(MSG_AUDIO_META, _meta(codec=1))
+    pcm = _sine(2048, amp=2500)
+    enc = AdpcmEncoder()
+    chunks = [enc.encode(pcm[o : o + 256]) for o in range(0, len(pcm), 256)]
+    for i, c in enumerate(chunks):
+        if i == 3:
+            continue# notify lost
+        br.handle_audio(MSG_AUDIO_CHUNK, c)
+    kind, _ = br.handle_audio(MSG_AUDIO_STOP, b"")
+    assert kind == "transcribed"
+    got = struct.unpack(f"<{len(tr.pcm) // 2}h", tr.pcm)
+    assert len(got) == len(pcm) - 256, "only the dropped chunk's samples are lost"

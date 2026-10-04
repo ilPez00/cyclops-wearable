@@ -72,6 +72,10 @@ static cyclops::PresenceDetector presence;
 static cyclops::PostureDetector posture(30, 600000);
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
+// TX lock. Three contexts write note_ch value+notify: loop(), audio_task and
+// the BLE callback (send_cmd). Without this they interleave on the shared
+// notify buffer and a status frame can be clobbered by an audio frame.
+static SemaphoreHandle_t tx_mtx = nullptr;
 static NimBLECharacteristicCallbacks* note_cb = nullptr;
 static const char* SRVC = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 static const char* NOTE_CH = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
@@ -226,16 +230,24 @@ static void ui_apply_display(const char* json) {
     hud.apply_display_cmd(json);
 }
 
+static void ble_notify(uint8_t* buf, size_t k) {
+    if (!note_ch) return;
+    if (tx_mtx) xSemaphoreTake(tx_mtx, portMAX_DELAY);
+    note_ch->setValue(buf, k);
+    note_ch->notify();
+    if (tx_mtx) xSemaphoreGive(tx_mtx);
+}
+
 static void send_cmd(uint8_t act, const char* arg) {
     uint8_t buf[300];
     char payload[200]; int pl = snprintf(payload, sizeof(payload), "{\"a\":%u,\"arg\":\"%s\"}", act, arg ? arg : "");
     size_t k = cyclops::encode_frame(cyclops::MSG_CMD, (uint8_t*)payload, pl, buf, sizeof(buf));
-    if (note_ch) { note_ch->setValue(buf, k); note_ch->notify(); }
+    ble_notify(buf, k);
 }
 
 static void send_frame(uint8_t type, const uint8_t* p, size_t n) {
     uint8_t buf[400]; size_t k = cyclops::encode_frame(type, p, n, buf, sizeof(buf));
-    if (note_ch) { note_ch->setValue(buf, k); note_ch->notify(); }
+    ble_notify(buf, k);
 }
 
 class SrvCb : public NimBLEServerCallbacks {
@@ -277,6 +289,10 @@ static void audio_task(void*) {
                 cyclops::audio_dropped++;  // no consumer -> drop
             }
         }
+        // Yield one tick per chunk. audio_task runs at priority 5; without this
+        // the 5000 ms status gate in loop() is evaluated late or not at all and
+        // heartbeats starve while audio streams (observed on metal).
+        vTaskDelay(1);
     }
     vTaskDelete(NULL);
 }
@@ -334,6 +350,8 @@ void setup() {
     // Brownout detector disable — prevents random resets under high load
     // (camera + WiFi + BLE concurrently). From xiao-esp32s3-edge-ai reference.
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
+    tx_mtx = xSemaphoreCreateMutex();
 
     Serial.begin(115200);
     Serial.println("[boot] Cyclops XIAO S3 Sense");
