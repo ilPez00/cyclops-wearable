@@ -27,7 +27,9 @@ from brain.extractor import Note, NOTE_TYPES
 PHYSIS_URL = os.environ.get("CYCLOPS_PHYSIS_URL")
 
 # Local retry store: notes that failed to send are queued here
-RETRY_STORE_PATH = os.path.expanduser("~/.cyclops/physis_retry.jsonl")
+RETRY_STORE_PATH = os.environ.get(
+    "CYCLOPS_PHYSIS_RETRY", os.path.expanduser("~/.cyclops/physis_retry.jsonl")
+)
 MAX_RETRIES = 3  # give up after N failed attempts
 RETRY_INTERVAL_SECONDS = 60  # how often to attempt retry
 
@@ -35,7 +37,7 @@ RETRY_INTERVAL_SECONDS = 60  # how often to attempt retry
 # --- Physis API types ---
 
 @dataclass
-class PhiseNotePayload:
+class PhysisNotePayload:
     """Payload sent to the physis HTTP API."""
     id: str
     type: str
@@ -62,6 +64,10 @@ class PhiseNotePayload:
         if self.device is not None:
             d["device"] = self.device
         return json.dumps(d)
+
+
+# Back-compat alias (tests + old imports use typo name).
+PhiseNotePayload = PhysisNotePayload
 
 
 # --- Physis sink ---
@@ -95,7 +101,7 @@ class PhysisSink:
             # the user would set CYCLOPS_PHYSIS_URL.
             return True
 
-        payload = PhiseNotePayload(
+        payload = PhysisNotePayload(
             id=note.id,
             type=note.type,
             text=note.text,
@@ -163,6 +169,7 @@ class PhysisSink:
                 print(f"Physis sink: note {note.id} exceeded max retries; discarding")
                 try:
                     self.local_store.notes.remove(note)  # type: ignore[attr-type]
+                    self.local_store._rewrite()
                 except ValueError:
                     pass
                 continue
@@ -172,6 +179,7 @@ class PhysisSink:
                 # Remove from retry store on success
                 try:
                     self.local_store.notes.remove(note)  # type: ignore[attr-type]
+                    self.local_store._rewrite()
                     sent += 1
                 except ValueError:
                     pass
