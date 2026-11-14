@@ -16,6 +16,7 @@ class Pipeline:
         on_transcript=None,
         health=None,
         extractor=None,
+        physis=True,
     ):
         self.store = store
         self.trans = transcriber or get_transcriber()
@@ -24,6 +25,7 @@ class Pipeline:
         self.on_note = on_note
         self.on_transcript = on_transcript
         self.health = health
+        self.physis = physis
         self.last_transcript = ""
 
     def _do_extract(self, text):
@@ -59,6 +61,13 @@ class Pipeline:
             self.store.add(n)
             if self.on_note:
                 self.on_note(n)
+            if self.physis:
+                try:
+                    from .physis_sink import capture_note
+
+                    capture_note(n)
+                except Exception:
+                    pass  # physis mirror must never break capture
         return notes
 
 
