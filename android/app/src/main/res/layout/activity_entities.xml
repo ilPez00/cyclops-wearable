@@ -8,14 +8,6 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Entities"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@color/cyclops_primary" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="People, places and things Cyclops has seen — ranked by how often."
         android:textSize="13sp"
@@ -45,14 +37,32 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <TextView
-            android:id="@+id/entEmpty"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:id="@+id/entEmptyContainer"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
+            android:orientation="vertical"
             android:gravity="center"
-            android:text="Nothing seen yet.\nAs Cyclops classifies photos and notes,\nentities collect here."
-            android:textColor="@color/cyclops_secondary"
-            android:visibility="gone" />
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◇"
+                android:textSize="56sp"
+                android:textColor="@color/cyclops_primary" />
+
+            <TextView
+                android:id="@+id/entEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="Nothing seen yet.\nAs Cyclops classifies photos and notes,\nentities collect here."
+                android:textSize="15sp"
+                android:textColor="@color/cyclops_secondary" />
+        </LinearLayout>
     </FrameLayout>
 </LinearLayout>

@@ -81,7 +81,7 @@ def test_brain_protocol_matches_firmware_crc_window():
     # (A type+payload-only window round-trips python<->python but the firmware
     # rejects every frame — a latent cross-language break.)
     from brain.protocol import encode as encode_v1
-    from brain.protocol_v2 import encode as encode_v2
+    from brain.protocol_v2 import encode_v2
 
     payload = b'{"a":2,"arg":"hi"}'
     for enc in (encode_v1, encode_v2):

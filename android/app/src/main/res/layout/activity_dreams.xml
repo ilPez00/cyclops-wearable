@@ -8,14 +8,6 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Proposals"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@color/cyclops_primary" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Cyclops reviews your notes and progress in the background and suggests next actions here."
         android:textSize="13sp"
@@ -29,20 +21,44 @@
         android:layout_marginTop="12dp"
         android:text="Review now" />
 
-    <LinearLayout
-        android:id="@+id/dreamList"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="12dp"
-        android:orientation="vertical" />
+        android:layout_marginTop="12dp">
 
-    <TextView
-        android:id="@+id/dreamEmpty"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:padding="16dp"
-        android:text="No proposals right now.\nTap Review now, or let the background loop run."
-        android:textColor="@color/cyclops_secondary" />
+        <LinearLayout
+            android:id="@+id/dreamList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/dreamEmptyContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="◎"
+                android:textSize="56sp"
+                android:textColor="@color/cyclops_primary" />
+
+            <TextView
+                android:id="@+id/dreamEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="No proposals right now.\nTap Review now, or let the background loop run."
+                android:textSize="15sp"
+                android:textColor="@color/cyclops_secondary" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

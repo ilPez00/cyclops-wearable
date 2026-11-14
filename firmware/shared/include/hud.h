@@ -80,6 +80,13 @@ struct Hud {
         if (on_note) on_note(s.text);
     }
 
+    // For a result that completes asynchronously, after do_action() already
+    // returned (e.g. a capture finished on a later loop() tick, not
+    // synchronously inside the triggering action) -- same wire effect as
+    // the private cmd(), public because the caller isn't reacting to a menu
+    // action in progress, it's reporting a result that happened later.
+    void notify_result(uint8_t a, const char* arg = nullptr) { cmd(a, arg); }
+
     Mode stack[STACK];
     int sp = 0;                  // top = stack[sp-1]
     int menu_sel = 0;
@@ -148,6 +155,9 @@ struct Hud {
     // callbacks: send a command byte to the brain (BLE/USB). Set by main.
     void (*send_cmd)(uint8_t act, const char* arg) = nullptr;
     void (*on_transcribe_toggle)() = nullptr;  // device starts/stops mic capture
+    // Device captures + serves one JPEG frame (#1); returns the capture URL,
+    // or "" on failure (no wifi.txt / camera fail) -- cmd()'s arg either way.
+    const char* (*on_photo)() = nullptr;
     void (*on_agent_request)(const char* prompt) = nullptr;  // host streams answer via set_agent()
     void (*on_note)(const char* text) = nullptr;  // fired when a note line is added (SD/log sink)
     // MSG_STATUS frame (t=8). v2 adds mode/spo2/prog/toast/recs/steps while
@@ -170,7 +180,6 @@ struct Hud {
     void init() {
         sp = 0; push(HOME); note_count = 0; menu_sel = 0; hud_len = 0; toast_ttl = 0;
         notif_wp = 0; notif_count = 0;
-        for (uint8_t i = 0; i < RING_SIZE; ++i) { notifs[i].ttl = 0; notifs[i].kind = NOTE_INFO; notifs[i].text[0] = 0; }
         for (uint8_t i = 0; i < RING_SIZE; ++i) { notifs[i].ttl = 0; notifs[i].kind = NOTE_INFO; notifs[i].text[0] = 0; }
     }
     void push(Mode m) { if (sp < STACK) stack[sp++] = m; }
@@ -385,7 +394,9 @@ struct Hud {
             case ACT_BACK:   on_cancel(); break;
             case ACT_PHOTO:
                 if (!consent) { toast("consent off", 2); break; }
-                toast("photo", 2); cmd(ACT_PHOTO); break;
+                toast("photo", 2);
+                cmd(ACT_PHOTO, on_photo ? on_photo() : nullptr);
+                break;
             case ACT_VIDEO:
                 if (!consent) { toast("consent off", 2); break; }
                 video = !video; toast(video ? "video on" : "video off", 2); cmd(ACT_VIDEO); break;

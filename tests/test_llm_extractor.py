@@ -65,7 +65,12 @@ def test_llm_emits_candidate_notes_with_confidence():
         ]
     )
     with tempfile.TemporaryDirectory() as d:
-        ex = LLMExtractor(keys=_keys(d), client=FakeLLMClient(reply))
+        # provider is pinned to the one _keys() seeds. The module default is
+        # "omniroute" (and CYCLOPS_LLM_PROVIDER can change it), and extract()
+        # silently falls back to the rule extractor when that provider has no
+        # key — which is how this test used to pass a rule-based result off as
+        # an LLM one.
+        ex = LLMExtractor(keys=_keys(d), provider="groq", client=FakeLLMClient(reply))
         notes = ex.extract("we should send the invoice to Marco and ship the MVP")
         assert len(notes) == 2
         assert all(n.candidate is True for n in notes)

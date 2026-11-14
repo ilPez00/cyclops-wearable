@@ -80,7 +80,9 @@ def test_dead_provider_skipped_until_backoff():
 
 
 def test_all_dead_raises_last_error():
-    sess = ScriptedSession([(500, {}), (500, {})])
+    # Three responses, not two: chat() tries the FCM local proxy at priority 0
+    # before any keyed provider, so it consumes the first scripted response.
+    sess = ScriptedSession([(500, {}), (500, {}), (500, {})])
     r = CascadingRouter(_cfg(), session=sess, keys=FakeKeys(["groq", "openrouter"]))
     try:
         r.chat([{"role": "user", "content": "x"}])

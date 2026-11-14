@@ -8,14 +8,6 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Button remap"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@color/cyclops_primary" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:textSize="12sp"
         android:textColor="@color/cyclops_secondary"

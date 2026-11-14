@@ -40,6 +40,60 @@
     android:orientation="vertical"
     android:padding="12dp">
 
+    <!-- Pending HITL approval (e.g. a wearable-requested SSH cmd). Same
+         never-auto-commit principle as candidate notes, extended to remote
+         command exec. Hidden unless the brain reports a pending gate. -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/gateBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/cyclops_surface_variant"
+        app:strokeColor="@color/cyclops_warning"
+        app:strokeWidth="1dp"
+        app:cardCornerRadius="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/txtGate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/cyclops_warning"
+                android:textStyle="bold"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="8dp">
+
+                <Button
+                    android:id="@+id/btnGateReject"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:text="Reject" />
+
+                <Button
+                    android:id="@+id/btnGateApprove"
+                    style="@style/Widget.Cyclops.Button.Primary"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Approve" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
     <!-- List + empty state share the flexible middle so the empty state is
          CENTERED in the space, not stranded at the bottom (the old void). -->
     <FrameLayout

@@ -33,8 +33,17 @@ class _Skills:
 
 
 class _Ctx:
+    """Stands in for brain.context.ContextAssembler.
+
+    agent/loop.py calls render_block(), not render() — the delimited form the
+    Flow Score header is inserted into. The stub must offer the same surface.
+    """
+
     def render(self):
         return "notes: bought milk; hr 74"
+
+    def render_block(self):
+        return "=== LIVE CONTEXT ===\n" + self.render() + "\n=== END CONTEXT ==="
 
 
 class _FakeRouter:

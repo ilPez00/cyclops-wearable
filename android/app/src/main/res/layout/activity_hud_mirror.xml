@@ -8,14 +8,6 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Wearable HUD mirror"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:textColor="@color/cyclops_primary" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="A preview of what the wearable's OLED shows. Demo plays sample frames; Live mirrors your connected device."
         android:textSize="13sp"

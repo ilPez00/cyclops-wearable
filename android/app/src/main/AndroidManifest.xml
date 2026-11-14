@@ -92,6 +92,16 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
+        <!-- Dev-only config injector for adb-driven test installs. Not exported;
+             also self-guards against non-debuggable builds. See ConfigReceiver.kt. -->
+        <receiver
+            android:name=".ConfigReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.cyclops.companion.SET_CONFIG" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".HudWidgetProvider"
             android:exported="false">

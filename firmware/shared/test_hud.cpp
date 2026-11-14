@@ -3,6 +3,9 @@
 #include "screen.h"
 #include "ring_proto.h"
 #include "gestures.h"
+#include "presence.h"
+#include "posture.h"
+#include "audio_trigger.h"
 #include <cstdio>
 #include <cstring>
 #include <cassert>
@@ -647,6 +650,89 @@ int main() {
         GridScreen gd1; hd.render(gd1); dump(gd1, a);
         GridScreen gd2; hd.render(gd2); dump(gd2, b);
         assert(memcmp(a, b, sizeof(a)) == 0);
+    }
+
+    // ---- presence detector: off-body latches on sustained stillness ----
+    {
+        PresenceDetector p(1000, 0.02f);  // 1s window for a fast test
+        // worn: magnitude jitters continuously -> never latches off-body
+        assert(p.poll(1000, 0, 0, 0)    == false);
+        assert(p.poll(1050, 20, -10, 200) == false);
+        assert(p.poll(980, -15, 25, 400)  == false);
+        assert(p.poll(1030, 10, -5, 900)  == false);
+        assert(p.off_body() == false);
+
+        // set down: magnitude goes flat and stays flat past stable_ms
+        PresenceDetector p2(1000, 0.02f);
+        assert(p2.poll(0, 0, 4096, 0)   == false);  // anchor
+        assert(p2.poll(0, 0, 4096, 500) == false);  // still flat, window not elapsed
+        assert(p2.changed() == false);
+        assert(p2.poll(0, 0, 4096, 1100) == true);  // 1.1s flat -> off-body
+        assert(p2.changed() == true);
+        assert(p2.poll(0, 0, 4096, 1200) == true);  // stays latched
+        assert(p2.changed() == false);              // no re-trigger while unchanged
+
+        // picked back up: a real motion excursion clears the latch immediately
+        assert(p2.poll(600, 300, 3000, 1250) == false);
+        assert(p2.changed() == true);
+
+        // a single still MOMENT (e.g. genuinely holding a pose) must not trip
+        // it before stable_ms has actually elapsed
+        PresenceDetector p3(1000, 0.02f);
+        assert(p3.poll(1000, 0, 0, 0)   == false);
+        assert(p3.poll(1000, 0, 0, 300) == false);
+        assert(p3.off_body() == false);
+    }
+
+    // ---- posture detector: sustained slouch beyond a calibrated baseline ----
+    {
+        // uncalibrated: never fires, no matter the pitch
+        PostureDetector u;
+        assert(u.poll(90, 100000) == false);
+
+        PostureDetector p(30, 1000);  // 1s sustain for a fast test
+        p.calibrate(5);               // "neutral" baseline pitch
+        assert(p.poll(5, 0)    == false);  // upright: no slouch
+        assert(p.poll(10, 100) == false);  // small drift: within band
+        assert(p.poll(40, 200) == false);  // slouch begins, timer not elapsed
+        assert(p.changed() == false);
+        assert(p.poll(38, 1300) == true);  // sustained 1.1s past onset -> fires
+        assert(p.changed() == true);
+        assert(p.poll(37, 1400) == true);  // stays flagged
+        assert(p.changed() == false);      // no re-trigger while unchanged
+        assert(p.poll(6, 1500)  == false); // sits back up -> clears immediately
+        assert(p.changed() == true);
+
+        // a brief slouch that never sustains must not fire
+        PostureDetector p2(30, 1000);
+        p2.calibrate(0);
+        assert(p2.poll(50, 0)   == false);
+        assert(p2.poll(0, 500)  == false);  // back to neutral before 1s elapsed
+        assert(p2.poll(50, 600) == false);  // slouch restarts its own timer
+        assert(p2.poll(50, 1500) == false); // only 900ms into this bout
+    }
+
+    // ---- audio trigger: sudden loud-sound detector w/ refractory window ----
+    {
+        AudioTrigger t(20000, 1000);  // 1s refractory for a fast test
+        int16_t quiet[8] = {100, -200, 150, -80, 90, -60, 70, -50};
+        assert(t.feed(quiet, 8, 0) == false);
+        assert(t.last_peak() == 200);
+
+        int16_t loud[8] = {100, -25000, 200, 300, -100, 50, 60, -30};
+        assert(t.feed(loud, 8, 500) == true);   // crosses threshold -> fires
+        assert(t.last_peak() == 25000);
+        assert(t.feed(loud, 8, 600) == false);  // same alarm still ringing -> refractory
+        assert(t.feed(loud, 8, 1600) == true);  // 1.1s later -> refractory elapsed, fires again
+        assert(t.feed(quiet, 8, 1650) == false); // quiet chunk: no fire regardless of timing
+
+        // exactly-at-threshold does not count (">= thresh" would be an
+        // off-by-one a shout at exactly half-scale shouldn't trip on)
+        AudioTrigger t2(1000, 0);
+        int16_t edge[2] = {1000, -1000};
+        assert(t2.feed(edge, 2, 0) == false);
+        int16_t over[2] = {1001, 0};
+        assert(t2.feed(over, 2, 1) == true);
     }
 
     printf("ALL HUD LOGIC TESTS PASSED (%d cmds issued)\n", ncmd);

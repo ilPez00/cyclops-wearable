@@ -27,10 +27,36 @@ PORT = 8080
 pipeline = None
 agent = None
 bridge = None
+_vision_fn = None  # lazy-built plain (image_b64, prompt) -> str callable
 # serializes access to the shared agent (ThreadingHTTPServer handles requests
 # concurrently; agent.run() mutates history/cfg with no locking of its own)
 _AGENT_LOCK = threading.Lock()
 DREAM_INTERVAL_S = 1800  # background review cadence (30 min)
+
+
+def _get_vision_fn():
+    """Lazily build the (image_b64, prompt) -> str callable HudBridge uses
+    to tag sightings (#1). Built once, cached module-level -- constructing
+    a Tool + HTTP session per request would be wasteful given /api/hud_cmd
+    already builds a throwaway HudBridge per call.
+
+    NOTE: make_vision_tool()'s offline-stub check reads its own `session`
+    parameter, not the `session or _urllib_session()` fallback it computes
+    internally -- omitting session (as app/server.py's /api/vision handler
+    does) leaves it permanently stubbed regardless of configured API keys.
+    session must be passed explicitly to get a real vision backend, same as
+    agent/tools/__init__.py's build_registry already does for every other
+    tool wired into the conversational agent.
+    """
+    global _vision_fn
+    if _vision_fn is None:
+        from agent.models import _urllib_session
+        from agent.tools.vision import make_vision_tool
+
+        cfg = AgentConfig.load(env=dict(os.environ))
+        tool = make_vision_tool(cfg, session=_urllib_session())
+        _vision_fn = lambda b64, prompt: tool.run({"image": b64, "prompt": prompt})
+    return _vision_fn
 
 
 def _run_dream_review():
@@ -296,6 +322,7 @@ class H(BaseHTTPRequestHandler):
                     store=getattr(pipeline, "store", None) if pipeline else None,
                     transcriber=getattr(pipeline, "trans", None) if pipeline else None,
                     health=None,
+                    vision=_get_vision_fn(),
                 )
                 res = br.dispatch(act, arg)
                 return self._send(
@@ -387,6 +414,15 @@ class H(BaseHTTPRequestHandler):
 
             q = parse_qs(p.query).get("q", [""])[0]
             return self._send(200, json.dumps(EntityStore().search(q)))
+        if p.path == "/api/sightings":
+            # Zero-photo memory (#1): "when did I last see my keys" queries
+            # the text-tag log, never a photo library. ?q= filters; omitted
+            # returns everything, newest last (same order as the JSONL).
+            from brain.sightings import SightingLog
+
+            q = parse_qs(p.query).get("q", [""])[0]
+            log = SightingLog()
+            return self._send(200, json.dumps(log.search(q) if q else log.all()))
         if p.path == "/api/status":
             # Glanceable HUD state for the companion mirror (and the wearable
             # status frame shape, t=8). Reflects the brain's own view when no
@@ -398,6 +434,9 @@ class H(BaseHTTPRequestHandler):
             except Exception:
                 pass
             b = bridge
+            from brain.hitl import get_gatebook
+
+            gate = get_gatebook().latest_pending()
             st = {
                 "t": 8,
                 "rec": 1 if (b and b.recording) else 0,
@@ -405,6 +444,7 @@ class H(BaseHTTPRequestHandler):
                 "notes": note_count,
                 "banner": (b.last_banner if b else ""),
                 "online": True,
+                "gate": gate.to_dict() if gate else None,
             }
             return self._send(200, json.dumps(st))
         self._send(404, json.dumps({"error": "not found"}))
@@ -451,15 +491,9 @@ class H(BaseHTTPRequestHandler):
             # Describe an image: {"image": "<data:base64|url>", "prompt": "..."}.
             # Uses the agent's vision tool (offline-safe stub → local/cloud VLM).
             try:
-                from agent.tools.vision import make_vision_tool
-
-                cfg = AgentConfig.load(env=dict(os.environ))
-                tool = make_vision_tool(cfg)
-                out = tool.run(
-                    {
-                        "image": data.get("image", ""),
-                        "prompt": data.get("prompt", "Describe this image concisely."),
-                    }
+                out = _get_vision_fn()(
+                    data.get("image", ""),
+                    data.get("prompt", "Describe this image concisely."),
                 )
                 return self._send(200, json.dumps({"result": out}))
             except Exception as e:
@@ -534,7 +568,7 @@ class H(BaseHTTPRequestHandler):
 
 
 def main():
-    global pipeline, agent, PORT, STORE_PATH
+    global pipeline, agent, bridge, PORT, STORE_PATH
     if len(sys.argv) > 1:
         PORT = int(sys.argv[1])
     if len(sys.argv) > 2:
@@ -557,11 +591,12 @@ def main():
         pass
     # Agent core: Hermes-style loop with tools (terminal/whatsapp/media/device/brain).
     # Local-first; uses CYCLOPS_LOCAL / provider env to pick cloud vs local model.
-    agent = Agent(
-        AgentConfig.load(env=dict(os.environ)),
-        registry=build_registry(AgentConfig.load(), context_assembler=assembler),
-        context=assembler,
-    )
+    with _AGENT_LOCK:
+        agent = Agent(
+            AgentConfig.load(env=dict(os.environ)),
+            registry=build_registry(AgentConfig.load(), context_assembler=assembler),
+            context=assembler,
+        )
     # HUD bridge: fulfills wearable MSG_CMD locally and pushes glanceable banners
     # back to the glasses. Wired with the agent so the device's AGENT command uses
     # the real core. Sink is a no-op here; the phone/BLE side swaps in a real writer.
@@ -574,14 +609,15 @@ def main():
         def render_text(self, t):
             pass
 
-    global bridge
-    bridge = HudBridge(
-        _NullSink(),
-        store=store,
-        transcriber=getattr(pipeline, "trans", None) if pipeline else None,
-        health=None,
-        agent=agent,
-    )
+    with _AGENT_LOCK:
+        bridge = HudBridge(
+            _NullSink(),
+            store=store,
+            transcriber=getattr(pipeline, "trans", None) if pipeline else None,
+            health=None,
+            agent=agent,
+            vision=_get_vision_fn(),
+        )
     srv = ThreadingHTTPServer(("0.0.0.0", PORT), H)
     # LAN discovery beacon so clients can find us without typing an IP.
     # Convenience only: a taken UDP port degrades to "no beacon", never blocks.

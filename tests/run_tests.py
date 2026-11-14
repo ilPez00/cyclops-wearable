@@ -5,8 +5,8 @@ import os
 import sys
 import traceback
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "brain"))
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(__file__))  # tests/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # repo root
 
 
 def collect(mod):

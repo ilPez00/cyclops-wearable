@@ -9,14 +9,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/ring_title"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="@color/cyclops_primary" />
-
         <Button
             style="@style/Widget.Cyclops.Button.Primary"
         android:id="@+id/btnRingConnect"

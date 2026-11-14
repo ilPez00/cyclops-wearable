@@ -6,7 +6,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.cyclops.companion.databinding.ActivityEntitiesBinding
@@ -16,7 +15,7 @@ import com.cyclops.companion.databinding.ActivityEntitiesBinding
  * filter chips + a card per entity showing recurrence. Styled with the
  * shared AURA tokens.
  */
-class EntitiesActivity : AppCompatActivity() {
+class EntitiesActivity : BaseActivity() {
 
     private lateinit var binding: ActivityEntitiesBinding
     private val items = mutableListOf<CyclopsApi.Entity>()
@@ -27,7 +26,7 @@ class EntitiesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEntitiesBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "Entities")
         binding.entList.layoutManager = LinearLayoutManager(this)
         adapter = Adapter(items)
         binding.entList.adapter = adapter
@@ -42,10 +41,10 @@ class EntitiesActivity : AppCompatActivity() {
                 textSize = 12f
                 setOnClickListener { filter = id; refreshChips(); load() }
             }
-            b.setPadding(24, 4, 24, 4)
+            b.setPadding(16.dp(), 4.dp(), 16.dp(), 4.dp())
             val lp = android.widget.LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            lp.marginEnd = 12
+            lp.marginEnd = 8.dp()
             binding.entFilters.addView(b, lp)
         }
         refreshChips()
@@ -62,15 +61,15 @@ class EntitiesActivity : AppCompatActivity() {
     private fun load() {
         if (!CyclopsApi.configured) {
             binding.entEmpty.text = "Set the brain server in Settings first."
-            binding.entEmpty.visibility = View.VISIBLE
+            binding.entEmptyContainer.visibility = View.VISIBLE
             return
         }
         CyclopsApi.entities(filter,
             onResult = {
                 items.clear(); items.addAll(it); adapter.notifyDataSetChanged()
-                binding.entEmpty.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
+                binding.entEmptyContainer.visibility = if (it.isEmpty()) View.VISIBLE else View.GONE
             },
-            onError = { binding.entEmpty.visibility = View.VISIBLE })
+            onError = { binding.entEmptyContainer.visibility = View.VISIBLE })
     }
 
     private class Adapter(val items: List<CyclopsApi.Entity>) : RecyclerView.Adapter<Adapter.VH>() {

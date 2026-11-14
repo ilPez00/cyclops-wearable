@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import com.cyclops.companion.core.HudFrame
 import com.cyclops.companion.core.HudLayout
 import com.cyclops.companion.databinding.ActivityHudMirrorBinding
@@ -14,7 +13,7 @@ import com.cyclops.companion.databinding.ActivityHudMirrorBinding
  * endpoint (which proxies the device MSG_STATUS frame) and also runs a local
  * demo frame so the screen is meaningful before a device is linked.
  */
-class HudMirrorActivity : AppCompatActivity() {
+class HudMirrorActivity : BaseActivity() {
 
     private lateinit var binding: ActivityHudMirrorBinding
     private val handler = Handler(Looper.getMainLooper())
@@ -75,7 +74,7 @@ class HudMirrorActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityHudMirrorBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, "HUD mirror")
         binding.btnHudDemo.setOnClickListener {
             demo = !demo
             binding.btnHudDemo.text = if (demo) "Switch to Live" else "Switch to Demo"

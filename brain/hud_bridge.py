@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 
+from .hitl import get_gatebook
 from .protocol import MSG, crc16_ccitt_false, encode
 from .protocol_v2 import (
     ACT_AGENT,
@@ -46,12 +47,13 @@ from .protocol import MSG as _MSG  # noqa: E402
 from .transcriber import get_transcriber  # noqa: E402
 
 # lifeOS sink: Cyclops maintains each user's lifeOS with extracted wearable notes.
-# Single source of truth lives at /home/gio/vault/lifeos_sink.py; import it if
-# present (home box), else this stays a no-op so production deploys aren't tied
-# to the vault path.
+# Set CYCLOPS_VAULT env var to the vault directory (default: ~/.cyclops/vault).
+# If the vault isn't available, this stays a no-op so production deploys aren't
+# tied to a specific path.
 try:
+    import os as _os
     import sys as _sys
-    _VAULT = "/home/gio/vault"
+    _VAULT = _os.environ.get("CYCLOPS_VAULT", _os.path.expanduser("~/.cyclops/vault"))
     if _VAULT not in _sys.path:
         _sys.path.insert(0, _VAULT)
     from lifeos_sink import Cyclops as _CyclopsSink  # type: ignore
@@ -87,7 +89,10 @@ _MASK = 0xFF
 
 
 class HudBridge:
-    def __init__(self, sink, store=None, transcriber=None, health=None, agent=None, user_id="wearer"):
+    def __init__(
+        self, sink, store=None, transcriber=None, health=None, agent=None,
+        vision=None, user_id="wearer",
+    ):
         self.sink = sink
         self.store = store
         self.user_id = user_id  # who this wearable serves (lifeOS target)
@@ -96,6 +101,9 @@ class HudBridge:
         self.health = health
         # agent core (cyclops.agent.loop.Agent) — wired by the server; None = stub
         self.agent = agent
+        # vision_fn(image_b64, prompt) -> str — wired by the server from
+        # agent/tools/vision.py; None = zero-photo memory (#1) stays a stub
+        self.vision = vision
         self.tele_script = []
         self.ssh_lines = ["$ ", "cyclops@phone:~# "]
         self._last_detail = ""
@@ -297,12 +305,24 @@ class HudBridge:
             self._emit_text("IMG: OCR/describe (stub)")
             return ("image_analysis", "stub")
         if act == ACT_SSH:
-            self._emit_text("SSH: $ " + (arg or "whoami"))
-            return ("ssh", arg)
+            # Remote command exec is gated, not run inline — the wearable/phone
+            # must send ACT_CONFIRM_YES before this cmd actually fires. Same
+            # never-auto-commit principle the app already applies to notes.
+            gate = get_gatebook().request("ssh", arg or "whoami")
+            self._emit_text("SSH: awaiting approval — $ " + gate.arg)
+            return ("ssh_pending", gate.to_dict())
         if act == ACT_CONFIRM_YES:
+            gate = get_gatebook().resolve_latest(True)
+            if gate is not None:
+                self._emit_text("APPROVED: " + gate.action)
+                return ("gate_approved", gate.to_dict())
             self._emit_text("CONFIRMED")
             return ("confirm_yes", None)
         if act == ACT_CONFIRM_NO:
+            gate = get_gatebook().resolve_latest(False)
+            if gate is not None:
+                self._emit_text("REJECTED: " + gate.action)
+                return ("gate_rejected", gate.to_dict())
             self._emit_text("CANCELLED")
             return ("confirm_no", None)
         if act == ACT_CHOICE_SELECT:
@@ -361,8 +381,18 @@ class HudBridge:
             self._emit_text("AGENT: aborted")
             return ("agent_abort", None)
         if act == ACT_PHOTO:
-            # B-long path: capture a frame, analyze, speak the result back (TTS).
-            line = "PHOTO: captured (stub)"
+            # arg is the wearable's announced capture URL (camera_capture.h)
+            # once wired end-to-end; "" means no wifi.txt / camera failed on
+            # the device side. Tag-and-discard (#1) only runs when both a
+            # real URL and a vision backend are wired — otherwise stays the
+            # same stub behavior tests already expect.
+            if arg and self.vision:
+                from .sightings import capture_and_tag
+
+                entry = capture_and_tag(arg, self.vision)
+                line = f"PHOTO: {entry['tags']}" if entry else "PHOTO: capture/tag failed"
+            else:
+                line = "PHOTO: captured (stub)"
             self._emit_text(line)
             self._emit_tts("Photo captured.")
             return ("photo", line)

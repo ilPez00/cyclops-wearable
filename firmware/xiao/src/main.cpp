@@ -14,6 +14,10 @@
 #include "ring_ble.h"
 #include "sd_log.h"
 #include "imu.h"
+#include "presence.h"
+#include "posture.h"
+#include "audio_trigger.h"
+#include "camera_capture.h"
 #include <Wire.h>
 #include <NimBLEDevice.h>
 #include <driver/i2s.h>
@@ -61,6 +65,17 @@ static cyclops::RingBle ring;          // COLMI R02 BLE central (opt-in)
 #endif
 #ifdef ENABLE_IMU
 static cyclops::Imu imu(0x68, 1);      // HW-123 ITG/MPU on I2C (D6/D7), INT->D1
+// Off-body privacy gate: a device resting on a surface reads a near-constant
+// gravity vector for 4s straight -> consent forced off + any capture already
+// running is force-stopped. This must be a firmware-local invariant (holds
+// even with the BLE link down), same fail-closed principle as the phone-side
+// HITL gate. Re-worn (motion resumes) restores consent immediately.
+static cyclops::PresenceDetector presence;
+// Posture cue: calibrated to "neutral" on first read after boot and again
+// whenever the device is re-worn (presence edge on->off->on), since pin/
+// lapel mounting angle isn't fixed. 30 deg sustained 10 min, per the product
+// pitch; breathing-rate is real DSP work (chest-rise extraction), deferred.
+static cyclops::PostureDetector posture(30, 600000);
 #endif
 static NimBLEServer* srv;
 static NimBLECharacteristic* note_ch;
@@ -79,6 +94,21 @@ static void audio_task(void*);
 static cyclops::FrameDecoder dec(on_frame, nullptr);
 static bool capturing = false;
 static TaskHandle_t cap_task = nullptr;
+// Sudden loud-sound tier (#6): only runs on chunks already being read for an
+// active capture — piggybacks on the existing mic path rather than adding a
+// new always-on listen loop, which would need real hardware to power/false-
+// positive tune before it's safe to leave running unattended. Set by
+// audio_task (a separate FreeRTOS task); loop() picks it up on the main task
+// so hud.notify() is only ever touched from one task, same as `capturing`'s
+// existing plain-bool cross-task convention.
+static cyclops::AudioTrigger audio_trigger;
+static volatile bool loud_flag = false;
+// Deferred ACT_PHOTO handoff from BLE-callback-context to the main loop
+// task -- see hud.on_photo below for why this can't just do the work inline.
+static volatile bool photo_flag = false;
+// On-demand photo capture (#1): camera + WiFi + HTTP come up only when a
+// photo is actually requested, torn down after 60s idle. See camera_capture.h.
+static cyclops::CameraCapture camera_capture;
 
 class NoteCb : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* c) override {
@@ -229,6 +259,7 @@ static void audio_task(void*) {
     while (capturing) {
         i2s_read((i2s_port_t)0, samples, sizeof(samples), &rd, pdMS_TO_TICKS(100));
         if (rd > 0) {
+            if (audio_trigger.feed(samples, rd / 2, millis())) loud_flag = true;
             // Backpressure: only stream audio when a phone is actually
             // connected to receive it. Sending into the void wastes the BLE
             // queue and battery; drop the chunk instead. (D)
@@ -304,6 +335,19 @@ void setup() {
     hud.send_cmd = send_cmd;
     hud.on_transcribe_toggle = []() { if (capturing) stop_capture(); else start_capture(); };
     hud.on_note = [](const char* t) { cyclops::sd_log_line("hud", t); };
+    // Deliberately just sets a flag -- do_action(ACT_PHOTO) (and therefore
+    // this callback) can run on the NimBLE host task's own stack when
+    // triggered by a phone-relayed MSG_CMD (on_frame() -> do_action() is
+    // called directly from the GATT write callback), not the main loop
+    // task. That stack is small by default; esp_camera_init()'s local
+    // camera_config_t plus WiFi.begin()'s blocking join loop, run directly
+    // on it, is a real overflow risk -- and a strong suspect for the
+    // "sd_ready() false right after camera init succeeds" bug seen live on
+    // metal (smashed static BSS is exactly this failure's shape). The
+    // actual capture work now happens in loop() on the main task instead;
+    // see photo_flag below. The immediate cmd(ACT_PHOTO,"") notify is
+    // cheap/safe here -- it's just a function-pointer call, no blocking I/O.
+    hud.on_photo = []() -> const char* { photo_flag = true; return ""; };
     hud.init();
     Serial.println("[boot] hud.init ok");
     if (cyclops::sd_begin()) Serial.println("[boot] sd card mounted /sdcard");
@@ -335,6 +379,19 @@ void loop() {
     static int prev = 0;
     if (wheel_ticks != prev) { hud.on_wheel(wheel_ticks - prev > 0 ? 1 : -1); prev = wheel_ticks; }
     uint32_t now = millis();
+    if (loud_flag) {
+        loud_flag = false;
+        hud.notify("loud sound detected", cyclops::Hud::NOTE_WARN, 3);
+        cyclops::sd_log_line("audio_trigger", "loud");
+    }
+    if (photo_flag) {
+        photo_flag = false;
+        const char* url = camera_capture.request(now);
+        if (url[0]) cyclops::sd_log_line("photo", url);
+        else hud.toast("photo: no wifi.txt / cam fail", 3);
+        hud.notify_result(cyclops::ACT_PHOTO, url);
+    }
+    camera_capture.tick(now);
     // buttons are active-low; detector wants pressed=true
     cyclops::Gesture ga = gest_a.poll(!digitalRead(PIN_BTN_A), now);
     cyclops::Gesture gb = gest_b.poll(!digitalRead(PIN_BTN_B), now);
@@ -352,6 +409,21 @@ void loop() {
         hud.nav_head = imu.sample().heading;           // tilt/nav heading
         int tilt = imu.scroll_tilt();
         if (tilt != 0) hud.on_wheel(tilt);             // tilt = scroll
+        const auto& s = imu.sample();
+        bool off = presence.poll(s.ax, s.ay, s.az, now);
+        if (presence.changed()) {
+            hud.set_consent(!off);
+            if (off && capturing) stop_capture();  // guarantee, not just a future gate
+            if (off) camera_capture.shutdown();    // camera+WiFi off too, immediately
+            hud.notify(off ? "off-body: sensors off" : "on-body: sensors on",
+                       cyclops::Hud::NOTE_WARN, 2);
+            cyclops::sd_log_line("presence", off ? "off" : "on");
+            if (!off) posture.calibrate(s.pitch);  // just re-worn: reset "neutral"
+        }
+        if (!posture.calibrated() && !off) posture.calibrate(s.pitch);  // first read after boot
+        if (!off && posture.poll(s.pitch, now) && posture.changed()) {
+            hud.notify("posture: sit up straight", cyclops::Hud::NOTE_INFO, 3);
+        }
     }
 #endif
     if (millis()-last_hb > 5000) {

@@ -16,11 +16,18 @@ Both :func:`extract` (rule) and :class:`LLMExtractor.extract` return
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime
 from typing import Callable
 
 from .extractor import NOTE_TYPES, Note, _resolve_due
+
+# freerouting defaults: route through the local OmniRoute `omniroute` provider
+# (registered in ai_api.txt) using the agy → Claude Code Pro → free combo.
+# Override with CYCLOPS_LLM_PROVIDER / CYCLOPS_LLM_MODEL.
+_DEFAULT_PROVIDER = os.environ.get("CYCLOPS_LLM_PROVIDER", "omniroute")
+_DEFAULT_MODEL = os.environ.get("CYCLOPS_LLM_MODEL", "agy-claude-first")
 
 
 class LLMClientError(RuntimeError):
@@ -49,7 +56,7 @@ class LLMClient:
     is injectable for offline testing.
     """
 
-    def __init__(self, keys=None, provider: str = "groq", session=None):
+    def __init__(self, keys=None, provider: str = _DEFAULT_PROVIDER, session=None):
         from .aikeys import AiKeys
 
         self.keys = keys or AiKeys()
@@ -59,7 +66,7 @@ class LLMClient:
     def complete(
         self,
         messages: list[dict],
-        model: str = "llama-3.3-70b-versatile",
+        model: str = _DEFAULT_MODEL,
         temperature: float = 0.0,
     ) -> str:
         prov = self.keys.provider(self.provider)
@@ -71,7 +78,12 @@ class LLMClient:
             "Authorization": f"Bearer {prov['key']}",
             "Content-Type": "application/json",
         }
-        payload = {"model": model, "messages": messages, "temperature": temperature}
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": False,  # OmniRoute/OpenAI default may stream; we parse a single JSON body
+        }
         resp = self.session.post(
             url, data=json.dumps(payload).encode(), headers=headers, timeout=30
         )
@@ -92,10 +104,10 @@ class LLMExtractor:
     def __init__(
         self,
         keys=None,
-        provider: str = "groq",
+        provider: str = _DEFAULT_PROVIDER,
         client: "LLMClient | None" = None,
         fallback: Callable[[str], list[Note]] | None = None,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = _DEFAULT_MODEL,
     ):
         from .aikeys import AiKeys
         from .extractor import extract as _rule_extract

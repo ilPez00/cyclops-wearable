@@ -56,8 +56,6 @@ PAT_IDEA_LEAD = re.compile(r"^\s*(idea)\s*:\s*", re.I)
 PAT_DECISION = re.compile(
     r"\b(we decided|decided to|we will|agreed to|the plan is|conclusion:)\b", re.I
 )
-# explicit "idea:" / "idea :" lead-in
-PAT_IDEA_LEAD = re.compile(r"^\s*(idea)\s*:\s*", re.I)
 
 
 def _resolve_due(text: str) -> str | None:

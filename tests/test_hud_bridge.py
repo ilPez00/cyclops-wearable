@@ -19,7 +19,7 @@ from brain.protocol_v2 import (
     ACT_VOICE_CMD,
     ACT_VOICE_NOTE,
     decode,
-    encode,
+    encode_v2,
 )
 from brain.store import NoteStore
 from brain.transcriber import StubTranscriber
@@ -79,12 +79,68 @@ def test_each_action_returns_frame():
         assert len(c.frames) >= 1
 
 
+def test_photo_with_url_and_vision_tags_and_discards():
+    if os.path.exists("/tmp/cyclops_sightings.jsonl"):
+        os.remove("/tmp/cyclops_sightings.jsonl")
+    import brain.sightings as sightings
+
+    sightings_log = sightings.SightingLog("/tmp/cyclops_sightings.jsonl")
+    fake_fetch = lambda url: b"\xff\xd8FAKEJPEG\xff\xd9"
+    real_add_and_tag = sightings.capture_and_tag
+    try:
+        sightings.capture_and_tag = lambda url, vision_fn, log=None, fetch=None: (
+            real_add_and_tag(url, vision_fn, sightings_log, fetch=fake_fetch)
+        )
+        cap = Cap()
+        vision_calls = []
+
+        def fake_vision(b64, prompt):
+            vision_calls.append((b64, prompt))
+            return "desk, laptop, coffee cup"
+
+        br = HudBridge(cap, vision=fake_vision)
+        kind, line = br.dispatch(ACT_PHOTO, "http://192.168.1.50/capture")
+        assert kind == "photo"
+        assert "desk, laptop, coffee cup" in line
+        assert len(vision_calls) == 1
+        assert "FAKEJPEG" not in vision_calls[0][0]  # b64, not raw bytes
+        entries = sightings_log.all()
+        assert len(entries) == 1
+        assert entries[0]["tags"] == "desk, laptop, coffee cup"
+    finally:
+        sightings.capture_and_tag = real_add_and_tag
+        if os.path.exists("/tmp/cyclops_sightings.jsonl"):
+            os.remove("/tmp/cyclops_sightings.jsonl")
+
+
+def test_photo_without_vision_stays_stub():
+    cap = Cap()
+    br = HudBridge(cap)  # no vision wired
+    kind, line = br.dispatch(ACT_PHOTO, "http://192.168.1.50/capture")
+    assert kind == "photo"
+    assert line == "PHOTO: captured (stub)"
+
+
+def test_ssh_is_gated_not_executed():
+    from brain.hitl import get_gatebook
+
+    get_gatebook().clear_resolved()
+    cap = Cap()
+    br = HudBridge(cap)
+    kind, payload = br.dispatch(ACT_SSH, "rm -rf /")
+    assert kind == "ssh_pending"
+    assert get_gatebook().has_pending()
+    kind, payload = br.dispatch(ACT_CONFIRM_YES)
+    assert kind == "gate_approved"
+    assert not get_gatebook().has_pending()
+
+
 def test_cmd_roundtrip_parse():
     # firmware emits MSG_CMD; bridge parses it back
     cap = Cap()
     br = HudBridge(cap)
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    frame = encode(MSG["CMD"], payload)
+    frame = encode_v2(MSG["CMD"], payload)
     typ, pl = decode(frame)
     assert typ == MSG["CMD"]
     res = br.handle_cmd(pl)
@@ -94,13 +150,13 @@ def test_cmd_roundtrip_parse():
 def test_frame_receiver_end_to_end():
     # simulate the firmware emitting a v2 MSG_CMD frame over a byte stream
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol_v2 import encode
+    from brain.protocol_v2 import encode_v2
 
     cap = Cap()
     br = HudBridge(cap)
     # firmware builds the same frame the MCU would: MSG_CMD with translate action
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    frame = encode(MSG_CMD, payload)
+    frame = encode_v2(MSG_CMD, payload)
     rcv = FrameReceiver(br)
     rcv.feed(frame)
     assert any(b"TR:" in f for f in cap.frames), (
@@ -111,12 +167,12 @@ def test_frame_receiver_end_to_end():
 def test_frame_receiver_rejects_bad_crc():
     # a corrupted payload byte must not reach the bridge (mirrors firmware CRC gate)
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol_v2 import encode
+    from brain.protocol_v2 import encode_v2
 
     cap = Cap()
     br = HudBridge(cap)
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    frame = bytearray(encode(MSG_CMD, payload))
+    frame = bytearray(encode_v2(MSG_CMD, payload))
     frame[-1] ^= 0xFF  # corrupt the CRC itself; payload stays valid JSON
     rcv = FrameReceiver(br)
     rcv.feed(bytes(frame))
@@ -129,7 +185,7 @@ def test_frame_receiver_recovers_from_oversized_frame():
     # a declared length beyond buffer capacity must be rejected, and the
     # receiver must resync on the next valid frame (mirrors firmware decoder)
     from brain.hud_bridge import MSG_CMD, FrameReceiver, HudBridge
-    from brain.protocol_v2 import encode
+    from brain.protocol_v2 import encode_v2
 
     cap = Cap()
     br = HudBridge(cap)
@@ -139,7 +195,7 @@ def test_frame_receiver_recovers_from_oversized_frame():
     rcv.feed(b"\x00" * 100)
     # then a valid frame — it must still dispatch
     payload = json.dumps({"a": ACT_TRANSLATE, "arg": "ciao"}).encode()
-    rcv.feed(encode(MSG_CMD, payload))
+    rcv.feed(encode_v2(MSG_CMD, payload))
     assert any(b"TR:" in f for f in cap.frames), (
         "receiver must recover after an oversized frame"
     )

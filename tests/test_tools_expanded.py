@@ -70,8 +70,16 @@ def test_health_no_data():
 
 
 def test_screen_offline():
+    # The offline branch is "no scrot and no import on PATH". Asserting it
+    # without forcing it only passed on machines that happened to lack both;
+    # anywhere imagemagick is installed the tool really takes a screenshot.
     t = make_screen_tool(AgentConfig())
-    out = t.run({"describe": False})
+    old_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = ""
+    try:
+        out = t.run({"describe": False})
+    finally:
+        os.environ["PATH"] = old_path
     assert "offline" in out
 
 
