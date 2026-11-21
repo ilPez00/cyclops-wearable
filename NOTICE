@@ -1,0 +1,8 @@
+NOTICE — third-party components
+
+Original work (Python brain, wire protocol, device simulators, host tooling) is MIT
+licensed (see LICENSE). Third-party libraries, firmware dependencies and toolchains
+(PlatformIO, Arduino core, faster-whisper when installed, and any vendor SDK) remain
+under their own licenses and are not relicensed here. Hardware designs inspired by
+EvenRealities G2 and Omi/Pebble feature sets are independent implementations.
+Copyright (c) 2026 Giovanni Antonio Pezzin.
